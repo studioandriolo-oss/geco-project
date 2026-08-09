@@ -289,7 +289,7 @@ if df_scurve is not None and not df_scurve.empty:
         labels={'value': 'Importo (€)', 'variable': 'Metrica EVM'}
     )
         
-        # --- NOVITÀ: AGGIUNTA PROIEZIONI FUTURE (FORECAST) ---
+# --- NOVITÀ: AGGIUNTA PROIEZIONI FUTURE (FORECAST) ---
         df_past = df_scurve[df_scurve['Data'] <= data_status_evm]
         
         if not df_past.empty:
