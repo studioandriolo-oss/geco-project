@@ -135,7 +135,8 @@ with tab2:
         graph.node(row['ID_OBS'], f"{row['Ruolo']}\n({row['Risorsa']})", shape='box', style='filled', fillcolor='lightblue')
         
     # Nodi WBS e Connessioni (I Work Packages)
-    for _, row in st.session_state.wbs_data.iterrows():
+    df_wp_reali = st.session_state.wbs_data[st.session_state.wbs_data['ID_WBS'].astype(str).str.contains('\.')]
+    for _, row in df_wp_reali.iterrows():
         wp_label = f"WP: {row['Attività']}\nBudget: €{row['BAC_Budget']}"
         graph.node(
         row['ID_WBS'], 
@@ -163,6 +164,7 @@ with tab3:
     vista = st.selectbox("Seleziona Vista", ["Progetto (Baseline)", "Esecuzione (As-Built)", "Comparativa"])
     
     df_gantt = st.session_state.wbs_data.copy()
+    df_gantt = df_gantt[df_gantt['ID_WBS'].astype(str).str.contains('\.')] 
     
     # Assicuriamoci che le date siano datetime per Plotly
     df_gantt['Inizio_Previsto'] = pd.to_datetime(df_gantt['Inizio_Previsto'])
