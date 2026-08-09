@@ -94,7 +94,9 @@ with tab1:
                 column_config={
                     "Predecessori": st.column_config.TextColumn(
                         "Predecessori (WP)",
-                        help="ID dei WP che devono finire prima (es. 1.1, 1.2)"    
+                        help="ID dei WP che devono finire prima (es. 1.1, 1.2)"
+                    )
+                }
             )
             
             radice_aggiornata = radice.copy()
