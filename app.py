@@ -39,6 +39,45 @@ if 'obs_data' not in st.session_state:
         'Tipo_Contratto': ['Appalto ▾', 'Sub appalto ▾'], 
         'Note': ['', 'Ricordare DURC']            
     })
+    
+# ---  INIZIALIZZAZIONE REGISTRO CONTABILE ---
+if 'registro_data' not in st.session_state:
+    st.session_state.registro_data = pd.DataFrame({
+        'Data': [date(2026, 9, 5), date(2026, 9, 10)],
+        'N_Doc': ['FATT-01', 'FATT-02'],
+        'Fornitore': ['Mario Rossi', 'Nolo Scavi Srl'],
+        'Voce_WBS': ['1.1 - Scavi con mezzi meccanici', '1.1 - Scavi con mezzi meccanici'], # Voci a tendina
+        'Importo_Netto': [2000.0, 3200.0],
+        'Descrizione': ['Acconto lavori', 'Nolo escavatore']
+    })
+
+# --- MOTORE AGGIORNAMENTO COSTI REALI (Da Tab 6 a Tab 1) ---
+def aggiorna_costi_reali():
+    df_reg = st.session_state.registro_data.copy()
+    # Estraiamo l'ID (es. "1.1") dalla voce a tendina (es. "1.1 - Scavi con mezzi meccanici")
+    df_reg['ID_WBS_calc'] = df_reg['Voce_WBS'].astype(str).apply(lambda x: x.split(' - ')[0] if ' - ' in x else None)
+    
+    # Sommiamo gli importi netti raggruppandoli per ID_WBS
+    costi_raggruppati = df_reg.groupby('ID_WBS_calc')['Importo_Netto'].sum().reset_index()
+    cost_map = dict(zip(costi_raggruppati['ID_WBS_calc'], costi_raggruppati['Importo_Netto']))
+    
+    # Applichiamo i costi calcolati alla tabella WBS
+    wbs = st.session_state.wbs_data
+    wbs['AC_Costo_Reale'] = wbs['ID_WBS'].apply(lambda x: cost_map.get(str(x), 0.0))
+    st.session_state.wbs_data = wbs
+
+# Eseguiamo i calcoli in sequenza prima di disegnare l'interfaccia
+aggiorna_costi_reali()
+
+# Calcoli EVM Dinamici sul DataFrame
+def calcola_evm(df):
+    df['EV'] = df['BAC_Budget'] * (df['%_Completamento'] / 100)
+    df['CV'] = df['EV'] - df['AC_Costo_Reale']
+    df['SPI'] = df.apply(lambda x: (x['EV'] / x['BAC_Budget']) if x['BAC_Budget'] > 0 else 1, axis=1)
+    df['CPI'] = df.apply(lambda x: (x['EV'] / x['AC_Costo_Reale']) if x['AC_Costo_Reale'] > 0 else 1, axis=1)
+    return df
+
+st.session_state.wbs_data = calcola_evm(st.session_state.wbs_data)
 
 # Calcoli EVM Dinamici sul DataFrame
 def calcola_evm(df):
@@ -56,7 +95,8 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "👥 OBS (Risorse)", 
     "🕸️ Nodi & Matrice", 
     "📅 Cronoprogramma", 
-    "📈 EVM & Cash Flow"
+    "📈 EVM & Cash Flow",
+    "🧾 Reg. Contabile"    
 ])
 
 # --- TAB 1: SETUP WBS (Solo Lavorazioni) ---
@@ -84,7 +124,7 @@ with tab1:
                 num_rows="dynamic",
                 use_container_width=True,
                 hide_index=True,
-                disabled=["Durata_Prevista (gg)", "ID_WBS"],
+                disabled=["Durata_Prevista (gg)", "ID_WBS", "AC_Costo_Reale"],
                 column_config={
                     "Predecessori": st.column_config.TextColumn(
                         "Predecessori (WP)",
@@ -95,6 +135,7 @@ with tab1:
             
             radice_aggiornata = radice.copy()
             radice_aggiornata['BAC_Budget'] = discendenti_modificati['BAC_Budget'].sum()
+            radice_aggiornata['AC_Costo_Reale'] = discendenti_modificati['AC_Costo_Reale'].sum()
             
             df_aggiornato = pd.concat([df_aggiornato, pd.DataFrame([radice_aggiornata]), discendenti_modificati], ignore_index=True)
             
@@ -431,3 +472,46 @@ with tab5:
         * **CV (Cost Variance):** Scostamento dei costi assoluto (EV - AC).  
         Un valore negativo indica una perdita monetaria sull'attività.
         """)
+        
+# --- TAB 6: REGISTRO CONTABILE ---
+with tab6:
+    st.header("Registro Contabile")
+    st.markdown("Inserisci qui le fatture e i SAL. Gli importi netti si sommeranno automaticamente aggiornando la voce *AC_Costo_Reale* nella WBS.")
+    
+    # 1. Prepariamo dinamicamente le voci per il menu a tendina (Prendiamo solo i sotto-nodi WBS operativi)
+    df_wbs = st.session_state.wbs_data
+    leaf_wbs = df_wbs[df_wbs['ID_WBS'].astype(str).str.contains('\.')]
+    # Creiamo una lista formattata "ID - Nome Attività" (es. "1.1 - Scavi con mezzi meccanici")
+    wbs_options = [f"{row['ID_WBS']} - {row['Attività']}" for _, row in leaf_wbs.iterrows()]
+    
+    # 2. Creiamo la tabella di input
+    edited_registro = st.data_editor(
+        st.session_state.registro_data,
+        num_rows="dynamic",
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "Data": st.column_config.DateColumn("Data Registrazione"),
+            "N_Doc": st.column_config.TextColumn("N° Doc/Fattura"),
+            "Fornitore": st.column_config.TextColumn("Fornitore (OBS)"),
+            "Descrizione": st.column_config.TextColumn("Descrizione / Note"),
+            "Importo_Netto": st.column_config.NumberColumn(
+                "Importo Netto (€)", 
+                format="€ %.2f", 
+                min_value=0.0
+            ),
+            "Voce_WBS": st.column_config.SelectboxColumn(
+                "Attività WBS (Destinazione) ▾",
+                help="Seleziona la lavorazione di riferimento",
+                options=wbs_options, # Passiamo la lista dinamica!
+                required=True
+            )
+        }
+    )
+    
+    # 3. Aggiorniamo i dati in tempo reale
+    if not edited_registro.equals(st.session_state.registro_data):
+        st.session_state.registro_data = edited_registro
+        # Se c'è una modifica, riavvia l'app in modo che il motore in alto ricalcoli
+        # i costi, li spari nel Tab 1 e ricalcoli l'EVM nel Tab 5.
+        st.rerun()
