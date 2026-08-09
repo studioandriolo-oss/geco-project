@@ -59,55 +59,55 @@ tab1, tab2, tab3, tab4 = st.tabs(["🗂️ Setup WBS/OBS", "🕸️ Nodi & Matri
 with tab1:
     st.header("Compilazione Strutture WBS & OBS")
     
-        st.subheader("WBS - Work Breakdown Structure")
-        df = st.session_state.wbs_data
+    st.subheader("WBS - Work Breakdown Structure")
+    df = st.session_state.wbs_data
         
-        # 1. CALCOLO AUTOMATICO (Celle derivate): Calcoliamo i giorni di durata
-        df['Durata_Prevista (gg)'] = (pd.to_datetime(df['Fine_Prevista']) - pd.to_datetime(df['Inizio_Previsto'])).dt.days
+    # 1. CALCOLO AUTOMATICO (Celle derivate): Calcoliamo i giorni di durata
+    df['Durata_Prevista (gg)'] = (pd.to_datetime(df['Fine_Prevista']) - pd.to_datetime(df['Inizio_Previsto'])).dt.days
         
-        is_root = ~df['ID_WBS'].astype(str).str.contains('\.')
-        radici = df[is_root]
+    is_root = ~df['ID_WBS'].astype(str).str.contains('\.')
+    radici = df[is_root]
         
-        df_aggiornato = pd.DataFrame()
+    df_aggiornato = pd.DataFrame()
         
-        for _, radice in radici.iterrows():
-            id_radice = str(radice['ID_WBS'])
-            discendenti = df[df['ID_WBS'].astype(str).str.startswith(f"{id_radice}.")]
-            tot_budget = discendenti['BAC_Budget'].sum()
+    for _, radice in radici.iterrows():
+        id_radice = str(radice['ID_WBS'])
+        discendenti = df[df['ID_WBS'].astype(str).str.startswith(f"{id_radice}.")]
+        tot_budget = discendenti['BAC_Budget'].sum()
             
-            with st.expander(f"📁 {id_radice} - {radice['Attività']} (Budget Raggruppato: € {tot_budget:,.2f})", expanded=True):
+        with st.expander(f"📁 {id_radice} - {radice['Attività']} (Budget Raggruppato: € {tot_budget:,.2f})", expanded=True):
                 
-                discendenti_modificati = st.data_editor(
-                    discendenti,
-                    key=f"editor_{id_radice}",
-                    num_rows="dynamic",
-                    use_container_width=True,
-                    hide_index=True,
-                    # 2. BLOCCO CELLE: Impediamo la modifica della durata calcolata e dell'ID strutturale
-                    disabled=["Durata_Prevista (gg)", "ID_WBS"] 
-                )
+            discendenti_modificati = st.data_editor(
+                discendenti,
+                key=f"editor_{id_radice}",
+                num_rows="dynamic",
+                use_container_width=True,
+                hide_index=True,
+                # 2. BLOCCO CELLE: Impediamo la modifica della durata calcolata e dell'ID strutturale
+                disabled=["Durata_Prevista (gg)", "ID_WBS"] 
+            )
                 
-                radice_aggiornata = radice.copy()
-                radice_aggiornata['BAC_Budget'] = discendenti_modificati['BAC_Budget'].sum()
+            radice_aggiornata = radice.copy()
+            radice_aggiornata['BAC_Budget'] = discendenti_modificati['BAC_Budget'].sum()
                 
-                df_aggiornato = pd.concat([df_aggiornato, pd.DataFrame([radice_aggiornata]), discendenti_modificati], ignore_index=True)
+            df_aggiornato = pd.concat([df_aggiornato, pd.DataFrame([radice_aggiornata]), discendenti_modificati], ignore_index=True)
                 
-        with st.form("aggiungi_padre"):
-            st.write("Aggiungi nuova Macro-Categoria")
-            c1, c2, c3 = st.columns([2, 5, 2])
-            nuovo_id = c1.text_input("ID (es. 5)")
-            nuova_att = c2.text_input("Nome Categoria")
-            if c3.form_submit_button("➕ Aggiungi"):
-                if nuovo_id and nuova_att:
-                    nuova_riga = pd.DataFrame([{
-                        'ID_WBS': nuovo_id, 'Attività': nuova_att, 'BAC_Budget': 0.0, 
-                        '%_Completamento': 0, 'AC_Costo_Reale': 0.0
-                    }])
-                    st.session_state.wbs_data = pd.concat([st.session_state.wbs_data, nuova_riga], ignore_index=True)
-                    st.rerun()
+    with st.form("aggiungi_padre"):
+        st.write("Aggiungi nuova Macro-Categoria")
+        c1, c2, c3 = st.columns([2, 5, 2])
+        nuovo_id = c1.text_input("ID (es. 5)")
+        nuova_att = c2.text_input("Nome Categoria")
+        if c3.form_submit_button("➕ Aggiungi"):
+            if nuovo_id and nuova_att:
+                nuova_riga = pd.DataFrame([{
+                    'ID_WBS': nuovo_id, 'Attività': nuova_att, 'BAC_Budget': 0.0, 
+                    '%_Completamento': 0, 'AC_Costo_Reale': 0.0
+                }])
+                st.session_state.wbs_data = pd.concat([st.session_state.wbs_data, nuova_riga], ignore_index=True)
+                st.rerun()
 
-        if not df_aggiornato.empty:
-            st.session_state.wbs_data = df_aggiornato
+    if not df_aggiornato.empty:
+        st.session_state.wbs_data = df_aggiornato
 
         st.subheader("OBS - Risorse")
         
