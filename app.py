@@ -373,12 +373,12 @@ with tab5:
     st.plotly_chart(fig_evm, use_container_width=True)
 
     col_KPI, col_LEGENDA = st.columns(2)
-        with col_KPI
+        with col_KPI:
             st.subheader("Indicatori di Performance (KPI)")
             # Tabella per mostrare lo stato di salute di ogni WP
             df_kpi = df_evm[['Attività', '%_Completamento', 'CPI', 'SPI', 'CV']].copy()
 
-        with col_LEGENDA
+        with col_LEGENDA:
             st.subheader("Legenda")
             st.txt("CPI = Control...")
              st.txt("SPI = Control...")
