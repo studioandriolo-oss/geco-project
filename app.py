@@ -270,81 +270,84 @@ def calcola_evm(df, data_status):
 # Inizializzazione protetta
 st.session_state.wbs_data = calcola_evm(st.session_state.wbs_data, pd.Timestamp.today().date())
 
-# GENERATORE DATI PER LA CURVA A S (Storico temporale EVM)
-def genera_dati_scurve(df_wbs, df_reg, data_status):
-    oggi = pd.to_datetime(data_status).date()
+# --- GRAFICO EVM: CURVA AD S (S-CURVE) ---
+    st.subheader("📈 Curva ad S (Andamento Temporale di Progetto)")
     
-    # Troviamo l'estensione temporale del progetto
-    date_inizio = pd.to_datetime(df_wbs['Inizio_Previsto']).dropna().dt.date
-    date_fine = pd.to_datetime(df_wbs['Fine_Prevista']).dropna().dt.date
+    # Generiamo i dati tramite la nostra nuova funzione
+    df_scurve = genera_dati_scurve(df_evm, st.session_state.registro_data, data_status_evm)
     
-    if date_inizio.empty or date_fine.empty:
-        return None
+    if df_scurve is not None and not df_scurve.empty:
+        fig_scurve = px.line(
+            df_scurve, 
+            x='Data', 
+            y=['PV (Valore Pianificato)', 'EV (Valore Guadagnato)', 'AC (Costo Reale)'],
+            color_discrete_map={
+                'PV (Valore Pianificato)': 'blue',
+                'EV (Valore Guadagnato)': 'green',
+                'AC (Costo Reale)': 'red'
+            },
+            labels={'value': 'Importo (€)', 'variable': 'Metrica EVM'}
+        )
         
-    min_date = date_inizio.min()
-    max_date = date_fine.max()
-    
-    # Creiamo un array di giorni (asse X)
-    date_range = pd.date_range(start=min_date, end=max_date)
-    
-    # Raggruppiamo i costi reali (AC) per giorno usando il Registro Contabile
-    df_reg_calc = df_reg.copy()
-    df_reg_calc['Data'] = pd.to_datetime(df_reg_calc['Data'], errors='coerce').dt.date
-    ac_daily = df_reg_calc.groupby('Data')['Importo_Netto'].sum().to_dict()
-    
-    dati = []
-    cum_ac = 0.0
-    
-    for d_ts in date_range:
-        d = d_ts.date()
-        pv_giorno = 0.0
-        ev_giorno = 0.0
+        # --- NOVITÀ: AGGIUNTA PROIEZIONI FUTURE (FORECAST) ---
+        df_past = df_scurve[df_scurve['Data'] <= data_status_evm]
         
-        for _, row in df_wbs.iterrows():
-            bac = float(row['BAC_Budget']) if pd.notna(row['BAC_Budget']) else 0.0
+        if not df_past.empty:
+            # 1. Coordinate di partenza (i valori registrati ad "Oggi")
+            last_ac = df_past.iloc[-1]['AC (Costo Reale)']
+            last_ev = df_past.iloc[-1]['EV (Valore Guadagnato)']
+            last_pv = df_past.iloc[-1]['PV (Valore Pianificato)']
             
-            # Calcolo PV cumulativo giornaliero
-            ip = pd.to_datetime(row['Inizio_Previsto']).date() if pd.notna(row['Inizio_Previsto']) else None
-            fp = pd.to_datetime(row['Fine_Prevista']).date() if pd.notna(row['Fine_Prevista']) else None
-            if ip and fp and bac > 0:
-                if d >= fp: 
-                    pv_giorno += bac
-                elif d > ip:
-                    giorni_tot = (fp - ip).days
-                    if giorni_tot > 0:
-                        pv_giorno += bac * ((d - ip).days / giorni_tot)
-                        
-            # Calcolo EV cumulativo giornaliero (Interpolazione lineare fino a oggi)
-            if d <= oggi:
-                ev_attuale = float(row['EV']) if 'EV' in row else 0.0
-                # Se manca Inizio Effettivo, usa il Previsto come stima
-                ie = pd.to_datetime(row['Inizio_Effettivo']).date() if pd.notna(row['Inizio_Effettivo']) else ip
-                if ie and ev_attuale > 0:
-                    if d >= oggi:
-                        ev_giorno += ev_attuale
-                    elif d > ie:
-                        giorni_lav = (oggi - ie).days
-                        if giorni_lav > 0:
-                            ev_giorno += ev_attuale * ((d - ie).days / giorni_lav)
-        
-        # Calcolo AC cumulativo giornaliero (si ferma alla Data di Stato)
-        if d <= oggi:
-            cum_ac += ac_daily.get(d, 0.0)
-            ac_val = cum_ac
-            ev_val = ev_giorno
-        else:
-            # Per il futuro, EV e AC non esistono ancora
-            ac_val = None
-            ev_val = None
+            # 2. Calcoliamo la Data Fine Stimata (in base all'SPI reale)
+            min_date = df_scurve['Data'].min()
+            max_date = df_scurve['Data'].max()
+            giorni_pianificati = (max_date - min_date).days
             
-        dati.append({
-            'Data': d,
-            'PV (Valore Pianificato)': pv_giorno,
-            'EV (Valore Guadagnato)': ev_val,
-            'AC (Costo Reale)': ac_val
-        })
+            spi_effettivo = last_ev / last_pv if last_pv > 0 else 1.0
+            
+            if spi_effettivo > 0:
+                giorni_stimati = int(giorni_pianificati / spi_effettivo)
+            else:
+                giorni_stimati = giorni_pianificati
+                
+            # Limite massimo visivo (evita che il grafico si deformi troppo se l'SPI è bassissimo)
+            giorni_stimati = min(giorni_stimati, giorni_pianificati * 3) 
+            data_fine_stimata = min_date + pd.Timedelta(days=giorni_stimati)
+            
+            # 3. Tracciamo la linea previsionale dei Costi (Tratteggiata Rossa: da AC a EAC)
+            fig_scurve.add_trace(go.Scatter(
+                x=[data_status_evm, data_fine_stimata],
+                y=[last_ac, tot_eac],
+                mode='lines',
+                line=dict(color='red', dash='dot', width=2),
+                name='Proiezione Costi (verso EAC)'
+            ))
+            
+            # 4. Tracciamo la linea previsionale del Lavoro (Tratteggiata Verde: da EV a BAC)
+            fig_scurve.add_trace(go.Scatter(
+                x=[data_status_evm, data_fine_stimata],
+                y=[last_ev, tot_bac],
+                mode='lines',
+                line=dict(color='green', dash='dot', width=2),
+                name='Proiezione Lavoro (verso BAC)'
+            ))
+            
+            # 5. Estendiamo l'asse X per far vedere la fine della proiezione anche se supera il limite originario
+            fig_scurve.update_xaxes(range=[min_date, max(max_date, data_fine_stimata) + pd.Timedelta(days=5)])
+
+        # Aggiornamento layout standard
+        fig_scurve.update_layout(
+            hovermode="x unified",
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+            margin=dict(t=50, b=20)
+        )
         
-    return pd.DataFrame(dati)
+        # Linea verticale per indicare la Data di Stato ("Oggi")
+        fig_scurve.add_vline(x=str(data_status_evm), line_width=2, line_dash="dash", line_color="gray", annotation_text="Data di Rilevamento")
+        
+        st.plotly_chart(fig_scurve, use_container_width=True)
+    else:
+        st.info("ℹ️ Non ci sono ancora date di pianificazione sufficienti per generare la Curva ad S.")
 
 # --- CREAZIONE TAB ---
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
