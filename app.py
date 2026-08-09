@@ -256,7 +256,7 @@ with tab4:
             base=df_esec['Inizio_Effettivo'],
             orientation='h',
             name='Esecutivo',
-             width=0.4, # <--- spessore della barra
+             width=0.2, # <--- spessore della barra
             marker=dict(color='red')
         ))
         
