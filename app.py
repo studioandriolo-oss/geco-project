@@ -59,9 +59,6 @@ tab1, tab2, tab3, tab4 = st.tabs(["🗂️ Setup WBS/OBS", "🕸️ Nodi & Matri
 with tab1:
     st.header("Compilazione Strutture WBS & OBS")
     
-    col_wbs, col_obs = st.columns([7, 3])
-    
-    with col_wbs:
         st.subheader("WBS - Work Breakdown Structure")
         df = st.session_state.wbs_data
         
@@ -111,8 +108,7 @@ with tab1:
 
         if not df_aggiornato.empty:
             st.session_state.wbs_data = df_aggiornato
-            
-    with col_obs:
+
         st.subheader("OBS - Risorse")
         
         # --- PANNELLO GESTIONE COLONNE DINAMICHE ---
