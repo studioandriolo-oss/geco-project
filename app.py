@@ -28,6 +28,7 @@ if 'wbs_data' not in st.session_state:
         '%_Completamento': [0, 100, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         'AC_Costo_Reale': [0.0, 5200.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
         'ID_OBS_Assegnato': [None, '1.1', '1.2', None, '1.1', '1.1', None, None, '1.2', '1.2', '1.2', None, '1.1']
+        'Predecessori': ['', '', '1.1', '', '', '2.1', '', '', '2.2', '3.1.1', '3.1.2', '', '']
     })
     
 if 'obs_data' not in st.session_state:
@@ -90,6 +91,10 @@ with tab1:
                 use_container_width=True,
                 hide_index=True,
                 disabled=["Durata_Prevista (gg)", "ID_WBS"] 
+                column_config={
+                    "Predecessori": st.column_config.TextColumn(
+                        "Predecessori (WP)",
+                        help="ID dei WP che devono finire prima (es. 1.1, 1.2)"    
             )
             
             radice_aggiornata = radice.copy()
@@ -157,8 +162,10 @@ with tab2:
         
 # --- TAB 3: MATRICE E GRAFO A NODI ---
 with tab3:
-    st.header("Incrocio Logico (Work Packages)")
-    st.markdown("Generazione automatica dei nodi di collegamento tra risorse (OBS) e attività (WBS).")
+        st.header("Incrocio Logico (Work Packages)")
+        
+        # --- INTERRUTTORE RELAZIONI ---
+        mostra_relazioni = st.toggle("👁️ Mostra Relazioni tra WP (Interferenze)", value=True)
     
     graph = graphviz.Digraph(engine='dot')
     graph.attr(rankdir='LR', ranksep='1.5', nodesep='0.8', splines='spline')
@@ -191,40 +198,59 @@ with tab3:
             penwidth='1.5'
         )
         
-    # Nodi WBS (I Work Packages)
-    df_wp_reali = st.session_state.wbs_data[st.session_state.wbs_data['ID_WBS'].astype(str).str.contains('\.')]
-    for _, row in df_wp_reali.iterrows():
-        attivita = str(row['Attività'])
-        budget = row['BAC_Budget']
+    ## Nodi WBS (I Work Packages)
+        df_wp_reali = st.session_state.wbs_data[st.session_state.wbs_data['ID_WBS'].astype(str).str.contains('\.')]
         
-        wp_html = f"<<TABLE BORDER='0' CELLBORDER='0' CELLSPACING='4'>"
-        wp_html += f"<TR><TD><B>WP: {attivita}</B></TD></TR>"
-        wp_html += f"<TR><TD>Budget: &euro; {budget:,.2f}</TD></TR>"
-        wp_html += "</TABLE>>"
+        # Creiamo un set degli ID WBS validi per evitare di disegnare frecce nel vuoto se l'utente sbaglia a digitare
+        valid_wbs_ids = set(df_wp_reali['ID_WBS'].astype(str))
         
-        # AGGIUNTA PREFISSO "WBS_" ALL'ID DEL NODO
-        graph.node(
-            f"WBS_{row['ID_WBS']}", # <--- PREFISSO QUI
-            label=wp_html, 
-            shape='rect', 
-            style='rounded,filled', 
-            fillcolor='#C8E6C9', 
-            color='#388E3C',     
-            penwidth='1.5'
-        )
-        
-        # Generazione dei "Cavi" di connessione
-        if pd.notna(row['ID_OBS_Assegnato']):
-            obs_ids = str(row['ID_OBS_Assegnato']).split(',')
-            for o_id in obs_ids:
-                # AGGIUNTA PREFISSI ALLE CONNESSIONI (Da OBS a WBS)
-                graph.edge(
-                    f"OBS_{o_id.strip()}",     # <--- PREFISSO ORIGINE
-                    f"WBS_{row['ID_WBS']}",    # <--- PREFISSO DESTINAZIONE
-                    color='#757575', 
-                    penwidth='1.5',
-                    arrowsize='0.8'
-                )
+        for _, row in df_wp_reali.iterrows():
+            attivita = str(row['Attività'])
+            budget = row['BAC_Budget']
+            
+            wp_html = f"<<TABLE BORDER='0' CELLBORDER='0' CELLSPACING='4'>"
+            wp_html += f"<TR><TD><B>WP: {attivita}</B></TD></TR>"
+            wp_html += f"<TR><TD>Budget: &euro; {budget:,.2f}</TD></TR>"
+            wp_html += "</TABLE>>"
+            
+            graph.node(
+                f"WBS_{row['ID_WBS']}", 
+                label=wp_html, 
+                shape='rect', 
+                style='rounded,filled', 
+                fillcolor='#C8E6C9', 
+                color='#388E3C',     
+                penwidth='1.5'
+            )
+            
+            # --- 1. CAVI PRINCIPALI: Assegnazione OBS -> WBS ---
+            if pd.notna(row['ID_OBS_Assegnato']):
+                obs_ids = str(row['ID_OBS_Assegnato']).split(',')
+                for o_id in obs_ids:
+                    if o_id.strip():
+                        graph.edge(
+                            f"OBS_{o_id.strip()}", 
+                            f"WBS_{row['ID_WBS']}", 
+                            color='#757575', 
+                            penwidth='1.5',
+                            arrowsize='0.8'
+                        )
+                        
+            # --- 2. CAVI SECONDARI: Interferenze WBS -> WBS ---
+            if mostra_relazioni and 'Predecessori' in row and pd.notna(row['Predecessori']):
+                preds = str(row['Predecessori']).split(',')
+                for p_id in preds:
+                    p_id = p_id.strip()
+                    # Disegniamo la freccia solo se il predecessore inserito esiste davvero
+                    if p_id in valid_wbs_ids:
+                        graph.edge(
+                            f"WBS_{p_id}", 
+                            f"WBS_{row['ID_WBS']}", 
+                            color='#FF9800',  # Arancione
+                            style='dashed',   # Tratteggiata per distinguerla
+                            penwidth='1.0',   # Più sottile
+                            arrowsize='0.6'
+                        )
 
    # --- NUOVA VISUALIZZAZIONE INTERATTIVA (PAN & ZOOM ROBUSTO) ---
     try:
