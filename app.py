@@ -37,18 +37,14 @@ if 'obs_data' not in st.session_state:
         'Ruolo': ['Capo Cantiere', 'Strutturista'],
         'Risorsa': ['Mario Rossi', 'Studio Tecnico'],
         'Tipo_Contratto': ['Appalto ▾', 'Sub appalto ▾'], 
-        'Note': ['', 'Ricordare DURC']           
+        'Note': ['', 'Ricordare DURC']            
     })
 
 # Calcoli EVM Dinamici sul DataFrame
 def calcola_evm(df):
-    # Calcolo PV (Planned Value) semplificato: proporzionale ai giorni trascorsi o 100% se data superata
-    # Nota: In una versione avanzata qui si usa la data di controllo (status date)
     df['EV'] = df['BAC_Budget'] * (df['%_Completamento'] / 100)
-    df['CV'] = df['EV'] - df['AC_Costo_Reale'] # Cost Variance
-    
-    # Prevenzione divisione per zero
-    df['SPI'] = df.apply(lambda x: (x['EV'] / x['BAC_Budget']) if x['BAC_Budget'] > 0 else 1, axis=1) # Semplificazione per demo
+    df['CV'] = df['EV'] - df['AC_Costo_Reale']
+    df['SPI'] = df.apply(lambda x: (x['EV'] / x['BAC_Budget']) if x['BAC_Budget'] > 0 else 1, axis=1)
     df['CPI'] = df.apply(lambda x: (x['EV'] / x['AC_Costo_Reale']) if x['AC_Costo_Reale'] > 0 else 1, axis=1)
     return df
 
@@ -68,8 +64,6 @@ with tab1:
     st.header("WBS - Work Breakdown Structure")
     
     df = st.session_state.wbs_data
-    
-    # Calcolo automatico giorni
     df['Durata_Prevista (gg)'] = (pd.to_datetime(df['Fine_Prevista']) - pd.to_datetime(df['Inizio_Previsto'])).dt.days
     
     is_root = ~df['ID_WBS'].astype(str).str.contains('\.')
@@ -121,12 +115,10 @@ with tab1:
     if not df_aggiornato.empty:
         st.session_state.wbs_data = df_aggiornato
 
-
 # --- TAB 2: SETUP OBS (Solo Risorse) ---
 with tab2:
     st.header("OBS - Organization Breakdown Structure")
     
-    # Pannello Gestione Colonne Dinamiche
     with st.expander("⚙️ Gestione Colonne Aggiuntive", expanded=False):
         c1, c2 = st.columns([3, 1])
         nuova_col = c1.text_input("Nome nuova colonna (es. Telefono, Qualifica, Partita IVA)")
@@ -147,7 +139,6 @@ with tab2:
                 st.session_state.obs_data.rename(columns={col_da_modificare: nuovo_nome}, inplace=True)
                 st.rerun()
 
-    # Tabella OBS Dati a tutto schermo
     st.session_state.obs_data = st.data_editor(
         st.session_state.obs_data, 
         column_config={
@@ -164,23 +155,21 @@ with tab2:
         
 # --- TAB 3: MATRICE E GRAFO A NODI ---
 with tab3:
-        st.header("Incrocio Logico (Work Packages)")
-        
-        # --- INTERRUTTORE RELAZIONI ---
-        mostra_relazioni = st.toggle("👁️ Mostra Relazioni tra WP (Interferenze)", value=True)
+    st.header("Incrocio Logico (Work Packages)")
     
-        graph = graphviz.Digraph(engine='dot')
-        graph.attr(rankdir='LR', ranksep='1.5', nodesep='0.8', splines='spline')
-        graph.attr('node', fontname='Helvetica', fontsize='10', margin='0.2')
+    mostra_relazioni = st.toggle("👁️ Mostra Relazioni tra WP (Interferenze)", value=True)
     
-        # Nodi OBS 
-        for _, row in st.session_state.obs_data.iterrows():
-            label_html = f"<<TABLE BORDER='0' CELLBORDER='0' CELLSPACING='2'>"
-            label_html += f"<TR><TD><B>{row['Ruolo']}</B></TD></TR>"
-            label_html += f"<TR><TD>({row['Risorsa']})</TD></TR>"
+    graph = graphviz.Digraph(engine='dot')
+    graph.attr(rankdir='LR', ranksep='1.5', nodesep='0.8', splines='spline')
+    graph.attr('node', fontname='Helvetica', fontsize='10', margin='0.2')
+    
+    for _, row in st.session_state.obs_data.iterrows():
+        label_html = f"<<TABLE BORDER='0' CELLBORDER='0' CELLSPACING='2'>"
+        label_html += f"<TR><TD><B>{row['Ruolo']}</B></TD></TR>"
+        label_html += f"<TR><TD>({row['Risorsa']})</TD></TR>"
         
-            colonne_base = ['ID_OBS', 'Ruolo', 'Risorsa', 'Tipo_Contratto', 'Note']
-            colonne_custom = [col for col in st.session_state.obs_data.columns if col not in colonne_base]
+        colonne_base = ['ID_OBS', 'Ruolo', 'Risorsa', 'Tipo_Contratto', 'Note']
+        colonne_custom = [col for col in st.session_state.obs_data.columns if col not in colonne_base]
         
         for col in colonne_custom:
             valore = row[col]
@@ -189,9 +178,8 @@ with tab3:
                 
         label_html += "</TABLE>>"
         
-        # AGGIUNTA PREFISSO "OBS_" ALL'ID DEL NODO
         graph.node(
-            f"OBS_{row['ID_OBS']}",  # <--- PREFISSO QUI
+            f"OBS_{row['ID_OBS']}",  
             label=label_html, 
             shape='rect', 
             style='rounded,filled', 
@@ -200,98 +188,82 @@ with tab3:
             penwidth='1.5'
         )
         
-    ## Nodi WBS (I Work Packages)
-        df_wp_reali = st.session_state.wbs_data[st.session_state.wbs_data['ID_WBS'].astype(str).str.contains('\.')]
+    df_wp_reali = st.session_state.wbs_data[st.session_state.wbs_data['ID_WBS'].astype(str).str.contains('\.')]
+    valid_wbs_ids = set(df_wp_reali['ID_WBS'].astype(str))
+    
+    for _, row in df_wp_reali.iterrows():
+        attivita = str(row['Attività'])
+        budget = row['BAC_Budget']
         
-        # Creiamo un set degli ID WBS validi per evitare di disegnare frecce nel vuoto se l'utente sbaglia a digitare
-        valid_wbs_ids = set(df_wp_reali['ID_WBS'].astype(str))
+        wp_html = f"<<TABLE BORDER='0' CELLBORDER='0' CELLSPACING='4'>"
+        wp_html += f"<TR><TD><B>WP: {attivita}</B></TD></TR>"
+        wp_html += f"<TR><TD>Budget: &euro; {budget:,.2f}</TD></TR>"
+        wp_html += "</TABLE>>"
         
-        for _, row in df_wp_reali.iterrows():
-            attivita = str(row['Attività'])
-            budget = row['BAC_Budget']
-            
-            wp_html = f"<<TABLE BORDER='0' CELLBORDER='0' CELLSPACING='4'>"
-            wp_html += f"<TR><TD><B>WP: {attivita}</B></TD></TR>"
-            wp_html += f"<TR><TD>Budget: &euro; {budget:,.2f}</TD></TR>"
-            wp_html += "</TABLE>>"
-            
-            graph.node(
-                f"WBS_{row['ID_WBS']}", 
-                label=wp_html, 
-                shape='rect', 
-                style='rounded,filled', 
-                fillcolor='#C8E6C9', 
-                color='#388E3C',     
-                penwidth='1.5'
-            )
-            
-            # --- 1. CAVI PRINCIPALI: Assegnazione OBS -> WBS ---
-            if pd.notna(row['ID_OBS_Assegnato']):
-                obs_ids = str(row['ID_OBS_Assegnato']).split(',')
-                for o_id in obs_ids:
-                    if o_id.strip():
-                        graph.edge(
-                            f"OBS_{o_id.strip()}", 
-                            f"WBS_{row['ID_WBS']}", 
-                            color='#757575', 
-                            penwidth='1.5',
-                            arrowsize='0.8'
-                        )
-                        
-            # --- 2. CAVI SECONDARI: Interferenze WBS -> WBS ---
-            if mostra_relazioni and 'Predecessori' in row and pd.notna(row['Predecessori']):
-                preds = str(row['Predecessori']).split(',')
-                for p_id in preds:
-                    p_id = p_id.strip()
-                    # Disegniamo la freccia solo se il predecessore inserito esiste davvero
-                    if p_id in valid_wbs_ids:
-                        graph.edge(
-                            f"WBS_{p_id}", 
-                            f"WBS_{row['ID_WBS']}", 
-                            color='#FF9800',  # Arancione
-                            style='dashed',   # Tratteggiata per distinguerla
-                            penwidth='1.0',   # Più sottile
-                            arrowsize='0.6'
-                        )
+        graph.node(
+            f"WBS_{row['ID_WBS']}", 
+            label=wp_html, 
+            shape='rect', 
+            style='rounded,filled', 
+            fillcolor='#C8E6C9', 
+            color='#388E3C',     
+            penwidth='1.5'
+        )
+        
+        if pd.notna(row['ID_OBS_Assegnato']):
+            obs_ids = str(row['ID_OBS_Assegnato']).split(',')
+            for o_id in obs_ids:
+                if o_id.strip():
+                    graph.edge(
+                        f"OBS_{o_id.strip()}", 
+                        f"WBS_{row['ID_WBS']}", 
+                        color='#757575', 
+                        penwidth='1.5',
+                        arrowsize='0.8'
+                    )
+                    
+        if mostra_relazioni and 'Predecessori' in row and pd.notna(row['Predecessori']):
+            preds = str(row['Predecessori']).split(',')
+            for p_id in preds:
+                p_id = p_id.strip()
+                if p_id in valid_wbs_ids:
+                    graph.edge(
+                        f"WBS_{p_id}", 
+                        f"WBS_{row['ID_WBS']}", 
+                        color='#FF9800',  
+                        style='dashed',   
+                        penwidth='1.0',   
+                        arrowsize='0.6'
+                    )
 
-   # --- NUOVA VISUALIZZAZIONE INTERATTIVA (PAN & ZOOM ROBUSTO) ---
-            try:
-                # 1. Esportiamo il grafo in formato vettoriale SVG puro
-                raw_svg = graph.pipe(format='svg').decode('utf-8')
+    try:
+        raw_svg = graph.pipe(format='svg').decode('utf-8')
+        svg_data = raw_svg[raw_svg.find('<svg'):]
         
-                # 2. ESTREMA IMPORTANZA: Tagliamo via l'intestazione XML di Graphviz
-                # Prendiamo il testo partendo esattamente dal tag <svg in poi
-                svg_data = raw_svg[raw_svg.find('<svg'):]
-        
-                # 3. Creiamo la pagina HTML
-                html_code = f"""
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <script src="https://cdn.jsdelivr.net/npm/svg-pan-zoom@3.6.1/dist/svg-pan-zoom.min.js"></script>
-                    <style>
-                        body {{ margin: 0; padding: 0; overflow: hidden; background-color: #fafafa; }}
-                        #svg-container {{ width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center; }}
-                        /* Forziamo l'SVG a prendere tutto lo spazio a disposizione */
-                        svg {{ width: 100% !important; height: 100% !important; }}
-                    </style>
-                </head>
-                <body>
-                    <div id="svg-container">
-                        {svg_data}
-                    </div>
+        html_code = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <script src="https://cdn.jsdelivr.net/npm/svg-pan-zoom@3.6.1/dist/svg-pan-zoom.min.js"></script>
+            <style>
+                body {{ margin: 0; padding: 0; overflow: hidden; background-color: #fafafa; }}
+                #svg-container {{ width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center; }}
+                svg {{ width: 100% !important; height: 100% !important; }}
+            </style>
+        </head>
+        <body>
+            <div id="svg-container">
+                {svg_data}
+            </div>
             
             <script>
                 window.onload = function() {{
                     var svgElement = document.querySelector('svg');
                     if (svgElement) {{
                         svgElement.setAttribute('id', 'grafo-interattivo');
-                        
-                        // Rimuoviamo le dimensioni fisse
                         svgElement.removeAttribute('width');
                         svgElement.removeAttribute('height');
                         
-                        // Attiviamo lo zoom
                         var panZoom = svgPanZoom('#grafo-interattivo', {{
                             zoomEnabled: true,
                             controlIconsEnabled: true,
@@ -309,13 +281,10 @@ with tab3:
         </body>
         </html>
         """
-        
-        # 4. Renderizziamo l'HTML interattivo
         components.html(html_code, height=600)
         
     except Exception as e:
         st.error(f"Errore nella generazione del grafo: {e}")
-        # Piano B di emergenza: se fallisce, stampa il grafico statico nativo
         st.graphviz_chart(graph)
 
 # --- TAB 4: CRONOPROGRAMMA (GANTT) ---
@@ -326,7 +295,6 @@ with tab4:
     df_gantt = st.session_state.wbs_data.copy()
     df_gantt = df_gantt[df_gantt['ID_WBS'].astype(str).str.contains('\.')] 
     
-    # Assicuriamoci che le date siano datetime per Plotly
     df_gantt['Inizio_Previsto'] = pd.to_datetime(df_gantt['Inizio_Previsto'])
     df_gantt['Fine_Prevista'] = pd.to_datetime(df_gantt['Fine_Prevista'])
     df_gantt['Inizio_Effettivo'] = pd.to_datetime(df_gantt['Inizio_Effettivo'])
@@ -335,7 +303,6 @@ with tab4:
     fig = go.Figure()
     
     if vista in ["Progetto (Baseline)", "Comparativa"]:
-        # CORREZIONE: Convertiamo il Timedelta (durata) in millisecondi
         durata_prevista_ms = (df_gantt['Fine_Prevista'] - df_gantt['Inizio_Previsto']).dt.total_seconds() * 1000
         
         fig.add_trace(go.Bar(
@@ -344,15 +311,12 @@ with tab4:
             base=df_gantt['Inizio_Previsto'],
             orientation='h',
             name='Baseline',
-            width=0.4, # <--- spessore della barra
+            width=0.4, 
             marker=dict(color='rgba(0, 0, 255, 0.4)') if vista == "Comparativa" else dict(color='blue')
         ))
         
     if vista in ["Esecuzione (Esecutivo)", "Comparativa"]:
-        # Filtra solo i task iniziati e crea una copia esplicita per evitare warning
         df_esec = df_gantt.dropna(subset=['Inizio_Effettivo']).copy()
-        
-        # CORREZIONE: Convertiamo il Timedelta (durata effettiva) in millisecondi
         durata_effettiva_ms = (df_esec['Fine_Effettiva'] - df_esec['Inizio_Effettivo']).dt.total_seconds() * 1000
         
         fig.add_trace(go.Bar(
@@ -361,18 +325,18 @@ with tab4:
             base=df_esec['Inizio_Effettivo'],
             orientation='h',
             name='Esecutivo',
-             width=0.2, # <--- spessore della barra
+            width=0.2, 
             marker=dict(color='red')
         ))
         
     fig.update_layout(
         barmode='overlay', 
-        height=600, # <--- altezza tabella del cronoprogramma
-        bargap=0.3, # <--- Spazio vuoto tra le barre: 0.0 è tutto unito, 0.5 è metà vuoto
+        height=600, 
+        bargap=0.3, 
         xaxis_title="Linea Temporale", 
         yaxis_title="WBS", 
         yaxis={'autorange': 'reversed'},
-        xaxis_type='date' # Forza Plotly a leggere l'asse X (millisecondi + base) come calendario
+        xaxis_type='date' 
     )
     st.plotly_chart(fig, use_container_width=True)
 
@@ -382,7 +346,6 @@ with tab5:
     
     df_evm = st.session_state.wbs_data.copy()
     
-    # Metriche Globali di Progetto
     tot_bac = df_evm['BAC_Budget'].sum()
     tot_ev = df_evm['EV'].sum()
     tot_ac = df_evm['AC_Costo_Reale'].sum()
@@ -401,17 +364,16 @@ with tab5:
     
     st.subheader("Raffronto Costi per Attività")
         
-    # Grafico a barre raggruppate per visualizzare BAC, EV, AC
     fig_evm = go.Figure(data=[
         go.Bar(
             name='BAC (Budget)', 
             x=df_evm['Attività'], 
             y=df_evm['BAC_Budget'], 
             marker_color='lightgray',
-            text=df_evm['BAC_Budget'],         # Assegna i valori al testo
-            texttemplate='€ %{text:,.0f}',     # Formatta il testo (es. € 5,000)
-            textposition='outside',            # Posiziona sopra la colonna
-            textangle=-90                      # Ruota in verticale
+            text=df_evm['BAC_Budget'],         
+            texttemplate='€ %{text:,.0f}',     
+            textposition='outside',            
+            textangle=-90                      
         ),
         go.Bar(
             name='EV (Valore Guadagnato)', 
@@ -437,13 +399,13 @@ with tab5:
         
     fig_evm.update_layout(
         barmode='group',
-        margin=dict(t=80),         # Aumenta lo spazio in alto per non tagliare le scritte lunghe
-        uniformtext_minsize=9,     # Dimensione minima del font
-        uniformtext_mode='hide'    # Se lo spazio è troppo stretto (zoom out), nasconde temporaneamente il testo per non accavallarlo
+        margin=dict(t=80),         
+        uniformtext_minsize=9,     
+        uniformtext_mode='hide'    
     )
     st.plotly_chart(fig_evm, use_container_width=True)
-       
-    col_KPI, col_LEGENDA = st.columns([7, 3]) # Leggermente più spazio per la tabella
+        
+    col_KPI, col_LEGENDA = st.columns([7, 3]) 
     
     with col_KPI:
         st.subheader("Indicatori di Performance (KPI)")
@@ -469,10 +431,3 @@ with tab5:
         * **CV (Cost Variance):** Scostamento dei costi assoluto (EV - AC).  
         Un valore negativo indica una perdita monetaria sull'attività.
         """)
-        
-    # Formattazione condizionale per evidenziare i problemi (Stile Pandas)
-    def color_kpi(val):
-        if isinstance(val, (int, float)):
-            if val < 1.0: return 'color: red'
-            elif val >= 1.0: return 'color: green'
-            return ''
