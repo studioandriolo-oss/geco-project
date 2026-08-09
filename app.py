@@ -273,8 +273,8 @@ st.session_state.wbs_data = calcola_evm(st.session_state.wbs_data, pd.Timestamp.
 # --- GRAFICO EVM: CURVA AD S (S-CURVE) ---
 st.subheader("📈 Curva ad S (Andamento Temporale di Progetto)")
     
-    # Generiamo i dati tramite la nostra nuova funzione
-    df_scurve = genera_dati_scurve(df_evm, st.session_state.registro_data, data_status_evm)
+# Generiamo i dati tramite la nostra nuova funzione
+df_scurve = genera_dati_scurve(df_evm, st.session_state.registro_data, data_status_evm)
     
     if df_scurve is not None and not df_scurve.empty:
         fig_scurve = px.line(
