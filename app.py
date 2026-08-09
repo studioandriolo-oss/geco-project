@@ -206,6 +206,83 @@ def genera_dati_scurve(df_wbs, df_reg, data_status):
         
     return pd.DataFrame(dati)
 
+def calcola_cpm(df_wbs):
+    # Filtriamo solo le lavorazioni operative
+    df_wp = df_wbs[df_wbs['ID_WBS'].astype(str).str.contains('\.')].copy()
+    cpm_nodes = {}
+    
+    # SETUP: Inizializziamo i nodi e calcoliamo le durate previste
+    for _, row in df_wp.iterrows():
+        node_id = str(row['ID_WBS']).strip()
+        inizio = pd.to_datetime(row['Inizio_Previsto'], errors='coerce')
+        fine = pd.to_datetime(row['Fine_Prevista'], errors='coerce')
+        
+        # Calcoliamo i giorni lavorativi
+        if pd.notna(inizio) and pd.notna(fine):
+            durata = max((fine - inizio).days, 1) # Minimo 1 giorno
+        else:
+            durata = 1
+            
+        preds = [p.strip() for p in str(row['Predecessori']).split(',')] if pd.notna(row['Predecessori']) and str(row['Predecessori']).strip() != '' else []
+        
+        cpm_nodes[node_id] = {
+            'durata': durata,
+            'preds': preds,
+            'succs': [],
+            'ES': 0, 'EF': 0, 'LS': 0, 'LF': 0, 'slack': 0,
+            'is_critical': False
+        }
+        
+    # Popoliamo i successori
+    for n_id, data in cpm_nodes.items():
+        for p_id in data['preds']:
+            if p_id in cpm_nodes:
+                cpm_nodes[p_id]['succs'].append(n_id)
+                
+    # FASE 1: FORWARD PASS (Andata)
+    changed = True
+    while changed:
+        changed = False
+        for n_id, data in cpm_nodes.items():
+            max_ef = 0
+            for p_id in data['preds']:
+                if p_id in cpm_nodes:
+                    max_ef = max(max_ef, cpm_nodes[p_id]['EF'])
+            new_es = max_ef
+            new_ef = new_es + data['durata']
+            if new_es != data['ES'] or new_ef != data['EF']:
+                data['ES'] = new_es
+                data['EF'] = new_ef
+                changed = True
+                
+    # FASE 2: BACKWARD PASS (Ritorno)
+    project_duration = max([data['EF'] for data in cpm_nodes.values()], default=0)
+    for n_id, data in cpm_nodes.items():
+        data['LF'] = project_duration
+        data['LS'] = data['LF'] - data['durata']
+        
+    changed = True
+    while changed:
+        changed = False
+        for n_id, data in cpm_nodes.items():
+            min_ls = data['LF'] 
+            if len(data['succs']) > 0:
+                min_ls = min([cpm_nodes[s_id]['LS'] for s_id in data['succs'] if s_id in cpm_nodes])
+            new_lf = min_ls
+            new_ls = new_lf - data['durata']
+            if new_lf != data['LF'] or new_ls != data['LS']:
+                data['LF'] = new_lf
+                data['LS'] = new_ls
+                changed = True
+                
+    # FASE 3: MARGINI E CRITICITÀ
+    for n_id, data in cpm_nodes.items():
+        data['slack'] = data['LS'] - data['ES']
+        if data['slack'] <= 0:
+            data['is_critical'] = True
+            
+    return cpm_nodes
+
 # --- 3. ESECUZIONE CALCOLI INIZIALI ---
 aggiorna_costi_reali()
 st.session_state.wbs_data = calcola_evm(st.session_state.wbs_data, pd.Timestamp.today().date())
@@ -419,7 +496,10 @@ with tab2:
         
 # --- TAB 3: MATRICE E GRAFO A NODI ---
 with tab3:
-    st.header("Incrocio Logico (Work Packages)")
+    st.header("Incrocio Logico (Work Packages e Percorso Critico)")
+    
+    # Attiviamo l'algoritmo CPM in background
+    cpm_data = calcola_cpm(st.session_state.wbs_data)
     
     mostra_relazioni = st.toggle("👁️ Mostra Relazioni tra WP (Interferenze)", value=True)
     
@@ -427,6 +507,7 @@ with tab3:
     graph.attr(rankdir='LR', ranksep='1.5', nodesep='0.8', splines='spline')
     graph.attr('node', fontname='Helvetica', fontsize='10', margin='0.2')
     
+    # --- NODI OBS ---
     for _, row in st.session_state.obs_data.iterrows():
         label_html = f"<<TABLE BORDER='0' CELLBORDER='0' CELLSPACING='2'>"
         label_html += f"<TR><TD><B>{row['Ruolo']}</B></TD></TR>"
@@ -439,7 +520,6 @@ with tab3:
             valore = row[col]
             if pd.notna(valore) and str(valore).strip() != "":
                 label_html += f"<TR><TD><FONT POINT-SIZE='9' COLOR='gray30'>{col}: {valore}</FONT></TD></TR>"
-                
         label_html += "</TABLE>>"
         
         graph.node(
@@ -452,7 +532,7 @@ with tab3:
             penwidth='1.5'
         )
         
-    # Nodi WBS (I Work Packages)
+    # --- NODI WBS E PERCORSO CRITICO ---
     df_wp_reali = st.session_state.wbs_data[st.session_state.wbs_data['ID_WBS'].astype(str).str.contains('\.')]
     valid_wbs_ids = set(df_wp_reali['ID_WBS'].astype(str))
     
@@ -462,19 +542,25 @@ with tab3:
         costo_reale = float(row['AC_Costo_Reale'])
         completamento = float(row['%_Completamento'])
         
-        # Formattiamo le date per la visualizzazione
+        # Recuperiamo i dati CPM per questo nodo specifico
+        wp_cpm = cpm_data.get(str(row['ID_WBS']).strip(), {})
+        margine = wp_cpm.get('slack', 0)
+        is_critical = wp_cpm.get('is_critical', False)
+        
         inizio_str = row['Inizio_Previsto'].strftime('%d/%m/%Y') if pd.notna(row['Inizio_Previsto']) else "N/D"
         fine_str = row['Fine_Prevista'].strftime('%d/%m/%Y') if pd.notna(row['Fine_Prevista']) else "N/D"
         
-        # Costruiamo la tabella HTML del nodo WBS arricchita con le Date
+        # HTML arricchito: Margine in rosso se critico
+        testo_margine = f"<FONT COLOR='#D32F2F'><B>Margine: {margine} gg</B></FONT>" if is_critical else f"<FONT COLOR='#388E3C'>Margine: {margine} gg</FONT>"
+        
         wp_html = f"<<TABLE BORDER='0' CELLBORDER='0' CELLSPACING='4'>"
         wp_html += f"<TR><TD COLSPAN='2'><B>{row['ID_WBS']} - {attivita}</B></TD></TR>"
         wp_html += f"<TR><TD ALIGN='LEFT'>Inizio: {inizio_str}</TD><TD ALIGN='RIGHT'>Fine: {fine_str}</TD></TR>"
         wp_html += f"<TR><TD ALIGN='LEFT'>Budget: &euro; {budget:,.2f}</TD><TD ALIGN='RIGHT'>AC: &euro; {costo_reale:,.2f}</TD></TR>"
-        wp_html += f"<TR><TD COLSPAN='2'>Avanzamento: {completamento:.1f}%</TD></TR>"
+        wp_html += f"<TR><TD ALIGN='LEFT'>Avanzamento: {completamento:.1f}%</TD><TD ALIGN='RIGHT'>{testo_margine}</TD></TR>"
         wp_html += "</TABLE>>"
         
-        # --- LOGICA BARRA DI PROGRESSO E PERCORSO CRITICO ---
+        # Gestione Stile (Barra di progresso)
         if completamento >= 100:
             stile = 'rounded,filled'
             colore_sfondo = '#C8E6C9' 
@@ -486,42 +572,57 @@ with tab3:
             quota_verde = completamento / 100.0
             colore_sfondo = f"#C8E6C9;{quota_verde}:white"
             
+        # --- APPLICAZIONE STILE PERCORSO CRITICO ---
+        bordo_colore = '#D32F2F' if is_critical else '#388E3C'  # Rosso se critico, altrimenti verde scuro
+        spessore_bordo = '3.0' if is_critical else '1.5'        # Più spesso se critico
+        
         graph.node(
             f"WBS_{row['ID_WBS']}", 
             label=wp_html, 
             shape='rect', 
             style=stile, 
             fillcolor=colore_sfondo, 
-            color='#388E3C',     
-            penwidth='1.5'
+            color=bordo_colore,     
+            penwidth=spessore_bordo
         )
         
+        # Assegnazioni OBS (Linee grigie)
         if pd.notna(row['ID_OBS_Assegnato']):
             obs_ids = str(row['ID_OBS_Assegnato']).split(',')
             for o_id in obs_ids:
                 if o_id.strip():
-                    graph.edge(
-                        f"OBS_{o_id.strip()}", 
-                        f"WBS_{row['ID_WBS']}", 
-                        color='#757575', 
-                        penwidth='1.5',
-                        arrowsize='0.8'
-                    )
+                    graph.edge(f"OBS_{o_id.strip()}", f"WBS_{row['ID_WBS']}", color='#757575', penwidth='1.5', arrowsize='0.8')
                     
+        # Connessioni WP (Il Fiume Logico)
         if mostra_relazioni and 'Predecessori' in row and pd.notna(row['Predecessori']):
             preds = str(row['Predecessori']).split(',')
             for p_id in preds:
                 p_id = p_id.strip()
                 if p_id in valid_wbs_ids:
+                    pred_is_critical = cpm_data.get(p_id, {}).get('is_critical', False)
+                    
+                    # Se ENTRAMBI i nodi sono sul percorso critico, coloriamo il cavo di rosso spesso
+                    if is_critical and pred_is_critical:
+                        colore_cavo = '#D32F2F' # Rosso fuoco
+                        stile_cavo = 'solid'
+                        spessore_cavo = '2.5'
+                        freccia = '1.0'
+                    else:
+                        colore_cavo = '#FF9800' # Arancione standard
+                        stile_cavo = 'dashed'
+                        spessore_cavo = '1.0'
+                        freccia = '0.6'
+                        
                     graph.edge(
                         f"WBS_{p_id}", 
                         f"WBS_{row['ID_WBS']}", 
-                        color='#FF9800',  
-                        style='dashed',   
-                        penwidth='1.0',   
-                        arrowsize='0.6'
+                        color=colore_cavo,  
+                        style=stile_cavo,   
+                        penwidth=spessore_cavo,   
+                        arrowsize=freccia
                     )
 
+    # Rendering interattivo
     try:
         raw_svg = graph.pipe(format='svg').decode('utf-8')
         svg_data = raw_svg[raw_svg.find('<svg'):]
@@ -541,7 +642,6 @@ with tab3:
             <div id="svg-container">
                 {svg_data}
             </div>
-            
             <script>
                 window.onload = function() {{
                     var svgElement = document.querySelector('svg');
@@ -549,7 +649,6 @@ with tab3:
                         svgElement.setAttribute('id', 'grafo-interattivo');
                         svgElement.removeAttribute('width');
                         svgElement.removeAttribute('height');
-                        
                         var panZoom = svgPanZoom('#grafo-interattivo', {{
                             zoomEnabled: true,
                             controlIconsEnabled: true,
@@ -560,7 +659,7 @@ with tab3:
                             mouseWheelZoomEnabled: true
                         }});
                     }} else {{
-                        document.getElementById('svg-container').innerHTML = "Errore nel caricamento del grafico SVG.";
+                        document.getElementById('svg-container').innerHTML = "Errore grafico SVG.";
                     }}
                 }};
             </script>
@@ -568,7 +667,6 @@ with tab3:
         </html>
         """
         components.html(html_code, height=600)
-        
     except Exception as e:
         st.error(f"Errore nella generazione del grafo: {e}")
         st.graphviz_chart(graph)
