@@ -238,35 +238,27 @@ with tab4:
     
     st.divider()
     
-    col_chart, col_table = st.columns([5, 5])
-    
-    with col_chart:
-        st.subheader("Raffronto Costi per Attività")
-        # Grafico a barre raggruppate per visualizzare BAC, EV, AC
-        fig_evm = go.Figure(data=[
-            go.Bar(name='BAC (Budget)', x=df_evm['Attività'], y=df_evm['BAC_Budget'], marker_color='lightgray'),
-            go.Bar(name='EV (Valore Guadagnato)', x=df_evm['Attività'], y=df_evm['EV'], marker_color='green'),
-            go.Bar(name='AC (Costo Reale)', x=df_evm['Attività'], y=df_evm['AC_Costo_Reale'], marker_color='red')
-        ])
-        fig_evm.update_layout(barmode='group')
-        st.plotly_chart(fig_evm, use_container_width=True)
+    st.subheader("Raffronto Costi per Attività")
+    # Grafico a barre raggruppate per visualizzare BAC, EV, AC
+    fig_evm = go.Figure(data=[
+        go.Bar(name='BAC (Budget)', x=df_evm['Attività'], y=df_evm['BAC_Budget'], marker_color='lightgray'),
+        go.Bar(name='EV (Valore Guadagnato)', x=df_evm['Attività'], y=df_evm['EV'], marker_color='green'),
+        go.Bar(name='AC (Costo Reale)', x=df_evm['Attività'], y=df_evm['AC_Costo_Reale'], marker_color='red')
+    ])
+    fig_evm.update_layout(barmode='group')
+    st.plotly_chart(fig_evm, use_container_width=True)
         
-    with col_table:
-        st.subheader("Indicatori di Performance (KPI)")
-        # Tabella per mostrare lo stato di salute di ogni WP
-        df_kpi = df_evm[['Attività', '%_Completamento', 'CPI', 'SPI', 'CV']].copy()
+    st.subheader("Indicatori di Performance (KPI)")
+    # Tabella per mostrare lo stato di salute di ogni WP
+    df_kpi = df_evm[['Attività', '%_Completamento', 'CPI', 'SPI', 'CV']].copy()
         
-        # Formattazione condizionale per evidenziare i problemi (Stile Pandas)
-        def color_kpi(val):
-            if isinstance(val, (int, float)):
-                if val < 1.0: return 'color: red'
-                elif val >= 1.0: return 'color: green'
+    # Formattazione condizionale per evidenziare i problemi (Stile Pandas)
+    def color_kpi(val):
+        if isinstance(val, (int, float)):
+            if val < 1.0: return 'color: red'
+            elif val >= 1.0: return 'color: green'
             return ''
         
-        st.dataframe(df_kpi.style.map(color_kpi, subset=['CPI', 'SPI'])
-                            .format({'CPI': "{:.2f}", 'SPI': "{:.2f}", 'CV': "€ {:.2f}"}), 
-                     use_container_width=True)
-            
-        st.dataframe(df_kpi.style.map(color_kpi, subset=['CPI', 'SPI'])
-                            .format({'CPI': "{:.2f}", 'SPI': "{:.2f}", 'CV': "€ {:.2f}"}), 
-                     use_container_width=True)
+    st.dataframe(df_kpi.style.map(color_kpi, subset=['CPI', 'SPI'])
+                        .format({'CPI': "{:.2f}", 'SPI': "{:.2f}", 'CV': "€ {:.2f}"}), 
+                    use_container_width=True)
