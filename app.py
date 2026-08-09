@@ -7,7 +7,7 @@ import streamlit.components.v1 as components
 from datetime import datetime, date
 import json
 
-# Configurazione Pagina
+# --- CONFIGURAZIONE PAGINA ---
 st.set_page_config(page_title="WBS/OBS Manager & EVM", layout="wide")
 st.title("🏗️ Project Workflow & EVM Controller")
 
@@ -36,7 +36,7 @@ if not st.session_state.logged_in:
                     st.session_state.logged_in = True
                     st.rerun() 
                 else:
-                    st.error("Credenziali errate. Riprova.")               
+                    st.error("Credenziali errate. Riprova.")                
     st.stop()
 
 # --- 1. INIZIALIZZAZIONE DATI (Session State) ---
@@ -69,50 +69,155 @@ if 'obs_data' not in st.session_state:
         'Note': ['', 'Ricordare DURC']            
     })
     
-# ---  INIZIALIZZAZIONE REGISTRO CONTABILE ---
 if 'registro_data' not in st.session_state:
     st.session_state.registro_data = pd.DataFrame({
         'Data': [date(2026, 9, 5), date(2026, 9, 10)],
         'N_Doc': ['FATT-01', 'FATT-02'],
         'Fornitore': ['Mario Rossi', 'Nolo Scavi Srl'],
-        'Voce_WBS': ['1.1 - Scavi con mezzi meccanici', '1.1 - Scavi con mezzi meccanici'], # Voci a tendina
+        'Voce_WBS': ['1.1 - Scavi con mezzi meccanici', '1.1 - Scavi con mezzi meccanici'],
         'Importo_Netto': [2000.0, 3200.0],
         'Descrizione': ['Acconto lavori', 'Nolo escavatore']
     })
+
 if 'archivio_progetti' not in st.session_state:
     st.session_state.archivio_progetti = {}
 if 'nome_progetto_attivo' not in st.session_state:
     st.session_state.nome_progetto_attivo = "Progetto_01"
-    
-# --- MOTORE AGGIORNAMENTO COSTI REALI (Da Tab 6 a Tab 1) ---
+
+# --- 2. MOTORI MATEMATICI (Definiti Prima dei Tab) ---
+
 def aggiorna_costi_reali():
     df_reg = st.session_state.registro_data.copy()
-    # Estraiamo l'ID (es. "1.1") dalla voce a tendina (es. "1.1 - Scavi con mezzi meccanici")
     df_reg['ID_WBS_calc'] = df_reg['Voce_WBS'].astype(str).apply(lambda x: x.split(' - ')[0] if ' - ' in x else None)
-    
-    # Sommiamo gli importi netti raggruppandoli per ID_WBS
     costi_raggruppati = df_reg.groupby('ID_WBS_calc')['Importo_Netto'].sum().reset_index()
     cost_map = dict(zip(costi_raggruppati['ID_WBS_calc'], costi_raggruppati['Importo_Netto']))
-    
-    # Applichiamo i costi calcolati alla tabella WBS
     wbs = st.session_state.wbs_data
     wbs['AC_Costo_Reale'] = wbs['ID_WBS'].apply(lambda x: cost_map.get(str(x), 0.0))
     st.session_state.wbs_data = wbs
 
-# Eseguiamo i calcoli in sequenza prima di disegnare l'interfaccia
+def calcola_evm(df, data_status):
+    oggi = pd.to_datetime(data_status).date()
+    df['BAC_Budget'] = pd.to_numeric(df['BAC_Budget'], errors='coerce').fillna(0.0)
+    df['%_Completamento'] = pd.to_numeric(df['%_Completamento'], errors='coerce').fillna(0.0)
+    df['AC_Costo_Reale'] = pd.to_numeric(df['AC_Costo_Reale'], errors='coerce').fillna(0.0)
+    
+    def calcola_pv(row):
+        try:
+            inizio_ts = pd.to_datetime(row['Inizio_Previsto'])
+            fine_ts = pd.to_datetime(row['Fine_Prevista'])
+            bac = float(row['BAC_Budget'])
+            
+            if pd.isna(inizio_ts) or pd.isna(fine_ts) or bac == 0: 
+                return 0.0
+                
+            inizio = inizio_ts.date()
+            fine = fine_ts.date()
+            
+            if oggi >= fine: return bac 
+            if oggi <= inizio: return 0.0 
+            
+            giorni_totali = (fine - inizio).days
+            giorni_trascorsi = (oggi - inizio).days
+            
+            if giorni_totali <= 0: return bac
+            return bac * (giorni_trascorsi / giorni_totali)
+            
+        except Exception:
+            return 0.0
+
+    df['PV'] = df.apply(calcola_pv, axis=1)
+    df['EV'] = df['BAC_Budget'] * (df['%_Completamento'] / 100.0)
+    df['CV'] = df['EV'] - df['AC_Costo_Reale'] 
+    df['SV'] = df['EV'] - df['PV']             
+    
+    df['SPI'] = df.apply(lambda x: (x['EV'] / x['PV']) if x['PV'] > 0 else (1.0 if x['EV']==0 else 1.1), axis=1)
+    df['CPI'] = df.apply(lambda x: (x['EV'] / x['AC_Costo_Reale']) if x['AC_Costo_Reale'] > 0 else (1.0 if x['EV']==0 else 1.1), axis=1)
+
+    df['EAC'] = df.apply(lambda x: x['BAC_Budget'] / x['CPI'] if x['CPI'] > 0 else x['BAC_Budget'], axis=1)
+    df['ETC'] = df['EAC'] - df['AC_Costo_Reale']
+    df['VAC'] = df['BAC_Budget'] - df['EAC']
+    
+    return df
+
+def genera_dati_scurve(df_wbs, df_reg, data_status):
+    oggi = pd.to_datetime(data_status).date()
+    
+    date_inizio = pd.to_datetime(df_wbs['Inizio_Previsto']).dropna().dt.date
+    date_fine = pd.to_datetime(df_wbs['Fine_Prevista']).dropna().dt.date
+    
+    if date_inizio.empty or date_fine.empty:
+        return None
+        
+    min_date = date_inizio.min()
+    max_date = date_fine.max()
+    
+    date_range = pd.date_range(start=min_date, end=max_date)
+    
+    df_reg_calc = df_reg.copy()
+    df_reg_calc['Data'] = pd.to_datetime(df_reg_calc['Data'], errors='coerce').dt.date
+    ac_daily = df_reg_calc.groupby('Data')['Importo_Netto'].sum().to_dict()
+    
+    dati = []
+    cum_ac = 0.0
+    
+    for d_ts in date_range:
+        d = d_ts.date()
+        pv_giorno = 0.0
+        ev_giorno = 0.0
+        
+        for _, row in df_wbs.iterrows():
+            bac = float(row['BAC_Budget']) if pd.notna(row['BAC_Budget']) else 0.0
+            
+            ip = pd.to_datetime(row['Inizio_Previsto']).date() if pd.notna(row['Inizio_Previsto']) else None
+            fp = pd.to_datetime(row['Fine_Prevista']).date() if pd.notna(row['Fine_Prevista']) else None
+            if ip and fp and bac > 0:
+                if d >= fp: 
+                    pv_giorno += bac
+                elif d > ip:
+                    giorni_tot = (fp - ip).days
+                    if giorni_tot > 0:
+                        pv_giorno += bac * ((d - ip).days / giorni_tot)
+                        
+            if d <= oggi:
+                ev_attuale = float(row['EV']) if 'EV' in row else 0.0
+                ie = pd.to_datetime(row['Inizio_Effettivo']).date() if pd.notna(row['Inizio_Effettivo']) else ip
+                if ie and ev_attuale > 0:
+                    if d >= oggi:
+                        ev_giorno += ev_attuale
+                    elif d > ie:
+                        giorni_lav = (oggi - ie).days
+                        if giorni_lav > 0:
+                            ev_giorno += ev_attuale * ((d - ie).days / giorni_lav)
+        
+        if d <= oggi:
+            cum_ac += ac_daily.get(d, 0.0)
+            ac_val = cum_ac
+            ev_val = ev_giorno
+        else:
+            ac_val = None
+            ev_val = None
+            
+        dati.append({
+            'Data': d,
+            'PV (Valore Pianificato)': pv_giorno,
+            'EV (Valore Guadagnato)': ev_val,
+            'AC (Costo Reale)': ac_val
+        })
+        
+    return pd.DataFrame(dati)
+
+# --- 3. ESECUZIONE CALCOLI INIZIALI ---
 aggiorna_costi_reali()
+st.session_state.wbs_data = calcola_evm(st.session_state.wbs_data, pd.Timestamp.today().date())
 
 # --- SIDEBAR: GESTIONE PROGETTI A SCOMPARSA ---
 with st.sidebar:
     st.header("📂 Gestione Progetti")
     
-    # Campo per rinominare il progetto su cui si sta lavorando
     st.session_state.nome_progetto_attivo = st.text_input("Nome Progetto Attuale", value=st.session_state.nome_progetto_attivo)
     
-    # 1. SALVA E DUPLICA (In Memoria)
     c_save, c_dup = st.columns(2)
     if c_save.button("💾 Salva", use_container_width=True):
-        # Salviamo una COPIA esatta dei DataFrame nell'archivio interno
         st.session_state.archivio_progetti[st.session_state.nome_progetto_attivo] = {
             "wbs": st.session_state.wbs_data.copy(),
             "obs": st.session_state.obs_data.copy(),
@@ -131,7 +236,6 @@ with st.sidebar:
         st.success("Progetto duplicato!")
         st.rerun()
 
-    # 2. CARICA DALLA MEMORIA (Appare solo se ci sono progetti salvati)
     if st.session_state.archivio_progetti:
         st.divider()
         st.write("🔄 **Progetti in memoria (Sessione attuale)**")
@@ -145,7 +249,6 @@ with st.sidebar:
 
     st.divider()
     
-    # 3. NUOVO PROGETTO (RESET)
     if st.button("📄 Nuovo Progetto (Reset Dati)", use_container_width=True):
         for key in ['wbs_data', 'obs_data', 'registro_data']:
             if key in st.session_state:
@@ -155,7 +258,6 @@ with st.sidebar:
         
     st.divider()
     
-    # 4. ESPORTA PROGETTO (JSON per archiviazione fissa)
     st.write("💾 **Archiviazione su PC**")
     try:
         progetto_export = {
@@ -175,7 +277,6 @@ with st.sidebar:
     except Exception as e:
         st.error(f"Errore esportazione: {e}")
     
-    # 5. CARICA PROGETTO (Da JSON)
     uploaded_file = st.file_uploader("📤 Carica da PC", type=['json'], label_visibility="collapsed")
     
     if uploaded_file is not None:
@@ -186,7 +287,6 @@ with st.sidebar:
             if 'registro' in dati_caricati:
                 st.session_state.registro_data = pd.DataFrame(dati_caricati['registro'])
             
-            # Sistemazione Date post-importazione
             colonne_date_wbs = ['Inizio_Previsto', 'Fine_Prevista', 'Inizio_Effettivo', 'Fine_Effettiva']
             for col in colonne_date_wbs:
                 if col in st.session_state.wbs_data.columns:
@@ -195,7 +295,6 @@ with st.sidebar:
             if 'registro_data' in st.session_state and 'Data' in st.session_state.registro_data.columns:
                 st.session_state.registro_data['Data'] = pd.to_datetime(st.session_state.registro_data['Data']).dt.date
             
-            # Imposta il nome del progetto dal nome del file tolta l'estensione
             st.session_state.nome_progetto_attivo = uploaded_file.name.replace(".json", "")
             st.success("Dati ripristinati!")
             
@@ -204,150 +303,10 @@ with st.sidebar:
             
     st.divider()
     
-    # 6. LOGOUT
     if st.button("🚪 Esci (Logout)", type="primary", use_container_width=True):
         st.session_state.logged_in = False
         st.rerun()
 
-# Calcoli EVM Dinamici, Avanzati e Sicuri sul DataFrame
-def calcola_evm(df, data_status):
-    oggi = pd.to_datetime(data_status).date()
-    
-    # 1. PULIZIA DATI: Trasforma eventuali "None", stringhe o celle vuote in numeri reali (0.0)
-    # Evita il TypeError se un utente cancella il contenuto di una cella numerica
-    df['BAC_Budget'] = pd.to_numeric(df['BAC_Budget'], errors='coerce').fillna(0.0)
-    df['%_Completamento'] = pd.to_numeric(df['%_Completamento'], errors='coerce').fillna(0.0)
-    df['AC_Costo_Reale'] = pd.to_numeric(df['AC_Costo_Reale'], errors='coerce').fillna(0.0)
-    
-    def calcola_pv(row):
-        try:
-            # 2. GESTIONE DATE SICURA: Assorbe formati misti, NaT e None senza bloccarsi
-            inizio_ts = pd.to_datetime(row['Inizio_Previsto'])
-            fine_ts = pd.to_datetime(row['Fine_Prevista'])
-            bac = float(row['BAC_Budget'])
-            
-            # Se manca una data o il budget è 0, non c'è valore pianificato
-            if pd.isna(inizio_ts) or pd.isna(fine_ts) or bac == 0: 
-                return 0.0
-                
-            inizio = inizio_ts.date()
-            fine = fine_ts.date()
-            
-            if oggi >= fine: return bac 
-            if oggi <= inizio: return 0.0 
-            
-            giorni_totali = (fine - inizio).days
-            giorni_trascorsi = (oggi - inizio).days
-            
-            if giorni_totali <= 0: return bac
-            return bac * (giorni_trascorsi / giorni_totali)
-            
-        except Exception:
-            # In caso di inserimento anomalo (es. lettere in un campo data), ignora e restituisci 0
-            return 0.0
-
-    df['PV'] = df.apply(calcola_pv, axis=1)
-    
-    # 3. MATEMATICA PROTETTA
-    # Ora siamo certi che tutti i campi siano float, quindi le operazioni non daranno mai TypeError
-    df['EV'] = df['BAC_Budget'] * (df['%_Completamento'] / 100.0)
-    df['CV'] = df['EV'] - df['AC_Costo_Reale'] 
-    df['SV'] = df['EV'] - df['PV']             
-    
-    df['SPI'] = df.apply(lambda x: (x['EV'] / x['PV']) if x['PV'] > 0 else (1.0 if x['EV']==0 else 1.1), axis=1)
-    df['CPI'] = df.apply(lambda x: (x['EV'] / x['AC_Costo_Reale']) if x['AC_Costo_Reale'] > 0 else (1.0 if x['EV']==0 else 1.1), axis=1)
-
-    df['EAC'] = df.apply(lambda x: x['BAC_Budget'] / x['CPI'] if x['CPI'] > 0 else x['BAC_Budget'], axis=1)
-    
-    # ETC = EAC - AC (Costo per finire)
-    df['ETC'] = df['EAC'] - df['AC_Costo_Reale']
-    
-    # VAC = BAC - EAC (Varianza a finire: positivo = risparmio, negativo = perdita)
-    df['VAC'] = df['BAC_Budget'] - df['EAC']
-    
-    return df
-
-# Inizializzazione protetta
-st.session_state.wbs_data = calcola_evm(st.session_state.wbs_data, pd.Timestamp.today().date())
-
-# --- GRAFICO EVM: CURVA AD S (S-CURVE) ---
-st.subheader("📈 Curva ad S (Andamento Temporale di Progetto)")
-    
-# Generiamo i dati tramite la nostra nuova funzione
-df_scurve = genera_dati_scurve(df_evm, st.session_state.registro_data, data_status_evm)
-    
-if df_scurve is not None and not df_scurve.empty:
-    fig_scurve = px.line(
-        df_scurve, 
-        x='Data', 
-        y=['PV (Valore Pianificato)', 'EV (Valore Guadagnato)', 'AC (Costo Reale)'],
-        color_discrete_map={
-            'PV (Valore Pianificato)': 'blue',
-            'EV (Valore Guadagnato)': 'green',
-            'AC (Costo Reale)': 'red'
-        },
-        labels={'value': 'Importo (€)', 'variable': 'Metrica EVM'}
-    )
-        
-# --- NOVITÀ: AGGIUNTA PROIEZIONI FUTURE (FORECAST) ---
-    df_past = df_scurve[df_scurve['Data'] <= data_status_evm]
-        
-    if not df_past.empty:
-        # 1. Coordinate di partenza (i valori registrati ad "Oggi")
-        last_ac = df_past.iloc[-1]['AC (Costo Reale)']
-        last_ev = df_past.iloc[-1]['EV (Valore Guadagnato)']
-        last_pv = df_past.iloc[-1]['PV (Valore Pianificato)']
-            
-        # 2. Calcoliamo la Data Fine Stimata (in base all'SPI reale)
-        min_date = df_scurve['Data'].min()
-        max_date = df_scurve['Data'].max()
-        giorni_pianificati = (max_date - min_date).days
-            
-        spi_effettivo = last_ev / last_pv if last_pv > 0 else 1.0
-            
-        if spi_effettivo > 0:
-            giorni_stimati = int(giorni_pianificati / spi_effettivo)
-        else:
-            giorni_stimati = giorni_pianificati
-                
-        # Limite massimo visivo (evita che il grafico si deformi troppo se l'SPI è bassissimo)
-        giorni_stimati = min(giorni_stimati, giorni_pianificati * 3) 
-        data_fine_stimata = min_date + pd.Timedelta(days=giorni_stimati)
-            
-        # 3. Tracciamo la linea previsionale dei Costi (Tratteggiata Rossa: da AC a EAC)
-        fig_scurve.add_trace(go.Scatter(
-            x=[data_status_evm, data_fine_stimata],
-            y=[last_ac, tot_eac],
-            mode='lines',
-            line=dict(color='red', dash='dot', width=2),
-            name='Proiezione Costi (verso EAC)'
-        ))
-            
-        # 4. Tracciamo la linea previsionale del Lavoro (Tratteggiata Verde: da EV a BAC)
-        fig_scurve.add_trace(go.Scatter(
-            x=[data_status_evm, data_fine_stimata],
-            y=[last_ev, tot_bac],
-            mode='lines',
-            line=dict(color='green', dash='dot', width=2),
-            name='Proiezione Lavoro (verso BAC)'
-        ))
-            
-        # 5. Estendiamo l'asse X per far vedere la fine della proiezione anche se supera il limite originario
-        fig_scurve.update_xaxes(range=[min_date, max(max_date, data_fine_stimata) + pd.Timedelta(days=5)])
-
-    # Aggiornamento layout standard
-    fig_scurve.update_layout(
-        hovermode="x unified",
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        margin=dict(t=50, b=20)
-    )
-        
-    # Linea verticale per indicare la Data di Stato ("Oggi")
-    fig_scurve.add_vline(x=str(data_status_evm), line_width=2, line_dash="dash", line_color="gray", annotation_text="Data di Rilevamento")
-        
-    st.plotly_chart(fig_scurve, use_container_width=True)
-else:
-    st.info("ℹ️ Non ci sono ancora date di pianificazione sufficienti per generare la Curva ad S.")
 
 # --- CREAZIONE TAB ---
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
@@ -621,7 +580,6 @@ with tab4:
     c1, c2 = st.columns([1, 2])
     vista = c1.selectbox("Seleziona Vista", ["Progetto (Baseline)", "Esecuzione (Esecutivo)", "Comparativa"])
     
-    # Selettore Data di Stato anche per il Gantt
     data_status_gantt = c2.date_input("📅 Data di Rilevamento (Simulazione avanzamento cantiere)", value=date(2026, 10, 15))
     
     df_gantt = st.session_state.wbs_data.copy()
@@ -631,7 +589,6 @@ with tab4:
     df_gantt['Fine_Prevista'] = pd.to_datetime(df_gantt['Fine_Prevista'])
     df_gantt['Inizio_Effettivo'] = pd.to_datetime(df_gantt['Inizio_Effettivo'])
     
-    # Se la data di fine effettiva non c'è, usa la Data di Stato per disegnare il blocco "lavori in corso"
     df_gantt['Fine_Effettiva'] = pd.to_datetime(df_gantt['Fine_Effettiva']).fillna(pd.to_datetime(data_status_gantt))
     
     fig = go.Figure()
@@ -678,7 +635,6 @@ with tab4:
 with tab5:
     st.header("Controllo Costi e Analisi EVM")
     
-    # Selettore Data di Stato principale
     data_status_evm = st.date_input("📅 Data di Stato (Status Date) per l'analisi EVM:", value=date(2026, 10, 15))
     
     df_completo = st.session_state.wbs_data.copy()
@@ -691,7 +647,6 @@ with tab5:
     tot_ev = df_evm['EV'].sum()
     tot_ac = df_evm['AC_Costo_Reale'].sum()
     
-    # Somme Predittive
     tot_eac = df_evm['EAC'].sum()
     tot_etc = df_evm['ETC'].sum()
     tot_vac = df_evm['VAC'].sum()
@@ -718,10 +673,9 @@ with tab5:
     
     st.divider()
 
-# --- GRAFICO EVM: CURVA AD S (S-CURVE) ---
+    # --- GRAFICO EVM: CURVA AD S (S-CURVE) ---
     st.subheader("📈 Curva ad S (Andamento Temporale di Progetto)")
     
-    # Generiamo i dati tramite la nostra nuova funzione
     df_scurve = genera_dati_scurve(df_evm, st.session_state.registro_data, data_status_evm)
     
     if df_scurve is not None and not df_scurve.empty:
@@ -730,20 +684,59 @@ with tab5:
             x='Data', 
             y=['PV (Valore Pianificato)', 'EV (Valore Guadagnato)', 'AC (Costo Reale)'],
             color_discrete_map={
-                'PV (Valore Pianificato)': 'blue',   # La baseline di progetto
-                'EV (Valore Guadagnato)': 'green',  # Il valore reale creato
-                'AC (Costo Reale)': 'red'           # I soldi spesi
+                'PV (Valore Pianificato)': 'blue',
+                'EV (Valore Guadagnato)': 'green',
+                'AC (Costo Reale)': 'red'
             },
             labels={'value': 'Importo (€)', 'variable': 'Metrica EVM'}
         )
         
+        # --- NOVITÀ: AGGIUNTA PROIEZIONI FUTURE (FORECAST) ---
+        df_past = df_scurve[df_scurve['Data'] <= data_status_evm]
+        
+        if not df_past.empty:
+            last_ac = df_past.iloc[-1]['AC (Costo Reale)']
+            last_ev = df_past.iloc[-1]['EV (Valore Guadagnato)']
+            last_pv = df_past.iloc[-1]['PV (Valore Pianificato)']
+            
+            min_date = df_scurve['Data'].min()
+            max_date = df_scurve['Data'].max()
+            giorni_pianificati = (max_date - min_date).days
+            
+            spi_effettivo = last_ev / last_pv if last_pv > 0 else 1.0
+            
+            if spi_effettivo > 0:
+                giorni_stimati = int(giorni_pianificati / spi_effettivo)
+            else:
+                giorni_stimati = giorni_pianificati
+                
+            giorni_stimati = min(giorni_stimati, giorni_pianificati * 3) 
+            data_fine_stimata = min_date + pd.Timedelta(days=giorni_stimati)
+            
+            fig_scurve.add_trace(go.Scatter(
+                x=[data_status_evm, data_fine_stimata],
+                y=[last_ac, tot_eac],
+                mode='lines',
+                line=dict(color='red', dash='dot', width=2),
+                name='Proiezione Costi (verso EAC)'
+            ))
+            
+            fig_scurve.add_trace(go.Scatter(
+                x=[data_status_evm, data_fine_stimata],
+                y=[last_ev, tot_bac],
+                mode='lines',
+                line=dict(color='green', dash='dot', width=2),
+                name='Proiezione Lavoro (verso BAC)'
+            ))
+            
+            fig_scurve.update_xaxes(range=[min_date, max(max_date, data_fine_stimata) + pd.Timedelta(days=5)])
+
         fig_scurve.update_layout(
-            hovermode="x unified", # Mostra tutti e 3 i valori se passi col mouse
+            hovermode="x unified",
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
             margin=dict(t=50, b=20)
         )
         
-        # Linea verticale per indicare la Data di Stato ("Oggi")
         fig_scurve.add_vline(x=str(data_status_evm), line_width=2, line_dash="dash", line_color="gray", annotation_text="Data di Rilevamento")
         
         st.plotly_chart(fig_scurve, use_container_width=True)
@@ -789,7 +782,6 @@ with tab5:
     # --- MOTORE AI ANALIZZATORE DIREZIONALE ---
     st.subheader("🤖 Analizzatore Direzionale (AI-Assist)")
     
-    # Impostiamo la soglia di allerta (es. tolleranza del 5%)
     soglia_allerta = 0.95
     critici_costo = df_evm[df_evm['CPI'] < soglia_allerta]
     critici_tempo = df_evm[df_evm['SPI'] < soglia_allerta]
@@ -799,13 +791,11 @@ with tab5:
     else:
         st.warning("⚠️ **Attenzione: Rilevati scostamenti rispetto alla baseline di progetto.** Analisi suggerita:")
         
-        # Analisi Tempi (SPI)
         for _, row in critici_tempo.iterrows():
             st.error(f"⏳ **Ritardo Schedulazione su '{row['Attività']}':** (SPI = {row['SPI']:.2f})")
             st.markdown(f"> *Il Work Package sta generando meno valore del previsto. Dato lo scostamento, **devi accelerare la produzione**.*")
             st.markdown(f"> * **Soluzioni suggerite:** Verifica la disponibilità della risorsa ({row['ID_OBS_Assegnato']}), valuta di approvare lavoro straordinario o affianca un sub-appaltatore per recuperare il gap prima che intacchi il percorso critico (CPM).*")
             
-        # Analisi Costi (CPI)
         for _, row in critici_costo.iterrows():
             st.error(f"💸 **Sforamento Budget su '{row['Attività']}':** (CPI = {row['CPI']:.2f})")
             st.markdown(f"> *Hai speso **€ {row['AC_Costo_Reale']:,.2f}** per produrre un valore equivalente di soli **€ {row['EV']:,.2f}**. Stai perdendo marginalità.*")
@@ -816,13 +806,10 @@ with tab6:
     st.header("Registro Contabile")
     st.markdown("Inserisci qui le fatture e i SAL. Gli importi netti si sommeranno automaticamente aggiornando la voce *AC_Costo_Reale* nella WBS.")
     
-    # 1. Prepariamo dinamicamente le voci per il menu a tendina (Prendiamo solo i sotto-nodi WBS operativi)
     df_wbs = st.session_state.wbs_data
     leaf_wbs = df_wbs[df_wbs['ID_WBS'].astype(str).str.contains('\.')]
-    # Creiamo una lista formattata "ID - Nome Attività" (es. "1.1 - Scavi con mezzi meccanici")
     wbs_options = [f"{row['ID_WBS']} - {row['Attività']}" for _, row in leaf_wbs.iterrows()]
     
-    # 2. Creiamo la tabella di input
     edited_registro = st.data_editor(
         st.session_state.registro_data,
         num_rows="dynamic",
@@ -841,15 +828,12 @@ with tab6:
             "Voce_WBS": st.column_config.SelectboxColumn(
                 "Attività WBS (Destinazione) ▾",
                 help="Seleziona la lavorazione di riferimento",
-                options=wbs_options, # Passiamo la lista dinamica!
+                options=wbs_options, 
                 required=True
             )
         }
     )
     
-    # 3. Aggiorniamo i dati in tempo reale
     if not edited_registro.equals(st.session_state.registro_data):
         st.session_state.registro_data = edited_registro
-        # Se c'è una modifica, riavvia l'app in modo che il motore in alto ricalcoli
-        # i costi, li spari nel Tab 1 e ricalcoli l'EVM nel Tab 5.
         st.rerun()
