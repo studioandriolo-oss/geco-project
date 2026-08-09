@@ -5,10 +5,40 @@ import plotly.graph_objects as go
 import graphviz
 import streamlit.components.v1 as components
 from datetime import datetime, date
+import json
 
 # Configurazione Pagina
 st.set_page_config(page_title="WBS/OBS Manager & EVM", layout="wide")
 st.title("🏗️ Project Workflow & EVM Controller")
+
+# --- SISTEMA DI LOGIN SICURO (TRAMITE SECRETS) ---
+try:
+    USER_ID = st.secrets["USER_ID"]
+    PASSWORD = st.secrets["PASSWORD"]
+except KeyError:
+    st.error("⚠️ Errore di sistema: Credenziali non trovate. Configura i 'Secrets' di Streamlit.")
+    st.stop()
+
+if 'logged_in' not in st.session_state:
+    st.session_state.logged_in = False
+
+if not st.session_state.logged_in:
+    st.markdown("<br><br><h2 style='text-align: center;'>🔒 Accesso Riservato GECO</h2>", unsafe_allow_html=True)
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        with st.form("login_form"):
+            user_input = st.text_input("ID Utente")
+            pass_input = st.text_input("Password", type="password")
+            submit = st.form_submit_button("Accedi al Gestionale", use_container_width=True)
+            
+            if submit:
+                if user_input == USER_ID and pass_input == PASSWORD:
+                    st.session_state.logged_in = True
+                    st.rerun() 
+                else:
+                    st.error("Credenziali errate. Riprova.")
+                    
+    st.stop()
 
 # --- 1. INIZIALIZZAZIONE DATI (Session State) ---
 if 'wbs_data' not in st.session_state:
@@ -68,6 +98,77 @@ def aggiorna_costi_reali():
 
 # Eseguiamo i calcoli in sequenza prima di disegnare l'interfaccia
 aggiorna_costi_reali()
+
+# --- SIDEBAR: GESTIONE PROGETTI A SCOMPARSA ---
+with st.sidebar:
+    st.header("📂 Gestione Progetti")
+    
+    # 1. NUOVO PROGETTO
+    if st.button("📄 Nuovo Progetto (Reset)", use_container_width=True):
+        # Eliminiamo le chiavi di sessione per far ripartire il programma con i dati di base puliti
+        for key in ['wbs_data', 'obs_data', 'registro_data']:
+            if key in st.session_state:
+                del st.session_state[key]
+        st.rerun()
+        
+    st.divider()
+    
+    # 2. ESPORTA PROGETTO (JSON)
+    # Raccogliamo i tre DataFrame, li convertiamo in formati compatibili con JSON (orient="records")
+    try:
+        progetto_export = {
+            "wbs": json.loads(st.session_state.wbs_data.to_json(orient="records", date_format="iso")),
+            "obs": json.loads(st.session_state.obs_data.to_json(orient="records")),
+            "registro": json.loads(st.session_state.registro_data.to_json(orient="records", date_format="iso"))
+        }
+        json_string = json.dumps(progetto_export, indent=4)
+        
+        st.download_button(
+            label="💾 Esporta Progetto (.json)",
+            data=json_string,
+            file_name="mio_cantiere.json",
+            mime="application/json",
+            use_container_width=True
+        )
+    except Exception as e:
+        st.error(f"Errore durante la preparazione dell'esportazione: {e}")
+    
+    st.divider()
+    
+    # 3. CARICA PROGETTO (JSON)
+    uploaded_file = st.file_uploader("📤 Carica Progetto", type=['json'])
+    
+    if uploaded_file is not None:
+        try:
+            dati_caricati = json.load(uploaded_file)
+            
+            # Sovrascriviamo le variabili di sessione con i dati del file
+            st.session_state.wbs_data = pd.DataFrame(dati_caricati['wbs'])
+            st.session_state.obs_data = pd.DataFrame(dati_caricati['obs'])
+            if 'registro' in dati_caricati:
+                st.session_state.registro_data = pd.DataFrame(dati_caricati['registro'])
+            
+            # SISTEMAZIONE DATE: Il JSON salva le date come stringhe (es. "2026-09-01T00:00:00"). 
+            # Dobbiamo riconvertirle in formati "Date" altrimenti il Gantt e l'EVM si bloccano.
+            colonne_date_wbs = ['Inizio_Previsto', 'Fine_Prevista', 'Inizio_Effettivo', 'Fine_Effettiva']
+            for col in colonne_date_wbs:
+                if col in st.session_state.wbs_data.columns:
+                    st.session_state.wbs_data[col] = pd.to_datetime(st.session_state.wbs_data[col]).dt.date
+                    
+            if 'registro_data' in st.session_state and 'Data' in st.session_state.registro_data.columns:
+                st.session_state.registro_data['Data'] = pd.to_datetime(st.session_state.registro_data['Data']).dt.date
+            
+            st.success("✅ Progetto ripristinato con successo!")
+            
+        except Exception as e:
+            st.error(f"❌ File JSON non valido o danneggiato. Dettagli: {e}")
+            
+    st.divider()
+    
+    # 4. LOGOUT
+    if st.button("🚪 Esci (Logout)", type="primary", use_container_width=True):
+        st.session_state.logged_in = False
+        st.rerun()
 
 # Calcoli EVM Dinamici, Avanzati e Sicuri sul DataFrame
 def calcola_evm(df, data_status):
