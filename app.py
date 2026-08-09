@@ -226,60 +226,69 @@ with tab3:
                     arrowsize='0.8'
                 )
 
-    # --- NUOVA VISUALIZZAZIONE INTERATTIVA (PAN & ZOOM ROBUSTO) ---
-    # 1. Esportiamo il grafo in formato vettoriale SVG puro
-    svg_data = graph.pipe(format='svg').decode('utf-8')
-    
-    # 2. Creiamo una pagina HTML iniettando la libreria svg-pan-zoom e ripulendo l'SVG via Javascript
-    html_code = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <script src="https://cdn.jsdelivr.net/npm/svg-pan-zoom@3.6.1/dist/svg-pan-zoom.min.js"></script>
-        <style>
-            body {{ margin: 0; padding: 0; overflow: hidden; background-color: #fafafa; height: 100vh; }}
-            #svg-container {{ width: 100%; height: 100vh; }}
-        </style>
-    </head>
-    <body>
-        <div id="svg-container">
-            {svg_data}
-        </div>
+   # --- NUOVA VISUALIZZAZIONE INTERATTIVA (PAN & ZOOM ROBUSTO) ---
+    try:
+        # 1. Esportiamo il grafo in formato vettoriale SVG puro
+        raw_svg = graph.pipe(format='svg').decode('utf-8')
         
-        <script>
-            window.onload = function() {{
-                // A. Trova l'SVG originale iniettato da Python
-                var svgElement = document.querySelector('svg');
-                
-                if (svgElement) {{
-                    // B. Rimuove le dimensioni fisse di Graphviz (CRUCIALE per il fit/center)
-                    svgElement.removeAttribute('width');
-                    svgElement.removeAttribute('height');
-                    
-                    // C. Assegna l'ID e forza l'espansione al 100%
-                    svgElement.setAttribute('id', 'grafo-interattivo');
-                    svgElement.style.width = '100%';
-                    svgElement.style.height = '100%';
-                    
-                    // D. Avvia il plugin che ora calcolerà il centro e lo zoom correttamente
-                    var panZoom = svgPanZoom('#grafo-interattivo', {{
-                        zoomEnabled: true,
-                        controlIconsEnabled: true,
-                        fit: true,
-                        center: true,
-                        minZoom: 0.1,
-                        maxZoom: 10,
-                        mouseWheelZoomEnabled: true
-                    }});
-                }}
-            }};
-        </script>
-    </body>
-    </html>
-    """
-    
-    # 3. Renderizziamo l'HTML interattivo
-    components.html(html_code, height=600)
+        # 2. ESTREMA IMPORTANZA: Tagliamo via l'intestazione XML di Graphviz
+        # Prendiamo il testo partendo esattamente dal tag <svg in poi
+        svg_data = raw_svg[raw_svg.find('<svg'):]
+        
+        # 3. Creiamo la pagina HTML
+        html_code = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <script src="https://cdn.jsdelivr.net/npm/svg-pan-zoom@3.6.1/dist/svg-pan-zoom.min.js"></script>
+            <style>
+                body {{ margin: 0; padding: 0; overflow: hidden; background-color: #fafafa; }}
+                #svg-container {{ width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center; }}
+                /* Forziamo l'SVG a prendere tutto lo spazio a disposizione */
+                svg {{ width: 100% !important; height: 100% !important; }}
+            </style>
+        </head>
+        <body>
+            <div id="svg-container">
+                {svg_data}
+            </div>
+            
+            <script>
+                window.onload = function() {{
+                    var svgElement = document.querySelector('svg');
+                    if (svgElement) {{
+                        svgElement.setAttribute('id', 'grafo-interattivo');
+                        
+                        // Rimuoviamo le dimensioni fisse
+                        svgElement.removeAttribute('width');
+                        svgElement.removeAttribute('height');
+                        
+                        // Attiviamo lo zoom
+                        var panZoom = svgPanZoom('#grafo-interattivo', {{
+                            zoomEnabled: true,
+                            controlIconsEnabled: true,
+                            fit: true,
+                            center: true,
+                            minZoom: 0.1,
+                            maxZoom: 10,
+                            mouseWheelZoomEnabled: true
+                        }});
+                    }} else {{
+                        document.getElementById('svg-container').innerHTML = "Errore nel caricamento del grafico SVG.";
+                    }}
+                }};
+            </script>
+        </body>
+        </html>
+        """
+        
+        # 4. Renderizziamo l'HTML interattivo
+        components.html(html_code, height=600)
+        
+    except Exception as e:
+        st.error(f"Errore nella generazione del grafo: {e}")
+        # Piano B di emergenza: se fallisce, stampa il grafico statico nativo
+        st.graphviz_chart(graph)
 
 # --- TAB 4: CRONOPROGRAMMA (GANTT) ---
 with tab4:
@@ -406,7 +415,3 @@ with tab5:
             if val < 1.0: return 'color: red'
             elif val >= 1.0: return 'color: green'
             return ''
-        
-    st.dataframe(df_kpi.style.map(color_kpi, subset=['CPI', 'SPI'])
-                        .format({'CPI': "{:.2f}", 'SPI': "{:.2f}", 'CV': "€ {:.2f}"}), 
-                    use_container_width=True)
