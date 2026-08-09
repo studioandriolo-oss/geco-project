@@ -199,10 +199,10 @@ with tab3:
         shape='Mrecord', # Puoi cambiarlo in 'box', 'rect', o 'ellipse' 
         style='filled', 
         fillcolor='lightgreen',
-        width='2.5',     # <--- Larghezza minima (in pollici)
-        height='1.5',    # <--- Altezza minima (in pollici)
+        width='1.5',     # <--- Larghezza minima (in pollici)
+        height='1.0',    # <--- Altezza minima (in pollici)
         fixedsize='true',
-        fontsize='12'    # <--- Dimensione del testo
+        fontsize='9'    # <--- Dimensione del testo
     )
         
         # Connessione
@@ -216,7 +216,7 @@ with tab3:
 # --- TAB 4: CRONOPROGRAMMA (GANTT) ---
 with tab4:
     st.header("Cronoprogramma Lavori")
-    vista = st.selectbox("Seleziona Vista", ["Progetto (Baseline)", "Esecuzione (As-Built)", "Comparativa"])
+    vista = st.selectbox("Seleziona Vista", ["Progetto (Baseline)", "Esecuzione (Esecutivo)", "Comparativa"])
     
     df_gantt = st.session_state.wbs_data.copy()
     df_gantt = df_gantt[df_gantt['ID_WBS'].astype(str).str.contains('\.')] 
@@ -239,11 +239,11 @@ with tab4:
             base=df_gantt['Inizio_Previsto'],
             orientation='h',
             name='Baseline',
-            width=0.4, # <--- spessore delle righe del cronoprogramma
+            width=0.4, # <--- spessore della barra
             marker=dict(color='rgba(0, 0, 255, 0.4)') if vista == "Comparativa" else dict(color='blue')
         ))
         
-    if vista in ["Esecuzione (As-Built)", "Comparativa"]:
+    if vista in ["Esecuzione (Esecutivo)", "Comparativa"]:
         # Filtra solo i task iniziati e crea una copia esplicita per evitare warning
         df_esec = df_gantt.dropna(subset=['Inizio_Effettivo']).copy()
         
@@ -255,7 +255,8 @@ with tab4:
             y=df_esec['Attività'],
             base=df_esec['Inizio_Effettivo'],
             orientation='h',
-            name='As-Built',
+            name='Esecutivo',
+             width=0.4, # <--- spessore della barra
             marker=dict(color='red')
         ))
         
