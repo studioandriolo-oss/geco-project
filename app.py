@@ -34,6 +34,8 @@ if 'obs_data' not in st.session_state:
         'ID_OBS': ['1.1', '1.2'],
         'Ruolo': ['Capo Cantiere', 'Strutturista'],
         'Risorsa': ['Mario Rossi', 'Studio Tecnico']
+        'Tipo_Contratto': ['Appalto', 'Sub appalto'], 
+        'Note': ['', 'Ricordare DURC']           
     })
 
 # Calcoli EVM Dinamici sul DataFrame
