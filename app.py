@@ -98,14 +98,16 @@ with tab3:
     df_gantt['Inizio_Previsto'] = pd.to_datetime(df_gantt['Inizio_Previsto'])
     df_gantt['Fine_Prevista'] = pd.to_datetime(df_gantt['Fine_Prevista'])
     df_gantt['Inizio_Effettivo'] = pd.to_datetime(df_gantt['Inizio_Effettivo'])
-    # Se la fine effettiva è vuota ma l'inizio c'è, usiamo oggi per visualizzare la barra in corso
     df_gantt['Fine_Effettiva'] = pd.to_datetime(df_gantt['Fine_Effettiva']).fillna(pd.Timestamp.now())
     
     fig = go.Figure()
     
     if vista in ["Progetto (Baseline)", "Comparativa"]:
+        # CORREZIONE: Convertiamo il Timedelta (durata) in millisecondi
+        durata_prevista_ms = (df_gantt['Fine_Prevista'] - df_gantt['Inizio_Previsto']).dt.total_seconds() * 1000
+        
         fig.add_trace(go.Bar(
-            x=df_gantt['Fine_Prevista'] - df_gantt['Inizio_Previsto'],
+            x=durata_prevista_ms,
             y=df_gantt['Attività'],
             base=df_gantt['Inizio_Previsto'],
             orientation='h',
@@ -114,10 +116,14 @@ with tab3:
         ))
         
     if vista in ["Esecuzione (As-Built)", "Comparativa"]:
-        # Filtra solo i task iniziati
-        df_esec = df_gantt.dropna(subset=['Inizio_Effettivo'])
+        # Filtra solo i task iniziati e crea una copia esplicita per evitare warning
+        df_esec = df_gantt.dropna(subset=['Inizio_Effettivo']).copy()
+        
+        # CORREZIONE: Convertiamo il Timedelta (durata effettiva) in millisecondi
+        durata_effettiva_ms = (df_esec['Fine_Effettiva'] - df_esec['Inizio_Effettivo']).dt.total_seconds() * 1000
+        
         fig.add_trace(go.Bar(
-            x=df_esec['Fine_Effettiva'] - df_esec['Inizio_Effettivo'],
+            x=durata_effettiva_ms,
             y=df_esec['Attività'],
             base=df_esec['Inizio_Effettivo'],
             orientation='h',
@@ -125,7 +131,14 @@ with tab3:
             marker=dict(color='red')
         ))
         
-    fig.update_layout(barmode='overlay', height=400, xaxis_title="Linea Temporale", yaxis_title="WBS", yaxis={'autorange':'reversed'})
+    fig.update_layout(
+        barmode='overlay', 
+        height=400, 
+        xaxis_title="Linea Temporale", 
+        yaxis_title="WBS", 
+        yaxis={'autorange': 'reversed'},
+        xaxis_type='date' # Forza Plotly a leggere l'asse X (millisecondi + base) come calendario
+    )
     st.plotly_chart(fig, use_container_width=True)
 
 # --- TAB 4: EVM E CASH FLOW ---
