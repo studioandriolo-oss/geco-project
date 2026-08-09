@@ -41,71 +41,50 @@ if not st.session_state.logged_in:
                     st.error("Credenziali errate. Riprova.")                
     st.stop()
 
-# --- 1. INIZIALIZZAZIONE DATI (Session State) ---
+# --- 1. INIZIALIZZAZIONE DATI (MODELLO OPERATIVO PULITO) ---
 if 'wbs_data' not in st.session_state:
-    st.session_state.wbs_data = pd.DataFrame({
-        'ID_WBS': ['1', '1.1', '1.2', '2', '2.1', '2.2', '3', '3.1', '3.1.1', '3.1.2', '3.2', '4', '4.1'],
-        'Attività': [
-            'Scavi', 'Scavi con mezzi meccanici', 'Scavi a mano', 
-            'Strutture', 'Strutture in fondazione', 'Strutture in elevazione', 
-            'Murature', 'Tamponatura esterna', 'Muratura a cassa vuota', 'Muratura in blocchi CLS', 'Tramezzatura interna',
-            'Impianti', 'Impianto Elettrico'
-        ],
-        'Inizio_Previsto': [None, date(2026, 9, 1), date(2026, 9, 15), None, date(2026, 10, 1), date(2026, 10, 15), None, None, date(2026, 11, 1), date(2026, 11, 10), date(2026, 11, 20), None, date(2026, 12, 1)],
-        'Fine_Prevista': [None, date(2026, 9, 14), date(2026, 9, 30), None, date(2026, 10, 14), date(2026, 11, 1), None, None, date(2026, 11, 9), date(2026, 11, 19), date(2026, 11, 30), None, date(2026, 12, 15)],
-        'Inizio_Effettivo': [None, date(2026, 9, 2), None, None, None, None, None, None, None, None, None, None, None],
-        'Fine_Effettiva': [None, date(2026, 9, 16), None, None, None, None, None, None, None, None, None, None, None],
-        'BAC_Budget': [0.0, 5000.0, 2000.0, 0.0, 15000.0, 20000.0, 0.0, 0.0, 3000.0, 4000.0, 5000.0, 0.0, 8000.0],
-        '%_Completamento': [0, 100, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-        'AC_Costo_Reale': [0.0, 5200.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-        'ID_OBS_Assegnato': [None, '1.1', '1.2', None, '1.1', '1.1', None, None, '1.2', '1.2', '1.2', None, '1.1'],
-        'Predecessori': ['', '', '1.1', '', '', '2.1', '', '', '2.2', '3.1.1', '3.1.2', '', '2.2, 3.1.2']
-    })
+    # Genera un singolo nodo radice vuoto per inizializzare l'interfaccia
+    st.session_state.wbs_data = pd.DataFrame([{
+        'ID_WBS': '1', 
+        'Attività': 'Progetto Principale', 
+        'Inizio_Previsto': None, 'Fine_Prevista': None, 
+        'Inizio_Effettivo': None, 'Fine_Effettiva': None, 
+        'BAC_Budget': 0.0, '%_Completamento': 0.0, 
+        'AC_Costo_Reale': 0.0, 'ID_OBS_Assegnato': None, 'Predecessori': ''
+    }])
     
 if 'obs_data' not in st.session_state:
-    st.session_state.obs_data = pd.DataFrame({
-        'ID_OBS': ['1.1', '1.2'],
-        'Ruolo': ['Capo Cantiere', 'Strutturista'],
-        'Risorsa': ['Mario Rossi', 'Studio Tecnico'],
-        'Tipo_Contratto': ['Appalto ▾', 'Sub appalto ▾'], 
-        'Note': ['', 'Ricordare DURC']            
-    })
+    st.session_state.obs_data = pd.DataFrame(columns=[
+        'ID_OBS', 'Ruolo', 'Risorsa', 'Tipo_Contratto', 'Note'
+    ])
     
 if 'registro_data' not in st.session_state:
-    st.session_state.registro_data = pd.DataFrame({
-        'Data': [date(2026, 9, 5), date(2026, 9, 10)],
-        'N_Doc': ['FATT-01', 'FATT-02'],
-        'Fornitore': ['Mario Rossi', 'Nolo Scavi Srl'],
-        'Voce_WBS': ['1.1 - Scavi con mezzi meccanici', '1.1 - Scavi con mezzi meccanici'],
-        'Importo_Netto': [2000.0, 3200.0],
-        'Descrizione': ['Acconto lavori', 'Nolo escavatore']
-    })
+    st.session_state.registro_data = pd.DataFrame(columns=[
+        'Data', 'N_Doc', 'Fornitore', 'Voce_WBS', 'Importo_Netto', 'Descrizione'
+    ])
 
 if 'capa_data' not in st.session_state:
-    st.session_state.capa_data = pd.DataFrame({
-        'Data_Apertura': [pd.Timestamp.today().date()],
-        'ID_WBS_Rif': ['1.1 - Scavi con mezzi meccanici'],
-        'Tipo_Azione': ['Correttiva ▾'],
-        'Descrizione': ['Esempio: Valutare sostituzione fornitore per ritardi accumulati.'],
-        'Responsabile_OBS': ['1.1 - Capo Cantiere'],
-        'Stato': ['Aperto ▾']
-    })
+    st.session_state.capa_data = pd.DataFrame(columns=[
+        'Data_Apertura', 'ID_WBS_Rif', 'Tipo_Azione', 'Descrizione', 'Responsabile_OBS', 'Stato'
+    ])
 
 if 'archivio_progetti' not in st.session_state:
     st.session_state.archivio_progetti = {}
 if 'nome_progetto_attivo' not in st.session_state:
-    st.session_state.nome_progetto_attivo = "Progetto_01"
+    st.session_state.nome_progetto_attivo = "Nuovo_Progetto"
+
 
 # --- 2. MOTORI MATEMATICI (Definiti Prima dei Tab) ---
 
 def aggiorna_costi_reali():
     df_reg = st.session_state.registro_data.copy()
-    df_reg['ID_WBS_calc'] = df_reg['Voce_WBS'].astype(str).apply(lambda x: x.split(' - ')[0] if ' - ' in x else None)
-    costi_raggruppati = df_reg.groupby('ID_WBS_calc')['Importo_Netto'].sum().reset_index()
-    cost_map = dict(zip(costi_raggruppati['ID_WBS_calc'], costi_raggruppati['Importo_Netto']))
-    wbs = st.session_state.wbs_data
-    wbs['AC_Costo_Reale'] = wbs['ID_WBS'].apply(lambda x: cost_map.get(str(x), 0.0))
-    st.session_state.wbs_data = wbs
+    if not df_reg.empty:
+        df_reg['ID_WBS_calc'] = df_reg['Voce_WBS'].astype(str).apply(lambda x: x.split(' - ')[0] if ' - ' in x else None)
+        costi_raggruppati = df_reg.groupby('ID_WBS_calc')['Importo_Netto'].sum().reset_index()
+        cost_map = dict(zip(costi_raggruppati['ID_WBS_calc'], costi_raggruppati['Importo_Netto']))
+        wbs = st.session_state.wbs_data
+        wbs['AC_Costo_Reale'] = wbs['ID_WBS'].apply(lambda x: cost_map.get(str(x), 0.0))
+        st.session_state.wbs_data = wbs
 
 def calcola_evm(df, data_status):
     oggi = pd.to_datetime(data_status).date()
@@ -166,8 +145,11 @@ def genera_dati_scurve(df_wbs, df_reg, data_status):
     date_range = pd.date_range(start=min_date, end=max_date)
     
     df_reg_calc = df_reg.copy()
-    df_reg_calc['Data'] = pd.to_datetime(df_reg_calc['Data'], errors='coerce').dt.date
-    ac_daily = df_reg_calc.groupby('Data')['Importo_Netto'].sum().to_dict()
+    if not df_reg_calc.empty:
+        df_reg_calc['Data'] = pd.to_datetime(df_reg_calc['Data'], errors='coerce').dt.date
+        ac_daily = df_reg_calc.groupby('Data')['Importo_Netto'].sum().to_dict()
+    else:
+        ac_daily = {}
     
     dati = []
     cum_ac = 0.0
@@ -310,7 +292,8 @@ with st.sidebar:
         st.session_state.archivio_progetti[st.session_state.nome_progetto_attivo] = {
             "wbs": st.session_state.wbs_data.copy(),
             "obs": st.session_state.obs_data.copy(),
-            "registro": st.session_state.registro_data.copy()
+            "registro": st.session_state.registro_data.copy(),
+            "capa": st.session_state.capa_data.copy()
         }
         st.success("Progetto salvato!")
         
@@ -319,7 +302,8 @@ with st.sidebar:
         st.session_state.archivio_progetti[nuovo_nome] = {
             "wbs": st.session_state.wbs_data.copy(),
             "obs": st.session_state.obs_data.copy(),
-            "registro": st.session_state.registro_data.copy()
+            "registro": st.session_state.registro_data.copy(),
+            "capa": st.session_state.capa_data.copy()
         }
         st.session_state.nome_progetto_attivo = nuovo_nome
         st.success("Progetto duplicato!")
@@ -333,13 +317,14 @@ with st.sidebar:
             st.session_state.wbs_data = st.session_state.archivio_progetti[prog_selezionato]["wbs"].copy()
             st.session_state.obs_data = st.session_state.archivio_progetti[prog_selezionato]["obs"].copy()
             st.session_state.registro_data = st.session_state.archivio_progetti[prog_selezionato]["registro"].copy()
+            st.session_state.capa_data = st.session_state.archivio_progetti[prog_selezionato]["capa"].copy()
             st.session_state.nome_progetto_attivo = prog_selezionato
             st.rerun()
 
     st.divider()
     
     if st.button("📄 Nuovo Progetto (Reset Dati)", use_container_width=True):
-        for key in ['wbs_data', 'obs_data', 'registro_data']:
+        for key in ['wbs_data', 'obs_data', 'registro_data', 'capa_data']:
             if key in st.session_state:
                 del st.session_state[key]
         st.session_state.nome_progetto_attivo = "Nuovo_Progetto"
@@ -352,7 +337,8 @@ with st.sidebar:
         progetto_export = {
             "wbs": json.loads(st.session_state.wbs_data.to_json(orient="records", date_format="iso")),
             "obs": json.loads(st.session_state.obs_data.to_json(orient="records")),
-            "registro": json.loads(st.session_state.registro_data.to_json(orient="records", date_format="iso"))
+            "registro": json.loads(st.session_state.registro_data.to_json(orient="records", date_format="iso")),
+            "capa": json.loads(st.session_state.capa_data.to_json(orient="records", date_format="iso"))
         }
         json_string = json.dumps(progetto_export, indent=4)
         
@@ -373,8 +359,11 @@ with st.sidebar:
             dati_caricati = json.load(uploaded_file)
             st.session_state.wbs_data = pd.DataFrame(dati_caricati['wbs'])
             st.session_state.obs_data = pd.DataFrame(dati_caricati['obs'])
+            
             if 'registro' in dati_caricati:
                 st.session_state.registro_data = pd.DataFrame(dati_caricati['registro'])
+            if 'capa' in dati_caricati:
+                st.session_state.capa_data = pd.DataFrame(dati_caricati['capa'])
             
             colonne_date_wbs = ['Inizio_Previsto', 'Fine_Prevista', 'Inizio_Effettivo', 'Fine_Effettiva']
             for col in colonne_date_wbs:
@@ -383,6 +372,9 @@ with st.sidebar:
                     
             if 'registro_data' in st.session_state and 'Data' in st.session_state.registro_data.columns:
                 st.session_state.registro_data['Data'] = pd.to_datetime(st.session_state.registro_data['Data']).dt.date
+                
+            if 'capa_data' in st.session_state and 'Data_Apertura' in st.session_state.capa_data.columns:
+                st.session_state.capa_data['Data_Apertura'] = pd.to_datetime(st.session_state.capa_data['Data_Apertura']).dt.date
             
             st.session_state.nome_progetto_attivo = uploaded_file.name.replace(".json", "")
             st.success("Dati ripristinati!")
@@ -511,7 +503,6 @@ with tab2:
 with tab3:
     st.header("Incrocio Logico (Work Packages e Percorso Critico)")
     
-    # Attiviamo l'algoritmo CPM in background
     cpm_data = calcola_cpm(st.session_state.wbs_data)
     
     mostra_relazioni = st.toggle("👁️ Mostra Relazioni tra WP (Interferenze)", value=True)
@@ -520,7 +511,6 @@ with tab3:
     graph.attr(rankdir='LR', ranksep='1.5', nodesep='0.8', splines='spline')
     graph.attr('node', fontname='Helvetica', fontsize='10', margin='0.2')
     
-    # --- NODI OBS ---
     for _, row in st.session_state.obs_data.iterrows():
         label_html = f"<<TABLE BORDER='0' CELLBORDER='0' CELLSPACING='2'>"
         label_html += f"<TR><TD><B>{row['Ruolo']}</B></TD></TR>"
@@ -545,7 +535,6 @@ with tab3:
             penwidth='1.5'
         )
         
-    # --- NODI WBS E PERCORSO CRITICO ---
     df_wp_reali = st.session_state.wbs_data[st.session_state.wbs_data['ID_WBS'].astype(str).str.contains('\.')]
     valid_wbs_ids = set(df_wp_reali['ID_WBS'].astype(str))
     
@@ -555,7 +544,6 @@ with tab3:
         costo_reale = float(row['AC_Costo_Reale'])
         completamento = float(row['%_Completamento'])
         
-        # Recuperiamo i dati CPM per questo nodo specifico
         wp_cpm = cpm_data.get(str(row['ID_WBS']).strip(), {})
         margine = wp_cpm.get('slack', 0)
         is_critical = wp_cpm.get('is_critical', False)
@@ -563,7 +551,6 @@ with tab3:
         inizio_str = row['Inizio_Previsto'].strftime('%d/%m/%Y') if pd.notna(row['Inizio_Previsto']) else "N/D"
         fine_str = row['Fine_Prevista'].strftime('%d/%m/%Y') if pd.notna(row['Fine_Prevista']) else "N/D"
         
-        # HTML arricchito: Margine in rosso se critico
         testo_margine = f"<FONT COLOR='#D32F2F'><B>Margine: {margine} gg</B></FONT>" if is_critical else f"<FONT COLOR='#388E3C'>Margine: {margine} gg</FONT>"
         
         wp_html = f"<<TABLE BORDER='0' CELLBORDER='0' CELLSPACING='4'>"
@@ -573,7 +560,6 @@ with tab3:
         wp_html += f"<TR><TD ALIGN='LEFT'>Avanzamento: {completamento:.1f}%</TD><TD ALIGN='RIGHT'>{testo_margine}</TD></TR>"
         wp_html += "</TABLE>>"
         
-        # Gestione Stile (Barra di progresso)
         if completamento >= 100:
             stile = 'rounded,filled'
             colore_sfondo = '#C8E6C9' 
@@ -585,9 +571,8 @@ with tab3:
             quota_verde = completamento / 100.0
             colore_sfondo = f"#C8E6C9;{quota_verde}:white"
             
-        # --- APPLICAZIONE STILE PERCORSO CRITICO ---
-        bordo_colore = '#D32F2F' if is_critical else '#388E3C'  # Rosso se critico, altrimenti verde scuro
-        spessore_bordo = '3.0' if is_critical else '1.5'        # Più spesso se critico
+        bordo_colore = '#D32F2F' if is_critical else '#388E3C'  
+        spessore_bordo = '3.0' if is_critical else '1.5'        
         
         graph.node(
             f"WBS_{row['ID_WBS']}", 
@@ -599,14 +584,12 @@ with tab3:
             penwidth=spessore_bordo
         )
         
-        # Assegnazioni OBS (Linee grigie)
         if pd.notna(row['ID_OBS_Assegnato']):
             obs_ids = str(row['ID_OBS_Assegnato']).split(',')
             for o_id in obs_ids:
                 if o_id.strip():
                     graph.edge(f"OBS_{o_id.strip()}", f"WBS_{row['ID_WBS']}", color='#757575', penwidth='1.5', arrowsize='0.8')
                     
-        # Connessioni WP (Il Fiume Logico)
         if mostra_relazioni and 'Predecessori' in row and pd.notna(row['Predecessori']):
             preds = str(row['Predecessori']).split(',')
             for p_id in preds:
@@ -614,14 +597,13 @@ with tab3:
                 if p_id in valid_wbs_ids:
                     pred_is_critical = cpm_data.get(p_id, {}).get('is_critical', False)
                     
-                    # Se ENTRAMBI i nodi sono sul percorso critico, coloriamo il cavo di rosso spesso
                     if is_critical and pred_is_critical:
-                        colore_cavo = '#D32F2F' # Rosso fuoco
+                        colore_cavo = '#D32F2F' 
                         stile_cavo = 'solid'
                         spessore_cavo = '2.5'
                         freccia = '1.0'
                     else:
-                        colore_cavo = '#FF9800' # Arancione standard
+                        colore_cavo = '#FF9800' 
                         stile_cavo = 'dashed'
                         spessore_cavo = '1.0'
                         freccia = '0.6'
@@ -635,7 +617,6 @@ with tab3:
                         arrowsize=freccia
                     )
 
-    # Rendering interattivo
     try:
         raw_svg = graph.pipe(format='svg').decode('utf-8')
         svg_data = raw_svg[raw_svg.find('<svg'):]
@@ -684,7 +665,6 @@ with tab3:
         st.error(f"Errore nella generazione del grafo: {e}")
         st.graphviz_chart(graph)
 
-    # --- NUOVA LEGENDA DEL GRAFO ---
     st.divider()
     st.subheader("📖 Legenda del Grafo")
     
@@ -718,51 +698,54 @@ with tab4:
     df_gantt = st.session_state.wbs_data.copy()
     df_gantt = df_gantt[df_gantt['ID_WBS'].astype(str).str.contains('\.')] 
     
-    df_gantt['Inizio_Previsto'] = pd.to_datetime(df_gantt['Inizio_Previsto'])
-    df_gantt['Fine_Prevista'] = pd.to_datetime(df_gantt['Fine_Prevista'])
-    df_gantt['Inizio_Effettivo'] = pd.to_datetime(df_gantt['Inizio_Effettivo'])
-    
-    df_gantt['Fine_Effettiva'] = pd.to_datetime(df_gantt['Fine_Effettiva']).fillna(pd.to_datetime(data_status_gantt))
-    
-    fig = go.Figure()
-    
-    if vista in ["Progetto (Baseline)", "Comparativa"]:
-        durata_prevista_ms = (df_gantt['Fine_Prevista'] - df_gantt['Inizio_Previsto']).dt.total_seconds() * 1000
+    if not df_gantt.empty:
+        df_gantt['Inizio_Previsto'] = pd.to_datetime(df_gantt['Inizio_Previsto'])
+        df_gantt['Fine_Prevista'] = pd.to_datetime(df_gantt['Fine_Prevista'])
+        df_gantt['Inizio_Effettivo'] = pd.to_datetime(df_gantt['Inizio_Effettivo'])
         
-        fig.add_trace(go.Bar(
-            x=durata_prevista_ms,
-            y=df_gantt['Attività'],
-            base=df_gantt['Inizio_Previsto'],
-            orientation='h',
-            name='Baseline',
-            width=0.4, 
-            marker=dict(color='rgba(0, 0, 255, 0.4)') if vista == "Comparativa" else dict(color='blue')
-        ))
+        df_gantt['Fine_Effettiva'] = pd.to_datetime(df_gantt['Fine_Effettiva']).fillna(pd.to_datetime(data_status_gantt))
         
-    if vista in ["Esecuzione (Esecutivo)", "Comparativa"]:
-        df_esec = df_gantt.dropna(subset=['Inizio_Effettivo']).copy()
-        durata_effettiva_ms = (df_esec['Fine_Effettiva'] - df_esec['Inizio_Effettivo']).dt.total_seconds() * 1000
+        fig = go.Figure()
         
-        fig.add_trace(go.Bar(
-            x=durata_effettiva_ms,
-            y=df_esec['Attività'],
-            base=df_esec['Inizio_Effettivo'],
-            orientation='h',
-            name='Esecutivo',
-            width=0.2, 
-            marker=dict(color='red')
-        ))
-        
-    fig.update_layout(
-        barmode='overlay', 
-        height=600, 
-        bargap=0.3, 
-        xaxis_title="Linea Temporale", 
-        yaxis_title="WBS", 
-        yaxis={'autorange': 'reversed'},
-        xaxis_type='date' 
-    )
-    st.plotly_chart(fig, use_container_width=True)
+        if vista in ["Progetto (Baseline)", "Comparativa"]:
+            durata_prevista_ms = (df_gantt['Fine_Prevista'] - df_gantt['Inizio_Previsto']).dt.total_seconds() * 1000
+            
+            fig.add_trace(go.Bar(
+                x=durata_prevista_ms,
+                y=df_gantt['Attività'],
+                base=df_gantt['Inizio_Previsto'],
+                orientation='h',
+                name='Baseline',
+                width=0.4, 
+                marker=dict(color='rgba(0, 0, 255, 0.4)') if vista == "Comparativa" else dict(color='blue')
+            ))
+            
+        if vista in ["Esecuzione (Esecutivo)", "Comparativa"]:
+            df_esec = df_gantt.dropna(subset=['Inizio_Effettivo']).copy()
+            durata_effettiva_ms = (df_esec['Fine_Effettiva'] - df_esec['Inizio_Effettivo']).dt.total_seconds() * 1000
+            
+            fig.add_trace(go.Bar(
+                x=durata_effettiva_ms,
+                y=df_esec['Attività'],
+                base=df_esec['Inizio_Effettivo'],
+                orientation='h',
+                name='Esecutivo',
+                width=0.2, 
+                marker=dict(color='red')
+            ))
+            
+        fig.update_layout(
+            barmode='overlay', 
+            height=600, 
+            bargap=0.3, 
+            xaxis_title="Linea Temporale", 
+            yaxis_title="WBS", 
+            yaxis={'autorange': 'reversed'},
+            xaxis_type='date' 
+        )
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info("Nessuna attività operativa presente nel cronoprogramma.")
 
 # --- TAB 5: EVM E CASH FLOW ---
 with tab5:
@@ -796,7 +779,6 @@ with tab5:
         with st.container(border=True):
             st.markdown("#### 📊 Stato Attuale (Consuntivo)")
             
-            # Sub-Grid 1: Valori Monetari
             c1, c2, c3 = st.columns(3)
             c1.metric("Budget Totale (BAC)", f"€ {tot_bac:,.0f}")
             c2.metric("Lavoro Eseguito (EV)", f"€ {tot_ev:,.0f}")
@@ -804,7 +786,6 @@ with tab5:
             
             st.divider()
             
-            # Sub-Grid 2: Performance
             c4, c5 = st.columns(2)
             c4.metric("Avanzamento Globale", f"{perc_completamento:.1f}%", delta=f"Pianificato: {perc_pianificata:.1f}%", delta_color="off")
             c5.metric("SPI (Tempi)", f"{spi_globale:.2f}", delta="In ritardo" if spi_globale < 1 else "In anticipo", delta_color="inverse")
@@ -813,7 +794,6 @@ with tab5:
         with st.container(border=True):
             st.markdown("#### 🔮 Previsioni a Finire (Proiezioni)")
             
-            # Sub-Grid 1: Valori Monetari
             c1, c2, c3 = st.columns(3)
             c1.metric("Costo Finale Stimato (EAC)", f"€ {tot_eac:,.0f}", delta="Proiezione a fine lavori", delta_color="off")
             c2.metric("Costo Residuo (ETC)", f"€ {tot_etc:,.0f}", delta="Capitale ancora necessario", delta_color="off")
@@ -821,10 +801,9 @@ with tab5:
             
             st.divider()
             
-            # Sub-Grid 2: Performance
             c4, c5 = st.columns(2)
             c4.metric("CPI (Costi)", f"{cpi_globale:.2f}", delta="Over-budget" if cpi_globale < 1 else "Under-budget", delta_color="inverse")
-            c5.write("") # Colonna vuota invisibile per mantenere il bilanciamento simmetrico del box
+            c5.write("") 
             
     st.divider()
 
@@ -846,7 +825,6 @@ with tab5:
             labels={'value': 'Importo (€)', 'variable': 'Metrica EVM'}
         )
         
-        # --- NOVITÀ: AGGIUNTA PROIEZIONI FUTURE (FORECAST) ---
         df_past = df_scurve[df_scurve['Data'] <= data_status_evm]
         
         if not df_past.empty:
@@ -902,13 +880,16 @@ with tab5:
     
     # --- GRAFICO A BARRE ---
     st.subheader("Raffronto Costi per Attività")
-    fig_evm = go.Figure(data=[
-        go.Bar(name='BAC (Budget)', x=df_evm['Attività'], y=df_evm['BAC_Budget'], marker_color='lightgray', text=df_evm['BAC_Budget'], texttemplate='€ %{text:,.0f}', textposition='outside', textangle=-90),
-        go.Bar(name='EV (Valore Guadagnato)', x=df_evm['Attività'], y=df_evm['EV'], marker_color='green', text=df_evm['EV'], texttemplate='€ %{text:,.0f}', textposition='outside', textangle=-90),
-        go.Bar(name='AC (Costo Reale)', x=df_evm['Attività'], y=df_evm['AC_Costo_Reale'], marker_color='red', text=df_evm['AC_Costo_Reale'], texttemplate='€ %{text:,.0f}', textposition='outside', textangle=-90)
-    ])
-    fig_evm.update_layout(barmode='group', margin=dict(t=80), uniformtext_minsize=9, uniformtext_mode='hide')
-    st.plotly_chart(fig_evm, use_container_width=True)
+    if not df_evm.empty:
+        fig_evm = go.Figure(data=[
+            go.Bar(name='BAC (Budget)', x=df_evm['Attività'], y=df_evm['BAC_Budget'], marker_color='lightgray', text=df_evm['BAC_Budget'], texttemplate='€ %{text:,.0f}', textposition='outside', textangle=-90),
+            go.Bar(name='EV (Valore Guadagnato)', x=df_evm['Attività'], y=df_evm['EV'], marker_color='green', text=df_evm['EV'], texttemplate='€ %{text:,.0f}', textposition='outside', textangle=-90),
+            go.Bar(name='AC (Costo Reale)', x=df_evm['Attività'], y=df_evm['AC_Costo_Reale'], marker_color='red', text=df_evm['AC_Costo_Reale'], texttemplate='€ %{text:,.0f}', textposition='outside', textangle=-90)
+        ])
+        fig_evm.update_layout(barmode='group', margin=dict(t=80), uniformtext_minsize=9, uniformtext_mode='hide')
+        st.plotly_chart(fig_evm, use_container_width=True)
+    else:
+        st.info("Nessuna attività inserita per il raffronto costi.")
         
     # --- TABELLA E LEGENDA ---
     col_KPI, col_LEGENDA = st.columns([7, 3]) 
@@ -922,7 +903,8 @@ with tab5:
                 elif val >= 1.0: return 'color: green'
             return ''
             
-        st.dataframe(df_kpi.style.map(color_kpi, subset=['CPI', 'SPI']).format({'CPI': "{:.2f}", 'SPI': "{:.2f}", 'CV': "€ {:.2f}"}), use_container_width=True)
+        if not df_kpi.empty:
+            st.dataframe(df_kpi.style.map(color_kpi, subset=['CPI', 'SPI']).format({'CPI': "{:.2f}", 'SPI': "{:.2f}", 'CV': "€ {:.2f}"}), use_container_width=True)
 
     with col_LEGENDA:
         st.subheader("Legenda EVM")
@@ -941,7 +923,9 @@ with tab5:
     critici_costo = df_evm[df_evm['CPI'] < soglia_allerta]
     critici_tempo = df_evm[df_evm['SPI'] < soglia_allerta]
     
-    if critici_costo.empty and critici_tempo.empty:
+    if df_evm.empty:
+        st.info("Aggiungi lavorazioni per abilitare l'analisi automatica.")
+    elif critici_costo.empty and critici_tempo.empty:
         st.success("✅ **Progetto in Salute:** Tutti i parametri (Tempi e Costi) sono entro i margini di tolleranza pianificati. Nessuna criticità rilevata.")
     else:
         st.warning("⚠️ **Attenzione: Rilevati scostamenti rispetto alla baseline di progetto.** Analisi suggerita:")
@@ -997,7 +981,6 @@ with tab6:
 with tab7:
     st.header("Direzione Lavori: Interventi (CAPA) e Simulazioni")
     
-    # --- PREPARAZIONE DATI DINAMICI ---
     df_wbs_capa = st.session_state.wbs_data
     leaf_wbs_capa = df_wbs_capa[df_wbs_capa['ID_WBS'].astype(str).str.contains('\.')]
     wbs_options_capa = [f"{row['ID_WBS']} - {row['Attività']}" for _, row in leaf_wbs_capa.iterrows()]
@@ -1044,7 +1027,6 @@ with tab7:
         if wp_scelto:
             wp_id = wp_scelto.split(' - ')[0]
             
-            # --- 1. SETUP SIMULAZIONE COSTI ---
             df_simulazione = st.session_state.wbs_data.copy()
             df_simulazione['BAC_Budget'] = pd.to_numeric(df_simulazione['BAC_Budget'], errors='coerce').fillna(0.0)
             df_simulazione['%_Completamento'] = pd.to_numeric(df_simulazione['%_Completamento'], errors='coerce').fillna(0.0)
@@ -1065,7 +1047,6 @@ with tab7:
             ac_simulato_tot = df_sim_calc['AC_Costo_Reale'].sum()
             delta_eac = eac_simulato - eac_attuale
             
-            # --- 2. SETUP SIMULAZIONE TEMPI ---
             min_date = pd.to_datetime(df_reale_calc['Inizio_Previsto']).min().date()
             max_date = pd.to_datetime(df_reale_calc['Fine_Prevista']).max().date()
             
@@ -1076,7 +1057,7 @@ with tab7:
                 spi_attuale = tot_ev / tot_pv if tot_pv > 0 else 1.0
                 
                 giorni_stimati_attuali = int(giorni_pianificati / spi_attuale) if spi_attuale > 0 else giorni_pianificati
-                giorni_stimati_attuali = min(giorni_stimati_attuali, giorni_pianificati * 3) # Limite massimo
+                giorni_stimati_attuali = min(giorni_stimati_attuali, giorni_pianificati * 3)
                 
                 data_fine_attuale = min_date + pd.Timedelta(days=giorni_stimati_attuali)
                 data_fine_simulata = data_fine_attuale - pd.Timedelta(days=giorni_risparmiati)
@@ -1084,7 +1065,6 @@ with tab7:
                 data_fine_attuale = oggi
                 data_fine_simulata = oggi
             
-            # --- 3. RENDERING INTERFACCIA ---
             c_res1, c_res2 = st.columns([1, 2])
             
             with c_res1:
@@ -1104,7 +1084,6 @@ with tab7:
             with c_res2:
                 fig_sim = go.Figure()
                 
-                # Traiettoria Attuale (Senza intervento)
                 fig_sim.add_trace(go.Scatter(
                     x=[oggi, data_fine_attuale],
                     y=[ac_attuale_tot, eac_attuale],
@@ -1115,7 +1094,6 @@ with tab7:
                     textposition="bottom right"
                 ))
                 
-                # Traiettoria Simulata (Con intervento di Crashing)
                 fig_sim.add_trace(go.Scatter(
                     x=[oggi, data_fine_simulata],
                     y=[ac_simulato_tot, eac_simulato],
@@ -1144,18 +1122,18 @@ with tab7:
     filtro_stampa = col_f1.radio("Quali interventi includere nel verbale?", ["Tutti i registrati", "Solo l'ultimo inserito", "Intervallo di date"])
     
     df_stampa = st.session_state.capa_data.copy()
-    df_stampa['Data_Apertura'] = pd.to_datetime(df_stampa['Data_Apertura']).dt.date
-    
-    if filtro_stampa == "Solo l'ultimo inserito":
-        df_stampa = df_stampa.tail(1)
-    elif filtro_stampa == "Intervallo di date":
-        d_start = col_f2.date_input("Da data:", value=pd.Timestamp.today().date())
-        d_end = col_f2.date_input("A data:", value=pd.Timestamp.today().date())
-        df_stampa = df_stampa[(df_stampa['Data_Apertura'] >= d_start) & (df_stampa['Data_Apertura'] <= d_end)]
+    if not df_stampa.empty:
+        df_stampa['Data_Apertura'] = pd.to_datetime(df_stampa['Data_Apertura']).dt.date
+        
+        if filtro_stampa == "Solo l'ultimo inserito":
+            df_stampa = df_stampa.tail(1)
+        elif filtro_stampa == "Intervallo di date":
+            d_start = col_f2.date_input("Da data:", value=pd.Timestamp.today().date())
+            d_end = col_f2.date_input("A data:", value=pd.Timestamp.today().date())
+            df_stampa = df_stampa[(df_stampa['Data_Apertura'] >= d_start) & (df_stampa['Data_Apertura'] <= d_end)]
 
     if st.button("📄 Genera Verbale WORD (.docx)", use_container_width=True, type="primary"):
         
-        # Recupero i totali EVM correnti per il report
         df_evm_rep = calcola_evm(st.session_state.wbs_data[st.session_state.wbs_data['ID_WBS'].astype(str).str.contains('\.')].copy(), pd.Timestamp.today().date())
         tot_ev_rep = df_evm_rep['EV'].sum()
         tot_ac_rep = df_evm_rep['AC_Costo_Reale'].sum()
@@ -1164,15 +1142,12 @@ with tab7:
         spi_rep = tot_ev_rep / tot_pv_rep if tot_pv_rep > 0 else 1.0
         eac_rep = df_evm_rep['EAC'].sum()
         
-        # Creazione del Documento Word
         doc = Document()
         
-        # Intestazione Documento
         doc.add_heading('VERBALE DI DIREZIONE LAVORI', 0)
         doc.add_paragraph(f"Progetto: {st.session_state.nome_progetto_attivo}")
         doc.add_paragraph(f"Data emissione verbale: {pd.Timestamp.today().strftime('%d/%m/%Y')}")
         
-        # Sezione EVM
         doc.add_heading('1. Stato Avanzamento Lavori (EVM)', level=1)
         p = doc.add_paragraph()
         p.add_run(f"CPI (Efficienza Costi): {cpi_rep:.2f}\n").bold = True
@@ -1180,7 +1155,6 @@ with tab7:
         p.add_run(f"Costo Finale Stimato (EAC): € {eac_rep:,.2f}").bold = True
         doc.add_paragraph("Nota: Un indicatore inferiore a 1.00 indica un superamento del budget o un ritardo sui tempi.")
         
-        # Sezione Interventi (Tabella)
         doc.add_heading('2. Disposizioni e Azioni (CAPA)', level=1)
         
         if not df_stampa.empty:
@@ -1205,12 +1179,10 @@ with tab7:
             
         doc.add_paragraph("\n\nFirma Direzione Lavori\n_________________________")
         
-        # Salvataggio nel buffer in RAM
         buffer = BytesIO()
         doc.save(buffer)
         buffer.seek(0)
         
-        # Bottone di Download file Word
         st.download_button(
             label="⬇️ Clicca qui per scaricare il file Word pronto per la firma",
             data=buffer,
