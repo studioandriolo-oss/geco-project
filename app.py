@@ -77,9 +77,18 @@ with tab2:
     # Nodi WBS e Connessioni (I Work Packages)
     for _, row in st.session_state.wbs_data.iterrows():
         wp_label = f"WP: {row['Attività']}\nBudget: €{row['BAC_Budget']}"
-        graph.node(row['ID_WBS'], wp_label, shape='ellipse', style='filled', fillcolor='lightgreen')
+        graph.node(
+        row['ID_WBS'], 
+        wp_label, 
+        shape='Mrecord', # Puoi cambiarlo in 'box', 'rect', o 'ellipse' 
+        style='filled', 
+        fillcolor='lightgreen',
+        width='2.5',     # <--- Larghezza minima (in pollici)
+        height='1.2',    # <--- Altezza minima (in pollici)
+        fontsize='12'    # <--- Dimensione del testo
+    )
         
-        # Connessione (il cavo di Grasshopper)
+        # Connessione
         if pd.notna(row['ID_OBS_Assegnato']):
             obs_ids = str(row['ID_OBS_Assegnato']).split(',') # Permette assegnazioni multiple (es: "1.1, 1.2")
             for o_id in obs_ids:
@@ -112,6 +121,7 @@ with tab3:
             base=df_gantt['Inizio_Previsto'],
             orientation='h',
             name='Baseline',
+            width=0.4; # <--- spessore delle righe del cronoprogramma
             marker=dict(color='rgba(0, 0, 255, 0.4)') if vista == "Comparativa" else dict(color='blue')
         ))
         
@@ -133,7 +143,8 @@ with tab3:
         
     fig.update_layout(
         barmode='overlay', 
-        height=400, 
+        height=600, # <--- altezza tabella del cronoprogramma
+        bargap=0.3, # <--- Spazio vuoto tra le barre: 0.0 è tutto unito, 0.5 è metà vuoto
         xaxis_title="Linea Temporale", 
         yaxis_title="WBS", 
         yaxis={'autorange': 'reversed'},
