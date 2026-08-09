@@ -411,11 +411,16 @@ with tab3:
     
     for _, row in df_wp_reali.iterrows():
         attivita = str(row['Attività'])
-        budget = row['BAC_Budget']
+        budget = float(row['BAC_Budget'])
+        costo_reale = float(row['AC_Costo_Reale'])
+        completamento = float(row['%_Completamento'])
         
+        # Costruiamo la tabella HTML del nodo WBS arricchita
         wp_html = f"<<TABLE BORDER='0' CELLBORDER='0' CELLSPACING='4'>"
         wp_html += f"<TR><TD><B>WP: {attivita}</B></TD></TR>"
-        wp_html += f"<TR><TD>Budget: &euro; {budget:,.2f}</TD></TR>"
+        wp_html += f"<TR><TD>Budget (BAC): &euro; {budget:,.2f}</TD></TR>"
+        wp_html += f"<TR><TD>Costo (AC): &euro; {costo_reale:,.2f}</TD></TR>"
+        wp_html += f"<TR><TD>Avanzamento: {completamento:.1f}%</TD></TR>"
         wp_html += "</TABLE>>"
         
         graph.node(
