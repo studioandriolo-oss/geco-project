@@ -671,6 +671,28 @@ with tab3:
         st.error(f"Errore nella generazione del grafo: {e}")
         st.graphviz_chart(graph)
 
+    # --- NUOVA LEGENDA DEL GRAFO ---
+    st.divider()
+    st.subheader("📖 Legenda del Grafo")
+    
+    col_leg1, col_leg2 = st.columns(2)
+    
+    with col_leg1:
+        st.markdown("""
+        **NODI E FIGURE**
+        * 🟦 **Riquadro Azzurro:** Risorsa/Ruolo (OBS) assegnato al cantiere.
+        * 🟩 **Riquadro Verde:** Work Package (WBS). Il riempimento interno funge da barra di caricamento e indica la **% di avanzamento** reale.
+        * 🟥 **Bordo Rosso Spesso:** Attività sul **Percorso Critico** (Margine = 0 gg). Attenzione: un ritardo in questo blocco ritarderà la fine dell'intero progetto!
+        """)
+        
+    with col_leg2:
+        st.markdown("""
+        **CAVI E COLLEGAMENTI**
+        * 🔗 **Freccia Grigia Continua:** Indica quale Risorsa (OBS) è incaricata di eseguire quale Lavorazione (WBS).
+        * 🔀 **Freccia Arancione Tratteggiata:** Relazione logica standard (es. *L'attività B inizia dopo l'attività A*).
+        * 🚨 **Freccia Rossa Spessa:** Il flusso del **Percorso Critico**. Segue esattamente la catena logica di attività che determina la durata totale del cantiere.
+        """)
+
 # --- TAB 4: CRONOPROGRAMMA (GANTT) ---
 with tab4:
     st.header("Cronoprogramma Lavori")
