@@ -53,45 +53,49 @@ def calcola_evm(df):
 st.session_state.wbs_data = calcola_evm(st.session_state.wbs_data)
 
 # --- CREAZIONE TAB ---
-tab1, tab2, tab3, tab4 = st.tabs(["🗂️ Setup WBS/OBS", "🕸️ Nodi & Matrice", "📅 Cronoprogramma", "📈 EVM & Cash Flow"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    "🗂️ WBS (Lavorazioni)", 
+    "👥 OBS (Risorse)", 
+    "🕸️ Nodi & Matrice", 
+    "📅 Cronoprogramma", 
+    "📈 EVM & Cash Flow"
+])
 
-# --- TAB 1: SETUP E INSERIMENTO DATI ---
+# --- TAB 1: SETUP WBS (Solo Lavorazioni) ---
 with tab1:
-    st.header("Compilazione Strutture WBS & OBS")
+    st.header("WBS - Work Breakdown Structure")
     
-    st.subheader("WBS - Work Breakdown Structure")
     df = st.session_state.wbs_data
-        
-    # 1. CALCOLO AUTOMATICO (Celle derivate): Calcoliamo i giorni di durata
+    
+    # Calcolo automatico giorni
     df['Durata_Prevista (gg)'] = (pd.to_datetime(df['Fine_Prevista']) - pd.to_datetime(df['Inizio_Previsto'])).dt.days
-        
+    
     is_root = ~df['ID_WBS'].astype(str).str.contains('\.')
     radici = df[is_root]
-        
+    
     df_aggiornato = pd.DataFrame()
-        
+    
     for _, radice in radici.iterrows():
         id_radice = str(radice['ID_WBS'])
         discendenti = df[df['ID_WBS'].astype(str).str.startswith(f"{id_radice}.")]
         tot_budget = discendenti['BAC_Budget'].sum()
-            
+        
         with st.expander(f"📁 {id_radice} - {radice['Attività']} (Budget Raggruppato: € {tot_budget:,.2f})", expanded=True):
-                
+            
             discendenti_modificati = st.data_editor(
                 discendenti,
-                key=f"editor_{id_radice}",
+                key=f"editor_wbs_{id_radice}",
                 num_rows="dynamic",
                 use_container_width=True,
                 hide_index=True,
-                # 2. BLOCCO CELLE: Impediamo la modifica della durata calcolata e dell'ID strutturale
                 disabled=["Durata_Prevista (gg)", "ID_WBS"] 
             )
-                
+            
             radice_aggiornata = radice.copy()
             radice_aggiornata['BAC_Budget'] = discendenti_modificati['BAC_Budget'].sum()
-                
+            
             df_aggiornato = pd.concat([df_aggiornato, pd.DataFrame([radice_aggiornata]), discendenti_modificati], ignore_index=True)
-                
+            
     with st.form("aggiungi_padre"):
         st.write("Aggiungi nuova Macro-Categoria")
         c1, c2, c3 = st.columns([2, 5, 2])
@@ -109,49 +113,49 @@ with tab1:
     if not df_aggiornato.empty:
         st.session_state.wbs_data = df_aggiornato
 
-        st.subheader("OBS - Risorse")
-        
-        # --- PANNELLO GESTIONE COLONNE DINAMICHE ---
-        with st.expander("⚙️ Gestione Colonne Aggiuntive", expanded=False):
-            # Aggiungi colonna
-            c1, c2 = st.columns([3, 1])
-            nuova_col = c1.text_input("Nome nuova colonna (es. Telefono, Qualifica)")
-            if c2.button("➕ Crea") and nuova_col:
-                if nuova_col not in st.session_state.obs_data.columns:
-                    st.session_state.obs_data[nuova_col] = "" # Aggiunge la colonna vuota
-                    st.rerun()
-            
-            # Rinomina/Elimina colonne custom (ignoriamo quelle di base per non rompere il codice)
-            colonne_base = ['ID_OBS', 'Ruolo', 'Risorsa', 'Tipo_Contratto', 'Note']
-            colonne_custom = [c for c in st.session_state.obs_data.columns if c not in colonne_base]
-            
-            if colonne_custom:
-                st.divider()
-                c3, c4, c5 = st.columns([2, 2, 1])
-                col_da_modificare = c3.selectbox("Colonna da rinominare", options=colonne_custom)
-                nuovo_nome = c4.text_input("Nuovo nome intestazione")
-                if c5.button("✏️ Modifica") and nuovo_nome:
-                    st.session_state.obs_data.rename(columns={col_da_modificare: nuovo_nome}, inplace=True)
-                    st.rerun()
 
-        # --- TABELLA OBS DATI ---
-        # Le nuove colonne verranno renderizzate automaticamente come testo libero
-        st.session_state.obs_data = st.data_editor(
-            st.session_state.obs_data, 
-            column_config={
-                "Tipo_Contratto": st.column_config.SelectboxColumn(
-                    "Tipo Contratto",
-                    options=["Appalto ▾", "Sub appalto ▾"],
-                    required=True
-                )
-            },
-            num_rows="dynamic", 
-            use_container_width=True, 
-            hide_index=True
-        )
-        
-# --- TAB 2: MATRICE E GRAFO A NODI ---
+# --- TAB 2: SETUP OBS (Solo Risorse) ---
 with tab2:
+    st.header("OBS - Organization Breakdown Structure")
+    
+    # Pannello Gestione Colonne Dinamiche
+    with st.expander("⚙️ Gestione Colonne Aggiuntive", expanded=False):
+        c1, c2 = st.columns([3, 1])
+        nuova_col = c1.text_input("Nome nuova colonna (es. Telefono, Qualifica, Partita IVA)")
+        if c2.button("➕ Crea") and nuova_col:
+            if nuova_col not in st.session_state.obs_data.columns:
+                st.session_state.obs_data[nuova_col] = "" 
+                st.rerun()
+        
+        colonne_base = ['ID_OBS', 'Ruolo', 'Risorsa', 'Tipo_Contratto', 'Note']
+        colonne_custom = [c for c in st.session_state.obs_data.columns if c not in colonne_base]
+        
+        if colonne_custom:
+            st.divider()
+            c3, c4, c5 = st.columns([2, 2, 1])
+            col_da_modificare = c3.selectbox("Colonna da rinominare", options=colonne_custom)
+            nuovo_nome = c4.text_input("Nuovo nome intestazione")
+            if c5.button("✏️ Modifica") and nuovo_nome:
+                st.session_state.obs_data.rename(columns={col_da_modificare: nuovo_nome}, inplace=True)
+                st.rerun()
+
+    # Tabella OBS Dati a tutto schermo
+    st.session_state.obs_data = st.data_editor(
+        st.session_state.obs_data, 
+        column_config={
+            "Tipo_Contratto": st.column_config.SelectboxColumn(
+                "Tipo Contratto",
+                options=["Appalto ▾", "Sub appalto ▾"],
+                required=True
+            )
+        },
+        num_rows="dynamic", 
+        use_container_width=True, 
+        hide_index=True
+    )
+        
+# --- TAB 3: MATRICE E GRAFO A NODI ---
+with tab3:
     st.header("Incrocio Logico (Work Packages)")
     st.markdown("Generazione automatica dei nodi di collegamento tra risorse (OBS) e attività (WBS).")
     
@@ -209,8 +213,8 @@ with tab2:
                 
     st.graphviz_chart(graph, use_container_width=True)
 
-# --- TAB 3: CRONOPROGRAMMA (GANTT) ---
-with tab3:
+# --- TAB 4: CRONOPROGRAMMA (GANTT) ---
+with tab4:
     st.header("Cronoprogramma Lavori")
     vista = st.selectbox("Seleziona Vista", ["Progetto (Baseline)", "Esecuzione (As-Built)", "Comparativa"])
     
@@ -266,8 +270,8 @@ with tab3:
     )
     st.plotly_chart(fig, use_container_width=True)
 
-# --- TAB 4: EVM E CASH FLOW ---
-with tab4:
+# --- TAB 5: EVM E CASH FLOW ---
+with tab5:
     st.header("Controllo Costi e Analisi EVM")
     
     df_evm = st.session_state.wbs_data.copy()
