@@ -79,6 +79,16 @@ if 'registro_data' not in st.session_state:
         'Descrizione': ['Acconto lavori', 'Nolo escavatore']
     })
 
+if 'capa_data' not in st.session_state:
+    st.session_state.capa_data = pd.DataFrame({
+        'Data_Apertura': [pd.Timestamp.today().date()],
+        'ID_WBS_Rif': ['1.1 - Scavi con mezzi meccanici'],
+        'Tipo_Azione': ['Correttiva ▾'],
+        'Descrizione': ['Esempio: Valutare sostituzione fornitore per ritardi accumulati.'],
+        'Responsabile_OBS': ['1.1 - Capo Cantiere'],
+        'Stato': ['Aperto ▾']
+    })
+
 if 'archivio_progetti' not in st.session_state:
     st.session_state.archivio_progetti = {}
 if 'nome_progetto_attivo' not in st.session_state:
@@ -392,7 +402,8 @@ tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "🕸️ Nodi & Matrice", 
     "📅 Cronoprogramma", 
     "📈 EVM & Cash Flow",
-    "🧾 Reg. Contabile"    
+    "🧾 Reg. Contabile",
+    "🛠️ Direzione & CAPA"
 ])
 
 # --- TAB 1: SETUP WBS (Solo Lavorazioni) ---
@@ -957,3 +968,163 @@ with tab6:
     if not edited_registro.equals(st.session_state.registro_data):
         st.session_state.registro_data = edited_registro
         st.rerun()
+
+# --- TAB 7: DIREZIONE LAVORI, CAPA & REPORTISTICA ---
+with tab7:
+    st.header("Direzione Lavori: Interventi (CAPA) e Simulazioni")
+    
+    # --- PREPARAZIONE DATI DINAMICI ---
+    df_wbs_capa = st.session_state.wbs_data
+    leaf_wbs_capa = df_wbs_capa[df_wbs_capa['ID_WBS'].astype(str).str.contains('\.')]
+    wbs_options_capa = [f"{row['ID_WBS']} - {row['Attività']}" for _, row in leaf_wbs_capa.iterrows()]
+    
+    df_obs_capa = st.session_state.obs_data
+    obs_options_capa = [f"{row['ID_OBS']} - {row['Ruolo']}" for _, row in df_obs_capa.iterrows()]
+    
+    # ---------------------------------------------------------
+    # SEZIONE 1: REGISTRO DEGLI INTERVENTI (ACTION LOG)
+    # ---------------------------------------------------------
+    st.subheader("1. Registro Azioni Correttive e Preventive (CAPA)")
+    
+    edited_capa = st.data_editor(
+        st.session_state.capa_data,
+        num_rows="dynamic",
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "Data_Apertura": st.column_config.DateColumn("Data Segnalazione"),
+            "ID_WBS_Rif": st.column_config.SelectboxColumn("Attività WBS (Rif.)", options=wbs_options_capa, required=True),
+            "Tipo_Azione": st.column_config.SelectboxColumn("Tipo", options=["Correttiva ▾", "Preventiva ▾"], required=True),
+            "Descrizione": st.column_config.TextColumn("Descrizione Intervento / Ordine", width="large"),
+            "Responsabile_OBS": st.column_config.SelectboxColumn("Assegnato a (OBS)", options=obs_options_capa, required=True),
+            "Stato": st.column_config.SelectboxColumn("Stato", options=["Aperto ▾", "In Lavorazione ▾", "Chiuso ▾"], required=True)
+        }
+    )
+    if not edited_capa.equals(st.session_state.capa_data):
+        st.session_state.capa_data = edited_capa
+        st.rerun()
+
+    st.divider()
+    
+    # ---------------------------------------------------------
+    # SEZIONE 2: SIMULATORE WHAT-IF
+    # ---------------------------------------------------------
+    with st.expander("🔬 2. Ambiente di Simulazione (What-If Analysis)"):
+        st.markdown("Simula l'impatto economico di un'azione correttiva sul Costo Finale Stimato (EAC) prima di approvarla.")
+        
+        c_sim1, c_sim2 = st.columns(2)
+        wp_scelto = c_sim1.selectbox("Seleziona Work Package da simulare", options=wbs_options_capa)
+        extra_costo = c_sim2.number_input("Iniezione Extra Costo per risolvere l'anomalia (€)", value=0.0, step=500.0)
+        
+        if wp_scelto:
+            wp_id = wp_scelto.split(' - ')[0]
+            
+            # Creiamo un DataFrame temporaneo per non sporcare i dati reali
+            df_simulazione = st.session_state.wbs_data.copy()
+            df_simulazione['BAC_Budget'] = pd.to_numeric(df_simulazione['BAC_Budget'], errors='coerce').fillna(0.0)
+            df_simulazione['%_Completamento'] = pd.to_numeric(df_simulazione['%_Completamento'], errors='coerce').fillna(0.0)
+            df_simulazione['AC_Costo_Reale'] = pd.to_numeric(df_simulazione['AC_Costo_Reale'], errors='coerce').fillna(0.0)
+            
+            # Applichiamo la simulazione
+            indice_riga = df_simulazione.index[df_simulazione['ID_WBS'] == wp_id].tolist()
+            if indice_riga:
+                idx = indice_riga[0]
+                df_simulazione.at[idx, 'AC_Costo_Reale'] += extra_costo
+                
+            # Ricalcoliamo l'EVM con la simulazione
+            df_sim_calc = calcola_evm(df_simulazione[df_simulazione['ID_WBS'].astype(str).str.contains('\.')].copy(), pd.Timestamp.today().date())
+            
+            # Calcoliamo la differenza globale
+            df_reale_calc = calcola_evm(st.session_state.wbs_data[st.session_state.wbs_data['ID_WBS'].astype(str).str.contains('\.')].copy(), pd.Timestamp.today().date())
+            
+            eac_attuale = df_reale_calc['EAC'].sum()
+            eac_simulato = df_sim_calc['EAC'].sum()
+            delta_eac = eac_simulato - eac_attuale
+            
+            st.metric(
+                label="Nuovo Costo Finale Stimato (EAC Simulato)", 
+                value=f"€ {eac_simulato:,.2f}", 
+                delta=f"Variazione: € {delta_eac:,.2f}" if delta_eac != 0 else "Nessun impatto", 
+                delta_color="inverse"
+            )
+
+    st.divider()
+
+    # ---------------------------------------------------------
+    # SEZIONE 3: EXPORT REPORT DIREZIONALE
+    # ---------------------------------------------------------
+    st.subheader("3. Stampa Verbale di Direzione Lavori")
+    
+    col_f1, col_f2 = st.columns([1, 2])
+    filtro_stampa = col_f1.radio("Quali interventi includere nel verbale?", ["Tutti i registrati", "Solo l'ultimo inserito", "Intervallo di date"])
+    
+    df_stampa = st.session_state.capa_data.copy()
+    df_stampa['Data_Apertura'] = pd.to_datetime(df_stampa['Data_Apertura']).dt.date
+    
+    if filtro_stampa == "Solo l'ultimo inserito":
+        df_stampa = df_stampa.tail(1)
+    elif filtro_stampa == "Intervallo di date":
+        d_start = col_f2.date_input("Da data:", value=pd.Timestamp.today().date())
+        d_end = col_f2.date_input("A data:", value=pd.Timestamp.today().date())
+        df_stampa = df_stampa[(df_stampa['Data_Apertura'] >= d_start) & (df_stampa['Data_Apertura'] <= d_end)]
+
+    if st.button("📄 Genera Verbale HTML", use_container_width=True, type="primary"):
+        
+        # Recupero i totali EVM correnti per il report
+        df_evm_rep = calcola_evm(st.session_state.wbs_data[st.session_state.wbs_data['ID_WBS'].astype(str).str.contains('\.')].copy(), pd.Timestamp.today().date())
+        tot_ev_rep = df_evm_rep['EV'].sum()
+        tot_ac_rep = df_evm_rep['AC_Costo_Reale'].sum()
+        tot_pv_rep = df_evm_rep['PV'].sum()
+        cpi_rep = tot_ev_rep / tot_ac_rep if tot_ac_rep > 0 else 1.0
+        spi_rep = tot_ev_rep / tot_pv_rep if tot_pv_rep > 0 else 1.0
+        eac_rep = df_evm_rep['EAC'].sum()
+        
+        # Costruzione tabella interventi HTML
+        table_html = "<table border='1' style='width:100%; border-collapse: collapse;' cellpadding='8'>"
+        table_html += "<tr style='background-color: #f2f2f2;'><th>Data</th><th>Attività WBS</th><th>Tipo</th><th>Descrizione Intervento / Disposizione</th><th>Assegnato a</th><th>Stato</th></tr>"
+        for _, row in df_stampa.iterrows():
+            table_html += f"<tr><td>{row['Data_Apertura']}</td><td>{row['ID_WBS_Rif']}</td><td>{row['Tipo_Azione']}</td><td>{row['Descrizione']}</td><td>{row['Responsabile_OBS']}</td><td><b>{row['Stato']}</b></td></tr>"
+        table_html += "</table>"
+        
+        # Costruzione dell'HTML del verbale
+        html_report = f"""
+        <html>
+        <head>
+            <style>
+                body {{ font-family: Arial, sans-serif; margin: 40px; color: #333; }}
+                h1 {{ color: #1E88E5; border-bottom: 2px solid #1E88E5; padding-bottom: 10px; }}
+                h2 {{ color: #424242; margin-top: 30px; }}
+                .metric-box {{ border: 1px solid #ddd; padding: 15px; margin: 10px 0; background-color: #fafafa; border-radius: 5px; }}
+                .footer {{ margin-top: 50px; font-size: 12px; color: #777; text-align: center; border-top: 1px solid #ddd; padding-top: 20px; }}
+            </style>
+        </head>
+        <body>
+            <h1>VERBALE DI DIREZIONE LAVORI</h1>
+            <p><b>Progetto:</b> {st.session_state.nome_progetto_attivo}</p>
+            <p><b>Data emissione verbale:</b> {pd.Timestamp.today().strftime('%d/%m/%Y')}</p>
+            
+            <h2>1. Stato Avanzamento Lavori (EVM)</h2>
+            <div class="metric-box">
+                <p><b>CPI (Efficienza Costi):</b> {cpi_rep:.2f} <i>(>1 indica risparmio, <1 indica perdita)</i></p>
+                <p><b>SPI (Efficienza Tempi):</b> {spi_rep:.2f} <i>(>1 indica anticipo, <1 indica ritardo)</i></p>
+                <p><b>Costo Finale Stimato (EAC):</b> &euro; {eac_rep:,.2f}</p>
+            </div>
+            
+            <h2>2. Disposizioni e Azioni (CAPA)</h2>
+            {table_html if not df_stampa.empty else "<p><i>Nessun intervento registrato nel periodo selezionato.</i></p>"}
+            
+            <div class="footer">
+                Generato automaticamente da Sistema GECO - Modulo Direzione Lavori<br>
+                Firma Direttore Lavori: _______________________________
+            </div>
+        </body>
+        </html>
+        """
+        
+        st.download_button(
+            label="⬇️ Scarica File (.html) per stampa/PDF",
+            data=html_report,
+            file_name=f"Verbale_Cantiere_{pd.Timestamp.today().strftime('%Y%m%d')}.html",
+            mime="text/html",
+            type="secondary"
+        )
