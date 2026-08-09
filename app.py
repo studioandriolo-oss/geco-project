@@ -529,4 +529,4 @@ with tab6:
         st.session_state.registro_data = edited_registro
         # Se c'è una modifica, riavvia l'app in modo che il motore in alto ricalcoli
         # i costi, li spari nel Tab 1 e ricalcoli l'EVM nel Tab 5.
-        st.rerun()
+    st.rerun()
