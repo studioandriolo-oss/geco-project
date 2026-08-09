@@ -226,44 +226,60 @@ with tab3:
                     arrowsize='0.8'
                 )
 
-    # --- VISUALIZZAZIONE INTERATTIVA (PAN & ZOOM) ---
+    # --- NUOVA VISUALIZZAZIONE INTERATTIVA (PAN & ZOOM ROBUSTO) ---
     # 1. Esportiamo il grafo in formato vettoriale SVG puro
     svg_data = graph.pipe(format='svg').decode('utf-8')
     
-    # 2. Assegniamo un ID all'SVG in modo che Javascript possa trovarlo
-    svg_data = svg_data.replace('<svg ', '<svg id="grafo-interattivo" style="width: 100%; height: 600px; border: 1px solid #ccc; border-radius: 8px;" ', 1)
-    
-    # 3. Creiamo una pagina HTML iniettando la libreria svg-pan-zoom
+    # 2. Creiamo una pagina HTML iniettando la libreria svg-pan-zoom e ripulendo l'SVG via Javascript
     html_code = f"""
     <!DOCTYPE html>
     <html>
     <head>
         <script src="https://cdn.jsdelivr.net/npm/svg-pan-zoom@3.6.1/dist/svg-pan-zoom.min.js"></script>
         <style>
-            body {{ margin: 0; overflow: hidden; background-color: #fafafa; }}
+            body {{ margin: 0; padding: 0; overflow: hidden; background-color: #fafafa; height: 100vh; }}
+            #svg-container {{ width: 100%; height: 100vh; }}
         </style>
     </head>
     <body>
-        {svg_data}
+        <div id="svg-container">
+            {svg_data}
+        </div>
+        
         <script>
             window.onload = function() {{
-                svgPanZoom('#grafo-interattivo', {{
-                    zoomEnabled: true,
-                    controlIconsEnabled: true, /* Mostra i pulsanti +/- a schermo */
-                    fit: true,                 /* Adatta allo schermo all'avvio */
-                    center: true,              /* Centra il grafo */
-                    minZoom: 0.1,              /* Zoom out massimo */
-                    maxZoom: 10,               /* Zoom in massimo */
-                    mouseWheelZoomEnabled: true
-                }});
+                // A. Trova l'SVG originale iniettato da Python
+                var svgElement = document.querySelector('svg');
+                
+                if (svgElement) {{
+                    // B. Rimuove le dimensioni fisse di Graphviz (CRUCIALE per il fit/center)
+                    svgElement.removeAttribute('width');
+                    svgElement.removeAttribute('height');
+                    
+                    // C. Assegna l'ID e forza l'espansione al 100%
+                    svgElement.setAttribute('id', 'grafo-interattivo');
+                    svgElement.style.width = '100%';
+                    svgElement.style.height = '100%';
+                    
+                    // D. Avvia il plugin che ora calcolerà il centro e lo zoom correttamente
+                    var panZoom = svgPanZoom('#grafo-interattivo', {{
+                        zoomEnabled: true,
+                        controlIconsEnabled: true,
+                        fit: true,
+                        center: true,
+                        minZoom: 0.1,
+                        maxZoom: 10,
+                        mouseWheelZoomEnabled: true
+                    }});
+                }}
             }};
         </script>
     </body>
     </html>
     """
     
-    # 4. Renderizziamo l'HTML interattivo dentro Streamlit
-    components.html(html_code, height=620)
+    # 3. Renderizziamo l'HTML interattivo
+    components.html(html_code, height=600)
 
 # --- TAB 4: CRONOPROGRAMMA (GANTT) ---
 with tab4:
@@ -355,11 +371,19 @@ with tab5:
     ])
     fig_evm.update_layout(barmode='group')
     st.plotly_chart(fig_evm, use_container_width=True)
-        
-    st.subheader("Indicatori di Performance (KPI)")
-    # Tabella per mostrare lo stato di salute di ogni WP
-    df_kpi = df_evm[['Attività', '%_Completamento', 'CPI', 'SPI', 'CV']].copy()
-        
+
+    col_KPI, col_LEGENDA = st.columns(2)
+    with col_KPI
+        st.subheader("Indicatori di Performance (KPI)")
+        # Tabella per mostrare lo stato di salute di ogni WP
+        df_kpi = df_evm[['Attività', '%_Completamento', 'CPI', 'SPI', 'CV']].copy()
+
+    with col_LEGENDA
+        st.subheader("Legenda")
+        st.txt("CPI = Control...")
+         st.txt("SPI = Control...")
+         st.txt("CV= Control...")
+
     # Formattazione condizionale per evidenziare i problemi (Stile Pandas)
     def color_kpi(val):
         if isinstance(val, (int, float)):
