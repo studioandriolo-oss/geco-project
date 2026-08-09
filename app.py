@@ -52,14 +52,14 @@ tab1, tab2, tab3, tab4 = st.tabs(["🗂️ Setup WBS/OBS", "🕸️ Nodi & Matri
 # --- TAB 1: SETUP E INSERIMENTO DATI ---
 with tab1:
     st.header("Compilazione Strutture")
-        st.subheader("WBS (Work Breakdown Structure)")
-        # Editor interattivo tipo foglio di calcolo
-        edited_wbs = st.data_editor(st.session_state.wbs_data, num_rows="dynamic", use_container_width=True)
-        st.session_state.wbs_data = edited_wbs
+    st.subheader("WBS (Work Breakdown Structure)")
+    # Editor interattivo tipo foglio di calcolo
+    edited_wbs = st.data_editor(st.session_state.wbs_data, num_rows="dynamic", use_container_width=True)
+    st.session_state.wbs_data = edited_wbs
 
-        st.subheader("OBS (Organization Breakdown Structure)")
-        edited_obs = st.data_editor(st.session_state.obs_data, num_rows="dynamic", use_container_width=True)
-        st.session_state.obs_data = edited_obs
+    st.subheader("OBS (Organization Breakdown Structure)")
+    edited_obs = st.data_editor(st.session_state.obs_data, num_rows="dynamic", use_container_width=True)
+    st.session_state.obs_data = edited_obs
 
 # --- TAB 2: MATRICE E GRAFO A NODI ---
 with tab2:
