@@ -115,20 +115,38 @@ with tab1:
     with col_obs:
         st.subheader("OBS - Risorse")
         
-        # 3. CONFIGURAZIONE COLONNE (Menu a tendina)
+        # --- PANNELLO GESTIONE COLONNE DINAMICHE ---
+        with st.expander("⚙️ Gestione Colonne Aggiuntive", expanded=False):
+            # Aggiungi colonna
+            c1, c2 = st.columns([3, 1])
+            nuova_col = c1.text_input("Nome nuova colonna (es. Telefono, Qualifica)")
+            if c2.button("➕ Crea") and nuova_col:
+                if nuova_col not in st.session_state.obs_data.columns:
+                    st.session_state.obs_data[nuova_col] = "" # Aggiunge la colonna vuota
+                    st.rerun()
+            
+            # Rinomina/Elimina colonne custom (ignoriamo quelle di base per non rompere il codice)
+            colonne_base = ['ID_OBS', 'Ruolo', 'Risorsa', 'Tipo_Contratto', 'Note']
+            colonne_custom = [c for c in st.session_state.obs_data.columns if c not in colonne_base]
+            
+            if colonne_custom:
+                st.divider()
+                c3, c4, c5 = st.columns([2, 2, 1])
+                col_da_modificare = c3.selectbox("Colonna da rinominare", options=colonne_custom)
+                nuovo_nome = c4.text_input("Nuovo nome intestazione")
+                if c5.button("✏️ Modifica") and nuovo_nome:
+                    st.session_state.obs_data.rename(columns={col_da_modificare: nuovo_nome}, inplace=True)
+                    st.rerun()
+
+        # --- TABELLA OBS DATI ---
+        # Le nuove colonne verranno renderizzate automaticamente come testo libero
         st.session_state.obs_data = st.data_editor(
             st.session_state.obs_data, 
             column_config={
                 "Tipo_Contratto": st.column_config.SelectboxColumn(
-                    "Tipo Contratto ",
-                    help="Seleziona la modalità di inquadramento",
-                    options=["Appalto", "Sub appalto"], # Opzioni del menu a tendina
+                    "Tipo Contratto",
+                    options=["Appalto ▾", "Sub appalto ▾"],
                     required=True
-                ),
-                "Note": st.column_config.TextColumn(
-                    "Note",
-                    help="Annotazioni operative",
-                    max_chars=250
                 )
             },
             num_rows="dynamic", 
@@ -145,11 +163,33 @@ with tab2:
     graph = graphviz.Digraph(engine='dot')
     graph.attr(rankdir='LR') # Da sinistra a destra
     
-    # Nodi OBS
+    # Nodi OBS - Dinamici con colonne custom
     for _, row in st.session_state.obs_data.iterrows():
-        graph.node(row['ID_OBS'], f"{row['Ruolo']}\n({row['Risorsa']})", shape='box', style='filled', fillcolor='lightblue')
+        # Costruiamo l'etichetta base
+        label_text = f"{row['Ruolo']}\n({row['Risorsa']})"
         
-    # Nodi WBS e Connessioni (I Work Packages)
+        # Troviamo eventuali colonne extra aggiunte manualmente
+        colonne_base = ['ID_OBS', 'Ruolo', 'Risorsa', 'Tipo_Contratto', 'Note']
+        colonne_custom = [col for col in st.session_state.obs_data.columns if col not in colonne_base]
+        
+        # Aggiungiamo i valori dinamici all'etichetta se presenti
+        for col in colonne_custom:
+            valore = row[col]
+            # Controlliamo che la cella non sia vuota o non valida (NaN)
+            if pd.notna(valore) and str(valore).strip() != "":
+                label_text += f"\n{col}: {valore}"
+                
+        # Creiamo il blocco grafico
+        graph.node(
+            row['ID_OBS'], 
+            label_text, 
+            shape='box', 
+            style='filled', 
+            fillcolor='lightblue',
+            fontsize='11'
+        )
+        
+    # Nodi WBS e Connessioni (Work Packages)
     df_wp_reali = st.session_state.wbs_data[st.session_state.wbs_data['ID_WBS'].astype(str).str.contains('\.')]
     for _, row in df_wp_reali.iterrows():
         wp_label = f"WP: {row['Attività']}\nBudget: €{row['BAC_Budget']}"
