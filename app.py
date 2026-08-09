@@ -188,6 +188,10 @@ with tab4:
                 if val < 1.0: return 'color: red'
                 elif val >= 1.0: return 'color: green'
             return ''
+        
+        st.dataframe(df_kpi.style.map(color_kpi, subset=['CPI', 'SPI'])
+                            .format({'CPI': "{:.2f}", 'SPI': "{:.2f}", 'CV': "€ {:.2f}"}), 
+                     use_container_width=True)
             
         st.dataframe(df_kpi.style.applymap(color_kpi, subset=['CPI', 'SPI'])
                             .format({'CPI': "{:.2f}", 'SPI': "{:.2f}", 'CV': "€ {:.2f}"}), 
