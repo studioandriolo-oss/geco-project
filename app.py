@@ -159,57 +159,77 @@ with tab3:
     st.header("Incrocio Logico (Work Packages)")
     st.markdown("Generazione automatica dei nodi di collegamento tra risorse (OBS) e attività (WBS).")
     
-    # Creazione Grafo con Graphviz (simile alla logica nodale)
+    # Inizializziamo il grafo
     graph = graphviz.Digraph(engine='dot')
-    graph.attr(rankdir='LR') # Da sinistra a destra
     
-    # Nodi OBS - Dinamici con colonne custom
+    # 1. IMPOSTAZIONI GLOBALI GRAFO (Spaziatura e Linee)
+    # ranksep = distanza orizzontale, nodesep = distanza verticale tra i nodi
+    graph.attr(rankdir='LR', ranksep='1.5', nodesep='0.8', splines='spline')
+    graph.attr('node', fontname='Helvetica', fontsize='10', margin='0.2')
+    
+    # Nodi OBS - Costruiti con sintassi HTML per evitare fuoriuscite di testo
     for _, row in st.session_state.obs_data.iterrows():
-        # Costruiamo l'etichetta base
-        label_text = f"{row['Ruolo']}\n({row['Risorsa']})"
+        # Costruiamo la tabella HTML del nodo OBS
+        label_html = f"<<TABLE BORDER='0' CELLBORDER='0' CELLSPACING='2'>"
+        label_html += f"<TR><TD><B>{row['Ruolo']}</B></TD></TR>"
+        label_html += f"<TR><TD>({row['Risorsa']})</TD></TR>"
         
-        # Troviamo eventuali colonne extra aggiunte manualmente
         colonne_base = ['ID_OBS', 'Ruolo', 'Risorsa', 'Tipo_Contratto', 'Note']
         colonne_custom = [col for col in st.session_state.obs_data.columns if col not in colonne_base]
         
-        # Aggiungiamo i valori dinamici all'etichetta se presenti
         for col in colonne_custom:
             valore = row[col]
-            # Controlliamo che la cella non sia vuota o non valida (NaN)
             if pd.notna(valore) and str(valore).strip() != "":
-                label_text += f"\n{col}: {valore}"
+                # Il testo extra (es. P.IVA) viene scritto più piccolo e in grigio
+                label_html += f"<TR><TD><FONT POINT-SIZE='9' COLOR='gray30'>{col}: {valore}</FONT></TD></TR>"
                 
-        # Creiamo il blocco grafico
+        label_html += "</TABLE>>"
+        
+        # Applichiamo lo stile grafico moderno (Box arrotondato)
         graph.node(
-            row['ID_OBS'], 
-            label_text, 
-            shape='box', 
-            style='filled', 
-            fillcolor='lightblue',
-            fontsize='11'
+            str(row['ID_OBS']), 
+            label=label_html, 
+            shape='rect', 
+            style='rounded,filled', 
+            fillcolor='#E1F5FE', # Azzurro chiaro
+            color='#0288D1',     # Bordo azzurro scuro
+            penwidth='1.5'
         )
         
-    # Nodi WBS e Connessioni (Work Packages)
+    # Nodi WBS (I Work Packages)
     df_wp_reali = st.session_state.wbs_data[st.session_state.wbs_data['ID_WBS'].astype(str).str.contains('\.')]
     for _, row in df_wp_reali.iterrows():
-        wp_label = f"WP: {row['Attività']}\nBudget: €{row['BAC_Budget']}"
-        graph.node(
-        row['ID_WBS'], 
-        wp_label, 
-        shape='Mrecord', # Puoi cambiarlo in 'box', 'rect', o 'ellipse' 
-        style='filled', 
-        fillcolor='lightgreen',
-        width='1.5',     # <--- Larghezza minima (in pollici)
-        height='1.0',    # <--- Altezza minima (in pollici)
-        fixedsize='true',
-        fontsize='9'    # <--- Dimensione del testo
-    )
+        attivita = str(row['Attività'])
+        budget = row['BAC_Budget']
         
-        # Connessione
+        # Costruiamo la tabella HTML del nodo WBS
+        wp_html = f"<<TABLE BORDER='0' CELLBORDER='0' CELLSPACING='4'>"
+        wp_html += f"<TR><TD><B>WP: {attivita}</B></TD></TR>"
+        wp_html += f"<TR><TD>Budget: &euro; {budget:,.2f}</TD></TR>"
+        wp_html += "</TABLE>>"
+        
+        graph.node(
+            str(row['ID_WBS']), 
+            label=wp_html, 
+            shape='rect', 
+            style='rounded,filled', 
+            fillcolor='#C8E6C9', # Verde pastello
+            color='#388E3C',     # Bordo verde scuro
+            penwidth='1.5'
+        )
+        
+        # Generazione dei "Cavi" di connessione
         if pd.notna(row['ID_OBS_Assegnato']):
-            obs_ids = str(row['ID_OBS_Assegnato']).split(',') # Permette assegnazioni multiple (es: "1.1, 1.2")
+            obs_ids = str(row['ID_OBS_Assegnato']).split(',')
             for o_id in obs_ids:
-                graph.edge(o_id.strip(), row['ID_WBS'])
+                # Disegniamo i cavi grigi e leggermente più spessi
+                graph.edge(
+                    o_id.strip(), 
+                    str(row['ID_WBS']), 
+                    color='#757575', 
+                    penwidth='1.5',
+                    arrowsize='0.8'
+                )
                 
     st.graphviz_chart(graph, use_container_width=True)
 
