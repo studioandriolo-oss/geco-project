@@ -2,3 +2,4 @@ streamlit
 pandas
 plotly
 graphviz
+python-docx
