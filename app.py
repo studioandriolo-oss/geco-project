@@ -3,6 +3,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import graphviz
+import streamlit.components.v1 as components
 from datetime import datetime, date
 
 # Configurazione Pagina
@@ -224,8 +225,45 @@ with tab3:
                     penwidth='1.5',
                     arrowsize='0.8'
                 )
-                
-    st.graphviz_chart(graph, use_container_width=True)
+
+    # --- VISUALIZZAZIONE INTERATTIVA (PAN & ZOOM) ---
+    # 1. Esportiamo il grafo in formato vettoriale SVG puro
+    svg_data = graph.pipe(format='svg').decode('utf-8')
+    
+    # 2. Assegniamo un ID all'SVG in modo che Javascript possa trovarlo
+    svg_data = svg_data.replace('<svg ', '<svg id="grafo-interattivo" style="width: 100%; height: 600px; border: 1px solid #ccc; border-radius: 8px;" ', 1)
+    
+    # 3. Creiamo una pagina HTML iniettando la libreria svg-pan-zoom
+    html_code = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <script src="https://cdn.jsdelivr.net/npm/svg-pan-zoom@3.6.1/dist/svg-pan-zoom.min.js"></script>
+        <style>
+            body {{ margin: 0; overflow: hidden; background-color: #fafafa; }}
+        </style>
+    </head>
+    <body>
+        {svg_data}
+        <script>
+            window.onload = function() {{
+                svgPanZoom('#grafo-interattivo', {{
+                    zoomEnabled: true,
+                    controlIconsEnabled: true, /* Mostra i pulsanti +/- a schermo */
+                    fit: true,                 /* Adatta allo schermo all'avvio */
+                    center: true,              /* Centra il grafo */
+                    minZoom: 0.1,              /* Zoom out massimo */
+                    maxZoom: 10,               /* Zoom in massimo */
+                    mouseWheelZoomEnabled: true
+                }});
+            }};
+        </script>
+    </body>
+    </html>
+    """
+    
+    # 4. Renderizziamo l'HTML interattivo dentro Streamlit
+    components.html(html_code, height=620)
 
 # --- TAB 4: CRONOPROGRAMMA (GANTT) ---
 with tab4:
