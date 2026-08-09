@@ -256,6 +256,14 @@ def calcola_evm(df, data_status):
     
     df['SPI'] = df.apply(lambda x: (x['EV'] / x['PV']) if x['PV'] > 0 else (1.0 if x['EV']==0 else 1.1), axis=1)
     df['CPI'] = df.apply(lambda x: (x['EV'] / x['AC_Costo_Reale']) if x['AC_Costo_Reale'] > 0 else (1.0 if x['EV']==0 else 1.1), axis=1)
+
+    df['EAC'] = df.apply(lambda x: x['BAC_Budget'] / x['CPI'] if x['CPI'] > 0 else x['BAC_Budget'], axis=1)
+    
+    # ETC = EAC - AC (Costo per finire)
+    df['ETC'] = df['EAC'] - df['AC_Costo_Reale']
+    
+    # VAC = BAC - EAC (Varianza a finire: positivo = risparmio, negativo = perdita)
+    df['VAC'] = df['BAC_Budget'] - df['EAC']
     
     return df
 
@@ -594,7 +602,6 @@ with tab5:
     df_completo = st.session_state.wbs_data.copy()
     df_evm = df_completo[df_completo['ID_WBS'].astype(str).str.contains('\.')].copy()
     
-    # Ricalcoliamo fornendo la data di stato all'algoritmo
     df_evm = calcola_evm(df_evm, data_status_evm)
     
     tot_bac = df_evm['BAC_Budget'].sum()
@@ -602,21 +609,30 @@ with tab5:
     tot_ev = df_evm['EV'].sum()
     tot_ac = df_evm['AC_Costo_Reale'].sum()
     
-    # Calcolo KPI Globali
+    # Somme Predittive
+    tot_eac = df_evm['EAC'].sum()
+    tot_etc = df_evm['ETC'].sum()
+    tot_vac = df_evm['VAC'].sum()
+    
     cpi_globale = tot_ev / tot_ac if tot_ac > 0 else 1.0
     spi_globale = tot_ev / tot_pv if tot_pv > 0 else 1.0
     perc_completamento = (tot_ev / tot_bac * 100) if tot_bac > 0 else 0.0
     perc_pianificata = (tot_pv / tot_bac * 100) if tot_bac > 0 else 0.0
     
-    st.markdown("### Riepilogo di Progetto")
+    st.markdown("### 📊 Stato Attuale (Consuntivo)")
     col_m1, col_m2, col_m3, col_m4, col_m5 = st.columns(5)
     col_m1.metric("Budget Totale (BAC)", f"€ {tot_bac:,.0f}")
     col_m2.metric("Lavoro Eseguito (EV)", f"€ {tot_ev:,.0f}")
     col_m3.metric("Costi Sostenuti (AC)", f"€ {tot_ac:,.0f}")
-    col_m4.metric("Avanzamento Globale", f"{perc_completamento:.1f}%", 
-                  delta=f"Pianificato: {perc_pianificata:.1f}%", delta_color="off")
-    col_m5.metric("SPI Globale (Tempi)", f"{spi_globale:.2f}", 
-                  delta="In ritardo" if spi_globale < 1 else "In anticipo", delta_color="inverse")
+    col_m4.metric("Avanzamento Globale", f"{perc_completamento:.1f}%", delta=f"Pianificato: {perc_pianificata:.1f}%", delta_color="off")
+    col_m5.metric("SPI (Tempi)", f"{spi_globale:.2f}", delta="In ritardo" if spi_globale < 1 else "In anticipo", delta_color="inverse")
+    
+    st.markdown("### 🔮 Previsioni a Finire (Proiezioni)")
+    col_p1, col_p2, col_p3, col_p4 = st.columns(4)
+    col_p1.metric("Costo Finale Stimato (EAC)", f"€ {tot_eac:,.0f}", delta="Proiezione a fine lavori", delta_color="off")
+    col_p2.metric("Costo Residuo (ETC)", f"€ {tot_etc:,.0f}", delta="Capitale ancora necessario", delta_color="off")
+    col_p3.metric("Varianza a Finire (VAC)", f"€ {tot_vac:,.0f}", delta="Perdita Stimata" if tot_vac < 0 else "Risparmio Stimato", delta_color="normal")
+    col_p4.metric("CPI (Costi)", f"{cpi_globale:.2f}", delta="Over-budget" if cpi_globale < 1 else "Under-budget", delta_color="inverse")
     
     st.divider()
     
@@ -720,4 +736,4 @@ with tab6:
         st.session_state.registro_data = edited_registro
         # Se c'è una modifica, riavvia l'app in modo che il motore in alto ricalcoli
         # i costi, li spari nel Tab 1 e ricalcoli l'EVM nel Tab 5.
-    st.rerun()
+        st.rerun()
