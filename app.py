@@ -90,7 +90,7 @@ def calcola_evm(df):
 st.session_state.wbs_data = calcola_evm(st.session_state.wbs_data)
 
 # --- CREAZIONE TAB ---
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "🗂️ WBS (Lavorazioni)", 
     "👥 OBS (Risorse)", 
     "🕸️ Nodi & Matrice", 
