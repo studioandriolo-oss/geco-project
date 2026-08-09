@@ -121,7 +121,7 @@ with tab3:
             base=df_gantt['Inizio_Previsto'],
             orientation='h',
             name='Baseline',
-            width=0.4; # <--- spessore delle righe del cronoprogramma
+            width=0.4, # <--- spessore delle righe del cronoprogramma
             marker=dict(color='rgba(0, 0, 255, 0.4)') if vista == "Comparativa" else dict(color='blue')
         ))
         
