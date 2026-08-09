@@ -169,9 +169,9 @@ with tab3:
         # --- INTERRUTTORE RELAZIONI ---
         mostra_relazioni = st.toggle("👁️ Mostra Relazioni tra WP (Interferenze)", value=True)
     
-    graph = graphviz.Digraph(engine='dot')
-    graph.attr(rankdir='LR', ranksep='1.5', nodesep='0.8', splines='spline')
-    graph.attr('node', fontname='Helvetica', fontsize='10', margin='0.2')
+        graph = graphviz.Digraph(engine='dot')
+        graph.attr(rankdir='LR', ranksep='1.5', nodesep='0.8', splines='spline')
+        graph.attr('node', fontname='Helvetica', fontsize='10', margin='0.2')
     
     # Nodi OBS 
     for _, row in st.session_state.obs_data.iterrows():
