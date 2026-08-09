@@ -789,21 +789,43 @@ with tab5:
     perc_completamento = (tot_ev / tot_bac * 100) if tot_bac > 0 else 0.0
     perc_pianificata = (tot_pv / tot_bac * 100) if tot_bac > 0 else 0.0
     
-    st.markdown("### 📊 Stato Attuale (Consuntivo)")
-    col_m1, col_m2, col_m3, col_m4, col_m5 = st.columns(5)
-    col_m1.metric("Budget Totale (BAC)", f"€ {tot_bac:,.0f}")
-    col_m2.metric("Lavoro Eseguito (EV)", f"€ {tot_ev:,.0f}")
-    col_m3.metric("Costi Sostenuti (AC)", f"€ {tot_ac:,.0f}")
-    col_m4.metric("Avanzamento Globale", f"{perc_completamento:.1f}%", delta=f"Pianificato: {perc_pianificata:.1f}%", delta_color="off")
-    col_m5.metric("SPI (Tempi)", f"{spi_globale:.2f}", delta="In ritardo" if spi_globale < 1 else "In anticipo", delta_color="inverse")
-    
-    st.markdown("### 🔮 Previsioni a Finire (Proiezioni)")
-    col_p1, col_p2, col_p3, col_p4 = st.columns(4)
-    col_p1.metric("Costo Finale Stimato (EAC)", f"€ {tot_eac:,.0f}", delta="Proiezione a fine lavori", delta_color="off")
-    col_p2.metric("Costo Residuo (ETC)", f"€ {tot_etc:,.0f}", delta="Capitale ancora necessario", delta_color="off")
-    col_p3.metric("Varianza a Finire (VAC)", f"€ {tot_vac:,.0f}", delta="Perdita Stimata" if tot_vac < 0 else "Risparmio Stimato", delta_color="normal")
-    col_p4.metric("CPI (Costi)", f"{cpi_globale:.2f}", delta="Over-budget" if cpi_globale < 1 else "Under-budget", delta_color="inverse")
-    
+    # --- CRUSCOTTO DIREZIONALE A SCHEDE (CARDS) ---
+    col_box1, col_box2 = st.columns(2)
+
+    with col_box1:
+        with st.container(border=True):
+            st.markdown("#### 📊 Stato Attuale (Consuntivo)")
+            
+            # Sub-Grid 1: Valori Monetari
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Budget Totale (BAC)", f"€ {tot_bac:,.0f}")
+            c2.metric("Lavoro Eseguito (EV)", f"€ {tot_ev:,.0f}")
+            c3.metric("Costi Sostenuti (AC)", f"€ {tot_ac:,.0f}")
+            
+            st.divider()
+            
+            # Sub-Grid 2: Performance
+            c4, c5 = st.columns(2)
+            c4.metric("Avanzamento Globale", f"{perc_completamento:.1f}%", delta=f"Pianificato: {perc_pianificata:.1f}%", delta_color="off")
+            c5.metric("SPI (Tempi)", f"{spi_globale:.2f}", delta="In ritardo" if spi_globale < 1 else "In anticipo", delta_color="inverse")
+
+    with col_box2:
+        with st.container(border=True):
+            st.markdown("#### 🔮 Previsioni a Finire (Proiezioni)")
+            
+            # Sub-Grid 1: Valori Monetari
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Costo Finale Stimato (EAC)", f"€ {tot_eac:,.0f}", delta="Proiezione a fine lavori", delta_color="off")
+            c2.metric("Costo Residuo (ETC)", f"€ {tot_etc:,.0f}", delta="Capitale ancora necessario", delta_color="off")
+            c3.metric("Varianza a Finire (VAC)", f"€ {tot_vac:,.0f}", delta="Perdita Stimata" if tot_vac < 0 else "Risparmio Stimato", delta_color="normal")
+            
+            st.divider()
+            
+            # Sub-Grid 2: Performance
+            c4, c5 = st.columns(2)
+            c4.metric("CPI (Costi)", f"{cpi_globale:.2f}", delta="Over-budget" if cpi_globale < 1 else "Under-budget", delta_color="inverse")
+            c5.write("") # Colonna vuota invisibile per mantenere il bilanciamento simmetrico del box
+            
     st.divider()
 
     # --- GRAFICO EVM: CURVA AD S (S-CURVE) ---
