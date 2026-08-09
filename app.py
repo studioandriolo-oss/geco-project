@@ -37,7 +37,7 @@ if not st.session_state.logged_in:
                     st.rerun() 
                 else:
                     st.error("Credenziali errate. Riprova.")               
-st.stop()
+    st.stop()
 
 # --- 1. INIZIALIZZAZIONE DATI (Session State) ---
 if 'wbs_data' not in st.session_state:
