@@ -34,7 +34,7 @@ if 'obs_data' not in st.session_state:
         'ID_OBS': ['1.1', '1.2'],
         'Ruolo': ['Capo Cantiere', 'Strutturista'],
         'Risorsa': ['Mario Rossi', 'Studio Tecnico'],
-        'Tipo_Contratto': ['Appalto', 'Sub appalto'], 
+        'Tipo_Contratto': ['Appalto ▾', 'Sub appalto ▾'], 
         'Note': ['', 'Ricordare DURC']           
     })
 
@@ -120,7 +120,7 @@ with tab1:
             st.session_state.obs_data, 
             column_config={
                 "Tipo_Contratto": st.column_config.SelectboxColumn(
-                    "Tipo Contratto 🔽",
+                    "Tipo Contratto ",
                     help="Seleziona la modalità di inquadramento",
                     options=["Appalto", "Sub appalto"], # Opzioni del menu a tendina
                     required=True
