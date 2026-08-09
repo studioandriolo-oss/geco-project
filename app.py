@@ -55,72 +55,85 @@ tab1, tab2, tab3, tab4 = st.tabs(["🗂️ Setup WBS/OBS", "🕸️ Nodi & Matri
 
 # --- TAB 1: SETUP E INSERIMENTO DATI ---
 with tab1:
-    st.header("Compilazione Strutture WBS (Stile PriMus)")
+    st.header("Compilazione Strutture WBS & OBS")
     
-    st.subheader("WBS - Work Breakdown Structure")
-    df = st.session_state.wbs_data
+    col_wbs, col_obs = st.columns([7, 3])
+    
+    with col_wbs:
+        st.subheader("WBS - Work Breakdown Structure")
+        df = st.session_state.wbs_data
         
-    # Identifichiamo i Nodi Radice (Quelli senza il punto nell'ID, es: "1", "2")
-    is_root = ~df['ID_WBS'].astype(str).str.contains('\.')
-    radici = df[is_root]
+        # 1. CALCOLO AUTOMATICO (Celle derivate): Calcoliamo i giorni di durata
+        df['Durata_Prevista (gg)'] = (pd.to_datetime(df['Fine_Prevista']) - pd.to_datetime(df['Inizio_Previsto'])).dt.days
         
-    df_aggiornato = pd.DataFrame()
+        is_root = ~df['ID_WBS'].astype(str).str.contains('\.')
+        radici = df[is_root]
         
-    for _, radice in radici.iterrows():
-        id_radice = str(radice['ID_WBS'])
+        df_aggiornato = pd.DataFrame()
+        
+        for _, radice in radici.iterrows():
+            id_radice = str(radice['ID_WBS'])
+            discendenti = df[df['ID_WBS'].astype(str).str.startswith(f"{id_radice}.")]
+            tot_budget = discendenti['BAC_Budget'].sum()
             
-        # Troviamo tutti i discendenti di questa radice (es. per "1", trova "1.1", "1.2")
-        discendenti = df[df['ID_WBS'].astype(str).str.startswith(f"{id_radice}.")]
-            
-        # Somma automatica del budget di tutti i sottonodi
-        tot_budget = discendenti['BAC_Budget'].sum()
-            
-        # Creazione del menu a tendina nativo di Streamlit
-        with st.expander(f"📁 {id_radice} - {radice['Attività']} (Budget Raggruppato: € {tot_budget:,.2f})", expanded=True):
+            with st.expander(f"📁 {id_radice} - {radice['Attività']} (Budget Raggruppato: € {tot_budget:,.2f})", expanded=True):
                 
-            # Editor dati SOLO per i figli di questo gruppo
-            discendenti_modificati = st.data_editor(
-                discendenti,
-                key=f"editor_{id_radice}",
-                num_rows="dynamic",
-                use_container_width=True,
-                hide_index=True
-            )
+                discendenti_modificati = st.data_editor(
+                    discendenti,
+                    key=f"editor_{id_radice}",
+                    num_rows="dynamic",
+                    use_container_width=True,
+                    hide_index=True,
+                    # 2. BLOCCO CELLE: Impediamo la modifica della durata calcolata e dell'ID strutturale
+                    disabled=["Durata_Prevista (gg)", "ID_WBS"] 
+                )
                 
-            # Aggiorniamo i dati della riga "Padre"
-            radice_aggiornata = radice.copy()
-            radice_aggiornata['BAC_Budget'] = discendenti_modificati['BAC_Budget'].sum()
+                radice_aggiornata = radice.copy()
+                radice_aggiornata['BAC_Budget'] = discendenti_modificati['BAC_Budget'].sum()
                 
-            # Ricompattiamo il dataframe per il salvataggio
-            df_aggiornato = pd.concat([df_aggiornato, pd.DataFrame([radice_aggiornata]), discendenti_modificati], ignore_index=True)
+                df_aggiornato = pd.concat([df_aggiornato, pd.DataFrame([radice_aggiornata]), discendenti_modificati], ignore_index=True)
                 
-    # Modulo per aggiungere nuove Categorie Padre (es. "5 - Finiture")
-    with st.form("aggiungi_padre"):
-        st.write("Aggiungi nuova Macro-Categoria")
-        c1, c2, c3 = st.columns([2, 5, 2])
-        nuovo_id = c1.text_input("ID (es. 5)")
-        nuova_att = c2.text_input("Nome Categoria")
-        if c3.form_submit_button("➕ Aggiungi"):
-            if nuovo_id and nuova_att:
-                nuova_riga = pd.DataFrame([{
-                    'ID_WBS': nuovo_id, 'Attività': nuova_att, 'BAC_Budget': 0.0, 
-                    '%_Completamento': 0, 'AC_Costo_Reale': 0.0
-                }])
-                st.session_state.wbs_data = pd.concat([st.session_state.wbs_data, nuova_riga], ignore_index=True)
-                st.rerun()
+        with st.form("aggiungi_padre"):
+            st.write("Aggiungi nuova Macro-Categoria")
+            c1, c2, c3 = st.columns([2, 5, 2])
+            nuovo_id = c1.text_input("ID (es. 5)")
+            nuova_att = c2.text_input("Nome Categoria")
+            if c3.form_submit_button("➕ Aggiungi"):
+                if nuovo_id and nuova_att:
+                    nuova_riga = pd.DataFrame([{
+                        'ID_WBS': nuovo_id, 'Attività': nuova_att, 'BAC_Budget': 0.0, 
+                        '%_Completamento': 0, 'AC_Costo_Reale': 0.0
+                    }])
+                    st.session_state.wbs_data = pd.concat([st.session_state.wbs_data, nuova_riga], ignore_index=True)
+                    st.rerun()
 
-    # Salvataggio delle modifiche nel Session State globale
-    if not df_aggiornato.empty:
-        st.session_state.wbs_data = df_aggiornato
+        if not df_aggiornato.empty:
+            st.session_state.wbs_data = df_aggiornato
             
-    st.subheader("OBS - Risorse")
-    st.session_state.obs_data = st.data_editor(
-        st.session_state.obs_data, 
-        num_rows="dynamic", 
-        use_container_width=True, 
-        hide_index=True
-    )
-
+    with col_obs:
+        st.subheader("OBS - Risorse")
+        
+        # 3. CONFIGURAZIONE COLONNE (Menu a tendina)
+        st.session_state.obs_data = st.data_editor(
+            st.session_state.obs_data, 
+            column_config={
+                "Tipo_Contratto": st.column_config.SelectboxColumn(
+                    "Tipo Contratto",
+                    help="Seleziona la modalità di inquadramento",
+                    options=["Appalto", "Sub appalto"], # Opzioni del menu a tendina
+                    required=True
+                ),
+                "Note": st.column_config.TextColumn(
+                    "Note",
+                    help="Annotazioni operative",
+                    max_chars=250
+                )
+            },
+            num_rows="dynamic", 
+            use_container_width=True, 
+            hide_index=True
+        )
+        
 # --- TAB 2: MATRICE E GRAFO A NODI ---
 with tab2:
     st.header("Incrocio Logico (Work Packages)")
