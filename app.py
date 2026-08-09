@@ -173,14 +173,14 @@ with tab3:
         graph.attr(rankdir='LR', ranksep='1.5', nodesep='0.8', splines='spline')
         graph.attr('node', fontname='Helvetica', fontsize='10', margin='0.2')
     
-    # Nodi OBS 
-    for _, row in st.session_state.obs_data.iterrows():
-        label_html = f"<<TABLE BORDER='0' CELLBORDER='0' CELLSPACING='2'>"
-        label_html += f"<TR><TD><B>{row['Ruolo']}</B></TD></TR>"
-        label_html += f"<TR><TD>({row['Risorsa']})</TD></TR>"
+        # Nodi OBS 
+        for _, row in st.session_state.obs_data.iterrows():
+            label_html = f"<<TABLE BORDER='0' CELLBORDER='0' CELLSPACING='2'>"
+            label_html += f"<TR><TD><B>{row['Ruolo']}</B></TD></TR>"
+            label_html += f"<TR><TD>({row['Risorsa']})</TD></TR>"
         
-        colonne_base = ['ID_OBS', 'Ruolo', 'Risorsa', 'Tipo_Contratto', 'Note']
-        colonne_custom = [col for col in st.session_state.obs_data.columns if col not in colonne_base]
+            colonne_base = ['ID_OBS', 'Ruolo', 'Risorsa', 'Tipo_Contratto', 'Note']
+            colonne_custom = [col for col in st.session_state.obs_data.columns if col not in colonne_base]
         
         for col in colonne_custom:
             valore = row[col]
