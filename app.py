@@ -69,25 +69,39 @@ def aggiorna_costi_reali():
 # Eseguiamo i calcoli in sequenza prima di disegnare l'interfaccia
 aggiorna_costi_reali()
 
-# Calcoli EVM Dinamici sul DataFrame
+# Calcoli EVM Dinamici e Avanzati sul DataFrame
 def calcola_evm(df):
+    oggi = pd.Timestamp.today().date()
+    
+    # 1. Calcolo del Valore Pianificato (PV) in base al calendario
+    def calcola_pv(row):
+        inizio = pd.to_datetime(row['Inizio_Previsto']).date() if pd.notna(row['Inizio_Previsto']) else None
+        fine = pd.to_datetime(row['Fine_Prevista']).date() if pd.notna(row['Fine_Prevista']) else None
+        bac = float(row['BAC_Budget'])
+        
+        if not inizio or not fine or bac == 0: return 0.0
+        if oggi >= fine: return bac # Lavoro che dovrebbe essere già finito
+        if oggi <= inizio: return 0.0 # Lavoro non ancora iniziato
+        
+        giorni_totali = (fine - inizio).days
+        giorni_trascorsi = (oggi - inizio).days
+        if giorni_totali <= 0: return bac
+        
+        # Proporzione lineare del budget sui giorni (PV)
+        return bac * (giorni_trascorsi / giorni_totali)
+
+    df['PV'] = df.apply(calcola_pv, axis=1)
+    
+    # 2. Calcolo Metriche EVM Standard
     df['EV'] = df['BAC_Budget'] * (df['%_Completamento'] / 100)
-    df['CV'] = df['EV'] - df['AC_Costo_Reale']
-    df['SPI'] = df.apply(lambda x: (x['EV'] / x['BAC_Budget']) if x['BAC_Budget'] > 0 else 1, axis=1)
-    df['CPI'] = df.apply(lambda x: (x['EV'] / x['AC_Costo_Reale']) if x['AC_Costo_Reale'] > 0 else 1, axis=1)
+    df['CV'] = df['EV'] - df['AC_Costo_Reale'] # Cost Variance
+    df['SV'] = df['EV'] - df['PV']             # Schedule Variance
+    
+    # 3. Calcolo Indici (con prevenzione divisione per zero)
+    df['SPI'] = df.apply(lambda x: (x['EV'] / x['PV']) if x['PV'] > 0 else (1.0 if x['EV']==0 else 1.1), axis=1)
+    df['CPI'] = df.apply(lambda x: (x['EV'] / x['AC_Costo_Reale']) if x['AC_Costo_Reale'] > 0 else (1.0 if x['EV']==0 else 1.1), axis=1)
+    
     return df
-
-st.session_state.wbs_data = calcola_evm(st.session_state.wbs_data)
-
-# Calcoli EVM Dinamici sul DataFrame
-def calcola_evm(df):
-    df['EV'] = df['BAC_Budget'] * (df['%_Completamento'] / 100)
-    df['CV'] = df['EV'] - df['AC_Costo_Reale']
-    df['SPI'] = df.apply(lambda x: (x['EV'] / x['BAC_Budget']) if x['BAC_Budget'] > 0 else 1, axis=1)
-    df['CPI'] = df.apply(lambda x: (x['EV'] / x['AC_Costo_Reale']) if x['AC_Costo_Reale'] > 0 else 1, axis=1)
-    return df
-
-st.session_state.wbs_data = calcola_evm(st.session_state.wbs_data)
 
 # --- CREAZIONE TAB ---
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
@@ -384,9 +398,7 @@ with tab4:
 # --- TAB 5: EVM E CASH FLOW ---
 with tab5:
     st.header("Controllo Costi e Analisi EVM")
-    
-    # FIX: Filtriamo SOLO i nodi operativi (le foglie, es. 1.1) scartando i padri (es. 1)
-    # Questo elimina il problema del doppio conteggio!
+        
     df_completo = st.session_state.wbs_data.copy()
     df_evm = df_completo[df_completo['ID_WBS'].astype(str).str.contains('\.')].copy()
     
@@ -395,90 +407,86 @@ with tab5:
     
     # Metriche Globali di Progetto CORRETTE
     tot_bac = df_evm['BAC_Budget'].sum()
+    tot_pv = df_evm['PV'].sum()
     tot_ev = df_evm['EV'].sum()
     tot_ac = df_evm['AC_Costo_Reale'].sum()
     
-    cpi_globale = tot_ev / tot_ac if tot_ac > 0 else 1
+    # Calcolo KPI Globali
+    cpi_globale = tot_ev / tot_ac if tot_ac > 0 else 1.0
+    spi_globale = tot_ev / tot_pv if tot_pv > 0 else 1.0
+    perc_completamento = (tot_ev / tot_bac * 100) if tot_bac > 0 else 0.0
+    perc_pianificata = (tot_pv / tot_bac * 100) if tot_bac > 0 else 0.0
     
-    col_m1, col_m2, col_m3, col_m4 = st.columns(4)
-    col_m1.metric("Budget Totale (BAC)", f"€ {tot_bac:,.2f}")
-    col_m2.metric("Lavoro Eseguito (EV)", f"€ {tot_ev:,.2f}")
-    col_m3.metric("Costi Sostenuti (AC)", f"€ {tot_ac:,.2f}")
-    col_m4.metric("CPI Globale", f"{cpi_globale:.2f}", 
-                  delta="Over-budget" if cpi_globale < 1 else "Under-budget", 
-                  delta_color="inverse")
+    st.markdown("### Riepilogo di Progetto")
+    col_m1, col_m2, col_m3, col_m4, col_m5 = st.columns(5)
+    col_m1.metric("Budget Totale (BAC)", f"€ {tot_bac:,.0f}")
+    col_m2.metric("Lavoro Eseguito (EV)", f"€ {tot_ev:,.0f}")
+    col_m3.metric("Costi Sostenuti (AC)", f"€ {tot_ac:,.0f}")
+    col_m4.metric("Avanzamento Globale", f"{perc_completamento:.1f}%", 
+                  delta=f"Pianificato: {perc_pianificata:.1f}%", delta_color="off")
+    col_m5.metric("SPI Globale (Tempi)", f"{spi_globale:.2f}", 
+                  delta="In ritardo" if spi_globale < 1 else "In anticipo", delta_color="inverse")
     
     st.divider()
     
+    # --- GRAFICO A BARRE ---
     st.subheader("Raffronto Costi per Attività")
-        
     fig_evm = go.Figure(data=[
-        go.Bar(
-            name='BAC (Budget)', 
-            x=df_evm['Attività'], 
-            y=df_evm['BAC_Budget'], 
-            marker_color='lightgray',
-            text=df_evm['BAC_Budget'],         
-            texttemplate='€ %{text:,.0f}',     
-            textposition='outside',            
-            textangle=-90                      
-        ),
-        go.Bar(
-            name='EV (Valore Guadagnato)', 
-            x=df_evm['Attività'], 
-            y=df_evm['EV'], 
-            marker_color='green',
-            text=df_evm['EV'],
-            texttemplate='€ %{text:,.0f}',
-            textposition='outside',
-            textangle=-90
-        ),
-        go.Bar(
-            name='AC (Costo Reale)', 
-            x=df_evm['Attività'], 
-            y=df_evm['AC_Costo_Reale'], 
-            marker_color='red',
-            text=df_evm['AC_Costo_Reale'],
-            texttemplate='€ %{text:,.0f}',
-            textposition='outside',
-            textangle=-90
-        )
+        go.Bar(name='BAC (Budget)', x=df_evm['Attività'], y=df_evm['BAC_Budget'], marker_color='lightgray', text=df_evm['BAC_Budget'], texttemplate='€ %{text:,.0f}', textposition='outside', textangle=-90),
+        go.Bar(name='EV (Valore Guadagnato)', x=df_evm['Attività'], y=df_evm['EV'], marker_color='green', text=df_evm['EV'], texttemplate='€ %{text:,.0f}', textposition='outside', textangle=-90),
+        go.Bar(name='AC (Costo Reale)', x=df_evm['Attività'], y=df_evm['AC_Costo_Reale'], marker_color='red', text=df_evm['AC_Costo_Reale'], texttemplate='€ %{text:,.0f}', textposition='outside', textangle=-90)
     ])
-        
-    fig_evm.update_layout(
-        barmode='group',
-        margin=dict(t=80),         
-        uniformtext_minsize=9,     
-        uniformtext_mode='hide'    
-    )
+    fig_evm.update_layout(barmode='group', margin=dict(t=80), uniformtext_minsize=9, uniformtext_mode='hide')
     st.plotly_chart(fig_evm, use_container_width=True)
         
+    # --- TABELLA E LEGENDA ---
     col_KPI, col_LEGENDA = st.columns([7, 3]) 
-    
     with col_KPI:
         st.subheader("Indicatori di Performance (KPI)")
-        # La tabella ora mostrerà solo le vere lavorazioni pulite!
         df_kpi = df_evm[['Attività', '%_Completamento', 'CPI', 'SPI', 'CV']].copy()
         
         def color_kpi(val):
             if isinstance(val, (int, float)):
-                if val < 1.0: return 'color: red'
+                if val < 0.95: return 'color: red; font-weight: bold;'
                 elif val >= 1.0: return 'color: green'
             return ''
             
-        st.dataframe(df_kpi.style.map(color_kpi, subset=['CPI', 'SPI'])
-                            .format({'CPI': "{:.2f}", 'SPI': "{:.2f}", 'CV': "€ {:.2f}"}), 
-                     use_container_width=True)
+        st.dataframe(df_kpi.style.map(color_kpi, subset=['CPI', 'SPI']).format({'CPI': "{:.2f}", 'SPI': "{:.2f}", 'CV': "€ {:.2f}"}), use_container_width=True)
 
     with col_LEGENDA:
-        st.subheader("Legenda")
+        st.subheader("Legenda EVM")
         st.markdown("""
-        * **CPI (Cost Performance Index):** Efficienza dei costi.  
-        Se **< 1**, stai spendendo più del budget previsto per il lavoro svolto.
-        * **SPI (Schedule Performance Index):** Efficienza temporale.  
-        Se **< 1**, sei in ritardo rispetto alla programmazione.
-        * **CV (Cost Variance):** Scostamento dei costi assoluto (EV - AC).  
-        Un valore negativo indica una perdita monetaria sull'attività.
+        * **CPI:** Efficienza costi (<1 sforamento budget)
+        * **SPI:** Efficienza tempi (<1 in ritardo)
+        * **CV:** Varianza Costi Assoluta
+        """)
+        
+    st.divider()
+    
+    # --- MOTORE AI ANALIZZATORE DIREZIONALE ---
+    st.subheader("🤖 Analizzatore Direzionale (AI-Assist)")
+    
+    # Impostiamo la soglia di allerta (es. tolleranza del 5%)
+    soglia_allerta = 0.95
+    critici_costo = df_evm[df_evm['CPI'] < soglia_allerta]
+    critici_tempo = df_evm[df_evm['SPI'] < soglia_allerta]
+    
+    if critici_costo.empty and critici_tempo.empty:
+        st.success("✅ **Progetto in Salute:** Tutti i parametri (Tempi e Costi) sono entro i margini di tolleranza pianificati. Nessuna criticità rilevata.")
+    else:
+        st.warning("⚠️ **Attenzione: Rilevati scostamenti rispetto alla baseline di progetto.** Analisi suggerita:")
+        
+        # Analisi Tempi (SPI)
+        for _, row in critici_tempo.iterrows():
+            st.error(f"⏳ **Ritardo Schedulazione su '{row['Attività']}':** (SPI = {row['SPI']:.2f})")
+            st.markdown(f"> *Il Work Package sta generando meno valore del previsto. Dato lo scostamento, **devi accelerare la produzione**.*")
+            st.markdown(f"> * **Soluzioni suggerite:** Verifica la disponibilità della risorsa ({row['ID_OBS_Assegnato']}), valuta di approvare lavoro straordinario o affianca un sub-appaltatore per recuperare il gap prima che intacchi il percorso critico (CPM).*")
+            
+        # Analisi Costi (CPI)
+        for _, row in critici_costo.iterrows():
+            st.error(f"💸 **Sforamento Budget su '{row['Attività']}':** (CPI = {row['CPI']:.2f})")
+            st.markdown(f"> *Hai speso **€ {row['AC_Costo_Reale']:,.2f}** per produrre un valore equivalente di soli **€ {row['EV']:,.2f}**. Stai perdendo marginalità.*")
+            st.markdown(f"> * **Soluzioni suggerite:** Analizza immediatamente le bolle di accompagnamento e il Registro Contabile. Possibili cause: inefficienza della manodopera, aumento prezzi materiali imprevisto, o errata valutazione del BAC iniziale.*")
         """)
         
 # --- TAB 6: REGISTRO CONTABILE ---
