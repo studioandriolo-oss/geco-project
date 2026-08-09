@@ -80,7 +80,11 @@ if 'registro_data' not in st.session_state:
         'Importo_Netto': [2000.0, 3200.0],
         'Descrizione': ['Acconto lavori', 'Nolo escavatore']
     })
-
+if 'archivio_progetti' not in st.session_state:
+    st.session_state.archivio_progetti = {}
+if 'nome_progetto_attivo' not in st.session_state:
+    st.session_state.nome_progetto_attivo = "Progetto_01"
+    
 # --- MOTORE AGGIORNAMENTO COSTI REALI (Da Tab 6 a Tab 1) ---
 def aggiorna_costi_reali():
     df_reg = st.session_state.registro_data.copy()
@@ -103,18 +107,57 @@ aggiorna_costi_reali()
 with st.sidebar:
     st.header("📂 Gestione Progetti")
     
-    # 1. NUOVO PROGETTO
-    if st.button("📄 Nuovo Progetto (Reset)", use_container_width=True):
-        # Eliminiamo le chiavi di sessione per far ripartire il programma con i dati di base puliti
+    # Campo per rinominare il progetto su cui si sta lavorando
+    st.session_state.nome_progetto_attivo = st.text_input("Nome Progetto Attuale", value=st.session_state.nome_progetto_attivo)
+    
+    # 1. SALVA E DUPLICA (In Memoria)
+    c_save, c_dup = st.columns(2)
+    if c_save.button("💾 Salva", use_container_width=True):
+        # Salviamo una COPIA esatta dei DataFrame nell'archivio interno
+        st.session_state.archivio_progetti[st.session_state.nome_progetto_attivo] = {
+            "wbs": st.session_state.wbs_data.copy(),
+            "obs": st.session_state.obs_data.copy(),
+            "registro": st.session_state.registro_data.copy()
+        }
+        st.success("Progetto salvato!")
+        
+    if c_dup.button("📑 Duplica", use_container_width=True):
+        nuovo_nome = f"{st.session_state.nome_progetto_attivo}_Copia"
+        st.session_state.archivio_progetti[nuovo_nome] = {
+            "wbs": st.session_state.wbs_data.copy(),
+            "obs": st.session_state.obs_data.copy(),
+            "registro": st.session_state.registro_data.copy()
+        }
+        st.session_state.nome_progetto_attivo = nuovo_nome
+        st.success("Progetto duplicato!")
+        st.rerun()
+
+    # 2. CARICA DALLA MEMORIA (Appare solo se ci sono progetti salvati)
+    if st.session_state.archivio_progetti:
+        st.divider()
+        st.write("🔄 **Progetti in memoria (Sessione attuale)**")
+        prog_selezionato = st.selectbox("Seleziona da caricare", options=list(st.session_state.archivio_progetti.keys()), label_visibility="collapsed")
+        if st.button("📂 Apri Progetto", use_container_width=True):
+            st.session_state.wbs_data = st.session_state.archivio_progetti[prog_selezionato]["wbs"].copy()
+            st.session_state.obs_data = st.session_state.archivio_progetti[prog_selezionato]["obs"].copy()
+            st.session_state.registro_data = st.session_state.archivio_progetti[prog_selezionato]["registro"].copy()
+            st.session_state.nome_progetto_attivo = prog_selezionato
+            st.rerun()
+
+    st.divider()
+    
+    # 3. NUOVO PROGETTO (RESET)
+    if st.button("📄 Nuovo Progetto (Reset Dati)", use_container_width=True):
         for key in ['wbs_data', 'obs_data', 'registro_data']:
             if key in st.session_state:
                 del st.session_state[key]
+        st.session_state.nome_progetto_attivo = "Nuovo_Progetto"
         st.rerun()
         
     st.divider()
     
-    # 2. ESPORTA PROGETTO (JSON)
-    # Raccogliamo i tre DataFrame, li convertiamo in formati compatibili con JSON (orient="records")
+    # 4. ESPORTA PROGETTO (JSON per archiviazione fissa)
+    st.write("💾 **Archiviazione su PC**")
     try:
         progetto_export = {
             "wbs": json.loads(st.session_state.wbs_data.to_json(orient="records", date_format="iso")),
@@ -124,32 +167,27 @@ with st.sidebar:
         json_string = json.dumps(progetto_export, indent=4)
         
         st.download_button(
-            label="💾 Esporta Progetto (.json)",
+            label="⬇️ Scarica (.json)",
             data=json_string,
-            file_name="mio_cantiere.json",
+            file_name=f"{st.session_state.nome_progetto_attivo}.json",
             mime="application/json",
             use_container_width=True
         )
     except Exception as e:
-        st.error(f"Errore durante la preparazione dell'esportazione: {e}")
+        st.error(f"Errore esportazione: {e}")
     
-    st.divider()
-    
-    # 3. CARICA PROGETTO (JSON)
-    uploaded_file = st.file_uploader("📤 Carica Progetto", type=['json'])
+    # 5. CARICA PROGETTO (Da JSON)
+    uploaded_file = st.file_uploader("📤 Carica da PC", type=['json'], label_visibility="collapsed")
     
     if uploaded_file is not None:
         try:
             dati_caricati = json.load(uploaded_file)
-            
-            # Sovrascriviamo le variabili di sessione con i dati del file
             st.session_state.wbs_data = pd.DataFrame(dati_caricati['wbs'])
             st.session_state.obs_data = pd.DataFrame(dati_caricati['obs'])
             if 'registro' in dati_caricati:
                 st.session_state.registro_data = pd.DataFrame(dati_caricati['registro'])
             
-            # SISTEMAZIONE DATE: Il JSON salva le date come stringhe (es. "2026-09-01T00:00:00"). 
-            # Dobbiamo riconvertirle in formati "Date" altrimenti il Gantt e l'EVM si bloccano.
+            # Sistemazione Date post-importazione
             colonne_date_wbs = ['Inizio_Previsto', 'Fine_Prevista', 'Inizio_Effettivo', 'Fine_Effettiva']
             for col in colonne_date_wbs:
                 if col in st.session_state.wbs_data.columns:
@@ -158,14 +196,16 @@ with st.sidebar:
             if 'registro_data' in st.session_state and 'Data' in st.session_state.registro_data.columns:
                 st.session_state.registro_data['Data'] = pd.to_datetime(st.session_state.registro_data['Data']).dt.date
             
-            st.success("✅ Progetto ripristinato con successo!")
+            # Imposta il nome del progetto dal nome del file tolta l'estensione
+            st.session_state.nome_progetto_attivo = uploaded_file.name.replace(".json", "")
+            st.success("Dati ripristinati!")
             
         except Exception as e:
-            st.error(f"❌ File JSON non valido o danneggiato. Dettagli: {e}")
+            st.error(f"File JSON non valido. {e}")
             
     st.divider()
     
-    # 4. LOGOUT
+    # 6. LOGOUT
     if st.button("🚪 Esci (Logout)", type="primary", use_container_width=True):
         st.session_state.logged_in = False
         st.rerun()
