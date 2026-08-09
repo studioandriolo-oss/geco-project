@@ -1009,33 +1009,33 @@ with tab7:
     st.divider()
     
     # ---------------------------------------------------------
-    # SEZIONE 2: SIMULATORE WHAT-IF
+    # SEZIONE 2: SIMULATORE WHAT-IF (PROJECT CRASHING)
     # ---------------------------------------------------------
-    with st.expander("🔬 2. Ambiente di Simulazione (What-If Analysis)"):
-        st.markdown("Simula l'impatto economico di un'azione correttiva sul Costo Finale Stimato (EAC) prima di approvarla.")
+    with st.expander("🔬 2. Ambiente di Simulazione (Compromesso Costi / Tempi)"):
+        st.markdown("Simula l'impatto di un'azione correttiva. **Opzione Crashing:** inietta liquidità extra per accelerare i lavori e valuta lo spostamento della data di fine cantiere.")
         
-        c_sim1, c_sim2 = st.columns(2)
+        c_sim1, c_sim2, c_sim3 = st.columns([2, 1.5, 1.5])
         wp_scelto = c_sim1.selectbox("Seleziona Work Package da simulare", options=wbs_options_capa)
-        extra_costo = c_sim2.number_input("Iniezione Extra Costo per risolvere l'anomalia (€)", value=0.0, step=500.0)
+        extra_costo = c_sim2.number_input("Iniezione Extra Costo (€)", value=0.0, step=500.0)
+        giorni_risparmiati = c_sim3.number_input("Stima recupero ritardo (Giorni)", value=0, step=1, min_value=0)
         
         if wp_scelto:
             wp_id = wp_scelto.split(' - ')[0]
             
-            # DataFrame temporaneo per simulazione
+            # --- 1. SETUP SIMULAZIONE COSTI ---
             df_simulazione = st.session_state.wbs_data.copy()
             df_simulazione['BAC_Budget'] = pd.to_numeric(df_simulazione['BAC_Budget'], errors='coerce').fillna(0.0)
             df_simulazione['%_Completamento'] = pd.to_numeric(df_simulazione['%_Completamento'], errors='coerce').fillna(0.0)
             df_simulazione['AC_Costo_Reale'] = pd.to_numeric(df_simulazione['AC_Costo_Reale'], errors='coerce').fillna(0.0)
             
-            # Applichiamo la simulazione all'AC
             indice_riga = df_simulazione.index[df_simulazione['ID_WBS'] == wp_id].tolist()
             if indice_riga:
                 idx = indice_riga[0]
                 df_simulazione.at[idx, 'AC_Costo_Reale'] += extra_costo
                 
-            # Ricalcoli
-            df_sim_calc = calcola_evm(df_simulazione[df_simulazione['ID_WBS'].astype(str).str.contains('\.')].copy(), pd.Timestamp.today().date())
-            df_reale_calc = calcola_evm(st.session_state.wbs_data[st.session_state.wbs_data['ID_WBS'].astype(str).str.contains('\.')].copy(), pd.Timestamp.today().date())
+            oggi = pd.Timestamp.today().date()
+            df_sim_calc = calcola_evm(df_simulazione[df_simulazione['ID_WBS'].astype(str).str.contains('\.')].copy(), oggi)
+            df_reale_calc = calcola_evm(st.session_state.wbs_data[st.session_state.wbs_data['ID_WBS'].astype(str).str.contains('\.')].copy(), oggi)
             
             eac_attuale = df_reale_calc['EAC'].sum()
             eac_simulato = df_sim_calc['EAC'].sum()
@@ -1043,54 +1043,75 @@ with tab7:
             ac_simulato_tot = df_sim_calc['AC_Costo_Reale'].sum()
             delta_eac = eac_simulato - eac_attuale
             
+            # --- 2. SETUP SIMULAZIONE TEMPI ---
+            min_date = pd.to_datetime(df_reale_calc['Inizio_Previsto']).min().date()
+            max_date = pd.to_datetime(df_reale_calc['Fine_Prevista']).max().date()
+            
+            if pd.notna(min_date) and pd.notna(max_date):
+                giorni_pianificati = (max_date - min_date).days
+                tot_pv = df_reale_calc['PV'].sum()
+                tot_ev = df_reale_calc['EV'].sum()
+                spi_attuale = tot_ev / tot_pv if tot_pv > 0 else 1.0
+                
+                giorni_stimati_attuali = int(giorni_pianificati / spi_attuale) if spi_attuale > 0 else giorni_pianificati
+                giorni_stimati_attuali = min(giorni_stimati_attuali, giorni_pianificati * 3) # Limite massimo
+                
+                data_fine_attuale = min_date + pd.Timedelta(days=giorni_stimati_attuali)
+                data_fine_simulata = data_fine_attuale - pd.Timedelta(days=giorni_risparmiati)
+            else:
+                data_fine_attuale = oggi
+                data_fine_simulata = oggi
+            
+            # --- 3. RENDERING INTERFACCIA ---
             c_res1, c_res2 = st.columns([1, 2])
             
             with c_res1:
                 st.metric(
                     label="Nuovo Costo Finale (EAC Simulato)", 
-                    value=f"€ {eac_simulato:,.2f}", 
-                    delta=f"Variazione: € {delta_eac:,.2f}" if delta_eac != 0 else "Nessun impatto", 
+                    value=f"€ {eac_simulato:,.0f}", 
+                    delta=f"Peggioramento Budget: € {delta_eac:,.0f}" if delta_eac > 0 else ("Miglioramento: €" + str(abs(delta_eac)) if delta_eac < 0 else "Invariato"), 
                     delta_color="inverse"
                 )
-                st.markdown(f"*Costo attuale sostenuto: € {ac_attuale_tot:,.2f}*")
-                st.markdown(f"*Costo istantaneo simulato: € {ac_simulato_tot:,.2f}*")
+                st.metric(
+                    label="Nuova Data di Consegna",
+                    value=data_fine_simulata.strftime('%d/%m/%Y') if pd.notna(data_fine_simulata) else "N/D",
+                    delta=f"Anticipo tempi: {giorni_risparmiati} gg" if giorni_risparmiati > 0 else "Nessun recupero temporale",
+                    delta_color="normal"
+                )
             
             with c_res2:
-                # Mini grafico vettoriale: Forchetta di proiezione tra Attuale e Simulato
                 fig_sim = go.Figure()
                 
-                # Proiezione Attuale (Rossa)
+                # Traiettoria Attuale (Senza intervento)
                 fig_sim.add_trace(go.Scatter(
-                    x=["Oggi", "Fine Lavori"],
+                    x=[oggi, data_fine_attuale],
                     y=[ac_attuale_tot, eac_attuale],
                     mode='lines+markers+text',
                     name='Traiettoria Attuale',
-                    line=dict(color='red', dash='dash', width=3),
-                    text=[f"€ {ac_attuale_tot:,.0f}", f"€ {eac_attuale:,.0f}"],
+                    line=dict(color='red', dash='dash', width=2),
+                    text=["", f"€ {eac_attuale:,.0f}"],
                     textposition="bottom right"
                 ))
                 
-                # Proiezione Simulata (Blu)
+                # Traiettoria Simulata (Con intervento di Crashing)
                 fig_sim.add_trace(go.Scatter(
-                    x=["Oggi", "Fine Lavori"],
+                    x=[oggi, data_fine_simulata],
                     y=[ac_simulato_tot, eac_simulato],
                     mode='lines+markers+text',
-                    name='Traiettoria Simulata',
+                    name='Simulazione Crashing',
                     line=dict(color='blue', dash='solid', width=3),
-                    text=[f"€ {ac_simulato_tot:,.0f}", f"€ {eac_simulato:,.0f}"],
+                    text=[f"Iniezione (Oggi): € {ac_simulato_tot:,.0f}", f"€ {eac_simulato:,.0f}"],
                     textposition="top left"
                 ))
                 
                 fig_sim.update_layout(
-                    title="Forchetta di Variazione Costi a Finire",
-                    height=250,
-                    margin=dict(l=10, r=10, t=30, b=10),
-                    yaxis_title="Importo (€)",
+                    title="Impatto Strategico (Spostamento Data vs Costo)",
+                    height=280,
+                    margin=dict(l=10, r=10, t=35, b=10),
+                    yaxis_title="Investimento Totale (€)",
                     legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
                 )
                 st.plotly_chart(fig_sim, use_container_width=True)
-
-    st.divider()
 
     # ---------------------------------------------------------
     # SEZIONE 3: EXPORT REPORT DIREZIONALE IN WORD (.DOCX)
