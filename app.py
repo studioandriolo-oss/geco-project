@@ -71,7 +71,7 @@ aggiorna_costi_reali()
 
 # Calcoli EVM Dinamici e Avanzati sul DataFrame
 def calcola_evm(df):
-    oggi = pd.Timestamp.today().date()
+    oggi = data_status # <--- usa la data scelta dall'utente
     
     # 1. Calcolo del Valore Pianificato (PV) in base al calendario
     def calcola_pv(row):
@@ -80,28 +80,28 @@ def calcola_evm(df):
         bac = float(row['BAC_Budget'])
         
         if not inizio or not fine or bac == 0: return 0.0
-        if oggi >= fine: return bac # Lavoro che dovrebbe essere già finito
-        if oggi <= inizio: return 0.0 # Lavoro non ancora iniziato
+        if oggi >= fine: return bac 
+        if oggi <= inizio: return 0.0 
         
         giorni_totali = (fine - inizio).days
         giorni_trascorsi = (oggi - inizio).days
         if giorni_totali <= 0: return bac
         
-        # Proporzione lineare del budget sui giorni (PV)
         return bac * (giorni_trascorsi / giorni_totali)
 
     df['PV'] = df.apply(calcola_pv, axis=1)
     
-    # 2. Calcolo Metriche EVM Standard
     df['EV'] = df['BAC_Budget'] * (df['%_Completamento'] / 100)
-    df['CV'] = df['EV'] - df['AC_Costo_Reale'] # Cost Variance
-    df['SV'] = df['EV'] - df['PV']             # Schedule Variance
+    df['CV'] = df['EV'] - df['AC_Costo_Reale'] 
+    df['SV'] = df['EV'] - df['PV']             
     
-    # 3. Calcolo Indici (con prevenzione divisione per zero)
     df['SPI'] = df.apply(lambda x: (x['EV'] / x['PV']) if x['PV'] > 0 else (1.0 if x['EV']==0 else 1.1), axis=1)
     df['CPI'] = df.apply(lambda x: (x['EV'] / x['AC_Costo_Reale']) if x['AC_Costo_Reale'] > 0 else (1.0 if x['EV']==0 else 1.1), axis=1)
     
     return df
+
+# La prima inizializzazione la facciamo con la data odierna reale
+st.session_state.wbs_data = calcola_evm(st.session_state.wbs_data, pd.Timestamp.today().date())
 
 # --- CREAZIONE TAB ---
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
@@ -143,7 +143,11 @@ with tab1:
                     "Predecessori": st.column_config.TextColumn(
                         "Predecessori (WP)",
                         help="ID dei WP che devono finire prima (es. 1.1, 1.2)"
-                    )
+                    ),
+                    "Inizio_Previsto": st.column_config.DateColumn("Inizio Previsto"),
+                    "Fine_Prevista": st.column_config.DateColumn("Fine Prevista"),
+                    "Inizio_Effettivo": st.column_config.DateColumn("Inizio Effettivo"),
+                    "Fine_Effettiva": st.column_config.DateColumn("Fine Effettiva")
                 }
             )
             
@@ -345,7 +349,12 @@ with tab3:
 # --- TAB 4: CRONOPROGRAMMA (GANTT) ---
 with tab4:
     st.header("Cronoprogramma Lavori")
-    vista = st.selectbox("Seleziona Vista", ["Progetto (Baseline)", "Esecuzione (Esecutivo)", "Comparativa"])
+    
+    c1, c2 = st.columns([1, 2])
+    vista = c1.selectbox("Seleziona Vista", ["Progetto (Baseline)", "Esecuzione (Esecutivo)", "Comparativa"])
+    
+    # Selettore Data di Stato anche per il Gantt
+    data_status_gantt = c2.date_input("📅 Data di Rilevamento (Simulazione avanzamento cantiere)", value=date(2026, 10, 15))
     
     df_gantt = st.session_state.wbs_data.copy()
     df_gantt = df_gantt[df_gantt['ID_WBS'].astype(str).str.contains('\.')] 
@@ -353,7 +362,9 @@ with tab4:
     df_gantt['Inizio_Previsto'] = pd.to_datetime(df_gantt['Inizio_Previsto'])
     df_gantt['Fine_Prevista'] = pd.to_datetime(df_gantt['Fine_Prevista'])
     df_gantt['Inizio_Effettivo'] = pd.to_datetime(df_gantt['Inizio_Effettivo'])
-    df_gantt['Fine_Effettiva'] = pd.to_datetime(df_gantt['Fine_Effettiva']).fillna(pd.Timestamp.now())
+    
+    # Se la data di fine effettiva non c'è, usa la Data di Stato per disegnare il blocco "lavori in corso"
+    df_gantt['Fine_Effettiva'] = pd.to_datetime(df_gantt['Fine_Effettiva']).fillna(pd.to_datetime(data_status_gantt))
     
     fig = go.Figure()
     
@@ -398,14 +409,16 @@ with tab4:
 # --- TAB 5: EVM E CASH FLOW ---
 with tab5:
     st.header("Controllo Costi e Analisi EVM")
-        
+    
+    # Selettore Data di Stato principale
+    data_status_evm = st.date_input("📅 Data di Stato (Status Date) per l'analisi EVM:", value=date(2026, 10, 15))
+    
     df_completo = st.session_state.wbs_data.copy()
     df_evm = df_completo[df_completo['ID_WBS'].astype(str).str.contains('\.')].copy()
     
-    # Ricalcoliamo l'EVM al volo per assicurarci di avere i dati freschi del Registro Contabile
-    df_evm = calcola_evm(df_evm)
+    # Ricalcoliamo fornendo la data di stato all'algoritmo
+    df_evm = calcola_evm(df_evm, data_status_evm)
     
-    # Metriche Globali di Progetto CORRETTE
     tot_bac = df_evm['BAC_Budget'].sum()
     tot_pv = df_evm['PV'].sum()
     tot_ev = df_evm['EV'].sum()
