@@ -255,31 +255,31 @@ with tab3:
                         )
 
    # --- NUOVA VISUALIZZAZIONE INTERATTIVA (PAN & ZOOM ROBUSTO) ---
-    try:
-        # 1. Esportiamo il grafo in formato vettoriale SVG puro
-        raw_svg = graph.pipe(format='svg').decode('utf-8')
+            try:
+                # 1. Esportiamo il grafo in formato vettoriale SVG puro
+                raw_svg = graph.pipe(format='svg').decode('utf-8')
         
-        # 2. ESTREMA IMPORTANZA: Tagliamo via l'intestazione XML di Graphviz
-        # Prendiamo il testo partendo esattamente dal tag <svg in poi
-        svg_data = raw_svg[raw_svg.find('<svg'):]
+                # 2. ESTREMA IMPORTANZA: Tagliamo via l'intestazione XML di Graphviz
+                # Prendiamo il testo partendo esattamente dal tag <svg in poi
+                svg_data = raw_svg[raw_svg.find('<svg'):]
         
-        # 3. Creiamo la pagina HTML
-        html_code = f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <script src="https://cdn.jsdelivr.net/npm/svg-pan-zoom@3.6.1/dist/svg-pan-zoom.min.js"></script>
-            <style>
-                body {{ margin: 0; padding: 0; overflow: hidden; background-color: #fafafa; }}
-                #svg-container {{ width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center; }}
-                /* Forziamo l'SVG a prendere tutto lo spazio a disposizione */
-                svg {{ width: 100% !important; height: 100% !important; }}
-            </style>
-        </head>
-        <body>
-            <div id="svg-container">
-                {svg_data}
-            </div>
+                # 3. Creiamo la pagina HTML
+                html_code = f"""
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <script src="https://cdn.jsdelivr.net/npm/svg-pan-zoom@3.6.1/dist/svg-pan-zoom.min.js"></script>
+                    <style>
+                        body {{ margin: 0; padding: 0; overflow: hidden; background-color: #fafafa; }}
+                        #svg-container {{ width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center; }}
+                        /* Forziamo l'SVG a prendere tutto lo spazio a disposizione */
+                        svg {{ width: 100% !important; height: 100% !important; }}
+                    </style>
+                </head>
+                <body>
+                    <div id="svg-container">
+                        {svg_data}
+                    </div>
             
             <script>
                 window.onload = function() {{
