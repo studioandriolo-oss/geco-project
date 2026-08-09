@@ -406,6 +406,7 @@ with tab3:
             penwidth='1.5'
         )
         
+    # Nodi WBS (I Work Packages)
     df_wp_reali = st.session_state.wbs_data[st.session_state.wbs_data['ID_WBS'].astype(str).str.contains('\.')]
     valid_wbs_ids = set(df_wp_reali['ID_WBS'].astype(str))
     
@@ -423,12 +424,25 @@ with tab3:
         wp_html += f"<TR><TD>Avanzamento: {completamento:.1f}%</TD></TR>"
         wp_html += "</TABLE>>"
         
+        # --- LOGICA BARRA DI PROGRESSO (GRAPHVIZ STRIPED) ---
+        if completamento >= 100:
+            stile = 'rounded,filled'
+            colore_sfondo = '#C8E6C9' # 100% Verde pastello
+        elif completamento <= 0:
+            stile = 'rounded,filled'
+            colore_sfondo = 'white'   # 0% Bianco
+        else:
+            stile = 'rounded,striped'
+            quota_verde = completamento / 100.0
+            # La sintassi "colore1;frazione:colore2" genera il riempimento progressivo da sinistra a destra
+            colore_sfondo = f"#C8E6C9;{quota_verde}:white"
+            
         graph.node(
             f"WBS_{row['ID_WBS']}", 
             label=wp_html, 
             shape='rect', 
-            style='rounded,filled', 
-            fillcolor='#C8E6C9', 
+            style=stile, 
+            fillcolor=colore_sfondo, 
             color='#388E3C',     
             penwidth='1.5'
         )
