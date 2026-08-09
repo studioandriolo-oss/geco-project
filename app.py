@@ -276,18 +276,18 @@ st.subheader("📈 Curva ad S (Andamento Temporale di Progetto)")
 # Generiamo i dati tramite la nostra nuova funzione
 df_scurve = genera_dati_scurve(df_evm, st.session_state.registro_data, data_status_evm)
     
-    if df_scurve is not None and not df_scurve.empty:
-        fig_scurve = px.line(
-            df_scurve, 
-            x='Data', 
-            y=['PV (Valore Pianificato)', 'EV (Valore Guadagnato)', 'AC (Costo Reale)'],
-            color_discrete_map={
-                'PV (Valore Pianificato)': 'blue',
-                'EV (Valore Guadagnato)': 'green',
-                'AC (Costo Reale)': 'red'
-            },
-            labels={'value': 'Importo (€)', 'variable': 'Metrica EVM'}
-        )
+if df_scurve is not None and not df_scurve.empty:
+    fig_scurve = px.line(
+        df_scurve, 
+        x='Data', 
+        y=['PV (Valore Pianificato)', 'EV (Valore Guadagnato)', 'AC (Costo Reale)'],
+        color_discrete_map={
+            'PV (Valore Pianificato)': 'blue',
+            'EV (Valore Guadagnato)': 'green',
+            'AC (Costo Reale)': 'red'
+        },
+        labels={'value': 'Importo (€)', 'variable': 'Metrica EVM'}
+    )
         
         # --- NOVITÀ: AGGIUNTA PROIEZIONI FUTURE (FORECAST) ---
         df_past = df_scurve[df_scurve['Data'] <= data_status_evm]
