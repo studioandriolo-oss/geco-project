@@ -290,64 +290,64 @@ if df_scurve is not None and not df_scurve.empty:
     )
         
 # --- NOVITÀ: AGGIUNTA PROIEZIONI FUTURE (FORECAST) ---
-        df_past = df_scurve[df_scurve['Data'] <= data_status_evm]
+    df_past = df_scurve[df_scurve['Data'] <= data_status_evm]
         
-        if not df_past.empty:
-            # 1. Coordinate di partenza (i valori registrati ad "Oggi")
-            last_ac = df_past.iloc[-1]['AC (Costo Reale)']
-            last_ev = df_past.iloc[-1]['EV (Valore Guadagnato)']
-            last_pv = df_past.iloc[-1]['PV (Valore Pianificato)']
+    if not df_past.empty:
+        # 1. Coordinate di partenza (i valori registrati ad "Oggi")
+        last_ac = df_past.iloc[-1]['AC (Costo Reale)']
+        last_ev = df_past.iloc[-1]['EV (Valore Guadagnato)']
+        last_pv = df_past.iloc[-1]['PV (Valore Pianificato)']
             
-            # 2. Calcoliamo la Data Fine Stimata (in base all'SPI reale)
-            min_date = df_scurve['Data'].min()
-            max_date = df_scurve['Data'].max()
-            giorni_pianificati = (max_date - min_date).days
+        # 2. Calcoliamo la Data Fine Stimata (in base all'SPI reale)
+        min_date = df_scurve['Data'].min()
+        max_date = df_scurve['Data'].max()
+        giorni_pianificati = (max_date - min_date).days
             
-            spi_effettivo = last_ev / last_pv if last_pv > 0 else 1.0
+        spi_effettivo = last_ev / last_pv if last_pv > 0 else 1.0
             
-            if spi_effettivo > 0:
-                giorni_stimati = int(giorni_pianificati / spi_effettivo)
-            else:
-                giorni_stimati = giorni_pianificati
+        if spi_effettivo > 0:
+            giorni_stimati = int(giorni_pianificati / spi_effettivo)
+        else:
+            giorni_stimati = giorni_pianificati
                 
-            # Limite massimo visivo (evita che il grafico si deformi troppo se l'SPI è bassissimo)
-            giorni_stimati = min(giorni_stimati, giorni_pianificati * 3) 
-            data_fine_stimata = min_date + pd.Timedelta(days=giorni_stimati)
+        # Limite massimo visivo (evita che il grafico si deformi troppo se l'SPI è bassissimo)
+        giorni_stimati = min(giorni_stimati, giorni_pianificati * 3) 
+        data_fine_stimata = min_date + pd.Timedelta(days=giorni_stimati)
             
-            # 3. Tracciamo la linea previsionale dei Costi (Tratteggiata Rossa: da AC a EAC)
-            fig_scurve.add_trace(go.Scatter(
-                x=[data_status_evm, data_fine_stimata],
-                y=[last_ac, tot_eac],
-                mode='lines',
-                line=dict(color='red', dash='dot', width=2),
-                name='Proiezione Costi (verso EAC)'
-            ))
+        # 3. Tracciamo la linea previsionale dei Costi (Tratteggiata Rossa: da AC a EAC)
+        fig_scurve.add_trace(go.Scatter(
+            x=[data_status_evm, data_fine_stimata],
+            y=[last_ac, tot_eac],
+            mode='lines',
+            line=dict(color='red', dash='dot', width=2),
+            name='Proiezione Costi (verso EAC)'
+        ))
             
-            # 4. Tracciamo la linea previsionale del Lavoro (Tratteggiata Verde: da EV a BAC)
-            fig_scurve.add_trace(go.Scatter(
-                x=[data_status_evm, data_fine_stimata],
-                y=[last_ev, tot_bac],
-                mode='lines',
-                line=dict(color='green', dash='dot', width=2),
-                name='Proiezione Lavoro (verso BAC)'
-            ))
+        # 4. Tracciamo la linea previsionale del Lavoro (Tratteggiata Verde: da EV a BAC)
+        fig_scurve.add_trace(go.Scatter(
+            x=[data_status_evm, data_fine_stimata],
+            y=[last_ev, tot_bac],
+            mode='lines',
+            line=dict(color='green', dash='dot', width=2),
+            name='Proiezione Lavoro (verso BAC)'
+        ))
             
-            # 5. Estendiamo l'asse X per far vedere la fine della proiezione anche se supera il limite originario
-            fig_scurve.update_xaxes(range=[min_date, max(max_date, data_fine_stimata) + pd.Timedelta(days=5)])
+        # 5. Estendiamo l'asse X per far vedere la fine della proiezione anche se supera il limite originario
+        fig_scurve.update_xaxes(range=[min_date, max(max_date, data_fine_stimata) + pd.Timedelta(days=5)])
 
-        # Aggiornamento layout standard
-        fig_scurve.update_layout(
-            hovermode="x unified",
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-            margin=dict(t=50, b=20)
-        )
+    # Aggiornamento layout standard
+    fig_scurve.update_layout(
+        hovermode="x unified",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        margin=dict(t=50, b=20)
+    )
         
-        # Linea verticale per indicare la Data di Stato ("Oggi")
-        fig_scurve.add_vline(x=str(data_status_evm), line_width=2, line_dash="dash", line_color="gray", annotation_text="Data di Rilevamento")
+    # Linea verticale per indicare la Data di Stato ("Oggi")
+    fig_scurve.add_vline(x=str(data_status_evm), line_width=2, line_dash="dash", line_color="gray", annotation_text="Data di Rilevamento")
         
-        st.plotly_chart(fig_scurve, use_container_width=True)
-    else:
-        st.info("ℹ️ Non ci sono ancora date di pianificazione sufficienti per generare la Curva ad S.")
+    st.plotly_chart(fig_scurve, use_container_width=True)
+else:
+    st.info("ℹ️ Non ci sono ancora date di pianificazione sufficienti per generare la Curva ad S.")
 
 # --- CREAZIONE TAB ---
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
