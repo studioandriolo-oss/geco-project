@@ -385,8 +385,15 @@ with tab4:
 with tab5:
     st.header("Controllo Costi e Analisi EVM")
     
-    df_evm = st.session_state.wbs_data.copy()
+    # FIX: Filtriamo SOLO i nodi operativi (le foglie, es. 1.1) scartando i padri (es. 1)
+    # Questo elimina il problema del doppio conteggio!
+    df_completo = st.session_state.wbs_data.copy()
+    df_evm = df_completo[df_completo['ID_WBS'].astype(str).str.contains('\.')].copy()
     
+    # Ricalcoliamo l'EVM al volo per assicurarci di avere i dati freschi del Registro Contabile
+    df_evm = calcola_evm(df_evm)
+    
+    # Metriche Globali di Progetto CORRETTE
     tot_bac = df_evm['BAC_Budget'].sum()
     tot_ev = df_evm['EV'].sum()
     tot_ac = df_evm['AC_Costo_Reale'].sum()
@@ -450,6 +457,7 @@ with tab5:
     
     with col_KPI:
         st.subheader("Indicatori di Performance (KPI)")
+        # La tabella ora mostrerà solo le vere lavorazioni pulite!
         df_kpi = df_evm[['Attività', '%_Completamento', 'CPI', 'SPI', 'CV']].copy()
         
         def color_kpi(val):
