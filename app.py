@@ -10,21 +10,25 @@ st.set_page_config(page_title="WBS/OBS Manager & EVM", layout="wide")
 st.title("🏗️ Project Workflow & EVM Controller")
 
 # --- 1. INIZIALIZZAZIONE DATI (Session State) ---
-# Creiamo dei dati di base se l'app viene aperta per la prima volta
 if 'wbs_data' not in st.session_state:
     st.session_state.wbs_data = pd.DataFrame({
-        'ID_WBS': ['2.1', '2.2', '2.3'],
-        'Attività': ['Scavi', 'Rinforzo Strutturale P1', 'Getto Fondazioni'],
-        'Inizio_Previsto': [date(2026, 9, 1), date(2026, 9, 15), date(2026, 10, 1)],
-        'Fine_Prevista': [date(2026, 9, 14), date(2026, 10, 15), date(2026, 10, 10)],
-        'Inizio_Effettivo': [date(2026, 9, 2), date(2026, 9, 18), None],
-        'Fine_Effettiva': [date(2026, 9, 16), None, None],
-        'BAC_Budget': [15000.0, 25000.0, 30000.0],
-        '%_Completamento': [100, 40, 0],
-        'AC_Costo_Reale': [15500.0, 12000.0, 0.0],
-        'ID_OBS_Assegnato': ['1.1', '1.2', '1.1'] # Incrocio con OBS
+        'ID_WBS': ['1', '1.1', '1.2', '2', '2.1', '2.2', '3', '3.1', '3.1.1', '3.1.2', '3.2', '4', '4.1'],
+        'Attività': [
+            'Scavi', 'Scavi con mezzi meccanici', 'Scavi a mano', 
+            'Strutture', 'Strutture in fondazione', 'Strutture in elevazione', 
+            'Murature', 'Tamponatura esterna', 'Muratura a cassa vuota', 'Muratura in blocchi CLS', 'Tramezzatura interna',
+            'Impianti', 'Impianto Elettrico'
+        ],
+        'Inizio_Previsto': [None, date(2026, 9, 1), date(2026, 9, 15), None, date(2026, 10, 1), date(2026, 10, 15), None, None, date(2026, 11, 1), date(2026, 11, 10), date(2026, 11, 20), None, date(2026, 12, 1)],
+        'Fine_Prevista': [None, date(2026, 9, 14), date(2026, 9, 30), None, date(2026, 10, 14), date(2026, 11, 1), None, None, date(2026, 11, 9), date(2026, 11, 19), date(2026, 11, 30), None, date(2026, 12, 15)],
+        'Inizio_Effettivo': [None, date(2026, 9, 2), None, None, None, None, None, None, None, None, None, None, None],
+        'Fine_Effettiva': [None, date(2026, 9, 16), None, None, None, None, None, None, None, None, None, None, None],
+        'BAC_Budget': [0.0, 5000.0, 2000.0, 0.0, 15000.0, 20000.0, 0.0, 0.0, 3000.0, 4000.0, 5000.0, 0.0, 8000.0],
+        '%_Completamento': [0, 100, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        'AC_Costo_Reale': [0.0, 5200.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        'ID_OBS_Assegnato': [None, '1.1', '1.2', None, '1.1', '1.1', None, None, '1.2', '1.2', '1.2', None, '1.1']
     })
-
+    
 if 'obs_data' not in st.session_state:
     st.session_state.obs_data = pd.DataFrame({
         'ID_OBS': ['1.1', '1.2'],
@@ -51,15 +55,71 @@ tab1, tab2, tab3, tab4 = st.tabs(["🗂️ Setup WBS/OBS", "🕸️ Nodi & Matri
 
 # --- TAB 1: SETUP E INSERIMENTO DATI ---
 with tab1:
-    st.header("Compilazione Strutture")
-    st.subheader("WBS (Work Breakdown Structure)")
-    # Editor interattivo tipo foglio di calcolo
-    edited_wbs = st.data_editor(st.session_state.wbs_data, num_rows="dynamic", use_container_width=True)
-    st.session_state.wbs_data = edited_wbs
+    st.header("Compilazione Strutture WBS (Stile PriMus)")
+    
+    st.subheader("WBS - Work Breakdown Structure")
+    df = st.session_state.wbs_data
+        
+    # Identifichiamo i Nodi Radice (Quelli senza il punto nell'ID, es: "1", "2")
+    is_root = ~df['ID_WBS'].astype(str).str.contains('\.')
+    radici = df[is_root]
+        
+    df_aggiornato = pd.DataFrame()
+        
+    for _, radice in radici.iterrows():
+        id_radice = str(radice['ID_WBS'])
+            
+        # Troviamo tutti i discendenti di questa radice (es. per "1", trova "1.1", "1.2")
+        discendenti = df[df['ID_WBS'].astype(str).str.startswith(f"{id_radice}.")]
+            
+        # Somma automatica del budget di tutti i sottonodi
+        tot_budget = discendenti['BAC_Budget'].sum()
+            
+        # Creazione del menu a tendina nativo di Streamlit
+        with st.expander(f"📁 {id_radice} - {radice['Attività']} (Budget Raggruppato: € {tot_budget:,.2f})", expanded=True):
+                
+            # Editor dati SOLO per i figli di questo gruppo
+            discendenti_modificati = st.data_editor(
+                discendenti,
+                key=f"editor_{id_radice}",
+                num_rows="dynamic",
+                use_container_width=True,
+                hide_index=True
+            )
+                
+            # Aggiorniamo i dati della riga "Padre"
+            radice_aggiornata = radice.copy()
+            radice_aggiornata['BAC_Budget'] = discendenti_modificati['BAC_Budget'].sum()
+                
+            # Ricompattiamo il dataframe per il salvataggio
+            df_aggiornato = pd.concat([df_aggiornato, pd.DataFrame([radice_aggiornata]), discendenti_modificati], ignore_index=True)
+                
+    # Modulo per aggiungere nuove Categorie Padre (es. "5 - Finiture")
+    with st.form("aggiungi_padre"):
+        st.write("Aggiungi nuova Macro-Categoria")
+        c1, c2, c3 = st.columns([2, 5, 2])
+        nuovo_id = c1.text_input("ID (es. 5)")
+        nuova_att = c2.text_input("Nome Categoria")
+        if c3.form_submit_button("➕ Aggiungi"):
+            if nuovo_id and nuova_att:
+                nuova_riga = pd.DataFrame([{
+                    'ID_WBS': nuovo_id, 'Attività': nuova_att, 'BAC_Budget': 0.0, 
+                    '%_Completamento': 0, 'AC_Costo_Reale': 0.0
+                }])
+                st.session_state.wbs_data = pd.concat([st.session_state.wbs_data, nuova_riga], ignore_index=True)
+                st.rerun()
 
-    st.subheader("OBS (Organization Breakdown Structure)")
-    edited_obs = st.data_editor(st.session_state.obs_data, num_rows="dynamic", use_container_width=True)
-    st.session_state.obs_data = edited_obs
+    # Salvataggio delle modifiche nel Session State globale
+    if not df_aggiornato.empty:
+        st.session_state.wbs_data = df_aggiornato
+            
+    st.subheader("OBS - Risorse")
+    st.session_state.obs_data = st.data_editor(
+        st.session_state.obs_data, 
+        num_rows="dynamic", 
+        use_container_width=True, 
+        hide_index=True
+    )
 
 # --- TAB 2: MATRICE E GRAFO A NODI ---
 with tab2:
@@ -84,7 +144,8 @@ with tab2:
         style='filled', 
         fillcolor='lightgreen',
         width='2.5',     # <--- Larghezza minima (in pollici)
-        height='1.2',    # <--- Altezza minima (in pollici)
+        height='1.5',    # <--- Altezza minima (in pollici)
+        fixedsize='true',
         fontsize='12'    # <--- Dimensione del testo
     )
         
