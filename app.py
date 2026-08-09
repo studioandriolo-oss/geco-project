@@ -372,16 +372,49 @@ with tab5:
     st.divider()
     
     st.subheader("Raffronto Costi per Attività")
+        
     # Grafico a barre raggruppate per visualizzare BAC, EV, AC
     fig_evm = go.Figure(data=[
-        go.Bar(name='BAC (Budget)', x=df_evm['Attività'], y=df_evm['BAC_Budget'], marker_color='lightgray'),
-        go.Bar(name='EV (Valore Guadagnato)', x=df_evm['Attività'], y=df_evm['EV'], marker_color='green'),
-        go.Bar(name='AC (Costo Reale)', x=df_evm['Attività'], y=df_evm['AC_Costo_Reale'], marker_color='red')
+        go.Bar(
+            name='BAC (Budget)', 
+            x=df_evm['Attività'], 
+            y=df_evm['BAC_Budget'], 
+            marker_color='lightgray',
+            text=df_evm['BAC_Budget'],         # Assegna i valori al testo
+            texttemplate='€ %{text:,.0f}',     # Formatta il testo (es. € 5,000)
+            textposition='outside',            # Posiziona sopra la colonna
+            textangle=-90                      # Ruota in verticale
+        ),
+        go.Bar(
+            name='EV (Valore Guadagnato)', 
+            x=df_evm['Attività'], 
+            y=df_evm['EV'], 
+            marker_color='green',
+            text=df_evm['EV'],
+            texttemplate='€ %{text:,.0f}',
+            textposition='outside',
+            textangle=-90
+        ),
+        go.Bar(
+            name='AC (Costo Reale)', 
+            x=df_evm['Attività'], 
+            y=df_evm['AC_Costo_Reale'], 
+            marker_color='red',
+            text=df_evm['AC_Costo_Reale'],
+            texttemplate='€ %{text:,.0f}',
+            textposition='outside',
+            textangle=-90
+        )
     ])
-    fig_evm.update_layout(barmode='group')
+        
+    fig_evm.update_layout(
+        barmode='group',
+        margin=dict(t=80),         # Aumenta lo spazio in alto per non tagliare le scritte lunghe
+        uniformtext_minsize=9,     # Dimensione minima del font
+        uniformtext_mode='hide'    # Se lo spazio è troppo stretto (zoom out), nasconde temporaneamente il testo per non accavallarlo
+    )
     st.plotly_chart(fig_evm, use_container_width=True)
-
-   # Sostituisci la parte finale del Tab 5 con questa:
+       
     col_KPI, col_LEGENDA = st.columns([7, 3]) # Leggermente più spazio per la tabella
     
     with col_KPI:
