@@ -372,18 +372,34 @@ with tab5:
     fig_evm.update_layout(barmode='group')
     st.plotly_chart(fig_evm, use_container_width=True)
 
-    col_KPI, col_LEGENDA = st.columns(2)
-        with col_KPI:
-            st.subheader("Indicatori di Performance (KPI)")
-            # Tabella per mostrare lo stato di salute di ogni WP
-            df_kpi = df_evm[['Attività', '%_Completamento', 'CPI', 'SPI', 'CV']].copy()
+   # Sostituisci la parte finale del Tab 5 con questa:
+    col_KPI, col_LEGENDA = st.columns([7, 3]) # Leggermente più spazio per la tabella
+    
+    with col_KPI:
+        st.subheader("Indicatori di Performance (KPI)")
+        df_kpi = df_evm[['Attività', '%_Completamento', 'CPI', 'SPI', 'CV']].copy()
+        
+        def color_kpi(val):
+            if isinstance(val, (int, float)):
+                if val < 1.0: return 'color: red'
+                elif val >= 1.0: return 'color: green'
+            return ''
+            
+        st.dataframe(df_kpi.style.map(color_kpi, subset=['CPI', 'SPI'])
+                            .format({'CPI': "{:.2f}", 'SPI': "{:.2f}", 'CV': "€ {:.2f}"}), 
+                     use_container_width=True)
 
-        with col_LEGENDA:
-            st.subheader("Legenda")
-            st.txt("CPI = Control...")
-             st.txt("SPI = Control...")
-             st.txt("CV= Control...")
-
+    with col_LEGENDA:
+        st.subheader("Legenda")
+        st.markdown("""
+        * **CPI (Cost Performance Index):** Efficienza dei costi.  
+        Se **< 1**, stai spendendo più del budget previsto per il lavoro svolto.
+        * **SPI (Schedule Performance Index):** Efficienza temporale.  
+        Se **< 1**, sei in ritardo rispetto alla programmazione.
+        * **CV (Cost Variance):** Scostamento dei costi assoluto (EV - AC).  
+        Un valore negativo indica una perdita monetaria sull'attività.
+        """)
+        
     # Formattazione condizionale per evidenziare i problemi (Stile Pandas)
     def color_kpi(val):
         if isinstance(val, (int, float)):
