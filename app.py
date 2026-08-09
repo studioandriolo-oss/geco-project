@@ -90,7 +90,7 @@ with tab1:
                 num_rows="dynamic",
                 use_container_width=True,
                 hide_index=True,
-                disabled=["Durata_Prevista (gg)", "ID_WBS"] 
+                disabled=["Durata_Prevista (gg)", "ID_WBS"],
                 column_config={
                     "Predecessori": st.column_config.TextColumn(
                         "Predecessori (WP)",
