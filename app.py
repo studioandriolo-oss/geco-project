@@ -6,6 +6,8 @@ import graphviz
 import streamlit.components.v1 as components
 from datetime import datetime, date
 import json
+from io import BytesIO
+from docx import Document
 
 # --- CONFIGURAZIONE PAGINA ---
 st.set_page_config(page_title="WBS/OBS Manager & EVM", layout="wide")
@@ -1019,39 +1021,79 @@ with tab7:
         if wp_scelto:
             wp_id = wp_scelto.split(' - ')[0]
             
-            # Creiamo un DataFrame temporaneo per non sporcare i dati reali
+            # DataFrame temporaneo per simulazione
             df_simulazione = st.session_state.wbs_data.copy()
             df_simulazione['BAC_Budget'] = pd.to_numeric(df_simulazione['BAC_Budget'], errors='coerce').fillna(0.0)
             df_simulazione['%_Completamento'] = pd.to_numeric(df_simulazione['%_Completamento'], errors='coerce').fillna(0.0)
             df_simulazione['AC_Costo_Reale'] = pd.to_numeric(df_simulazione['AC_Costo_Reale'], errors='coerce').fillna(0.0)
             
-            # Applichiamo la simulazione
+            # Applichiamo la simulazione all'AC
             indice_riga = df_simulazione.index[df_simulazione['ID_WBS'] == wp_id].tolist()
             if indice_riga:
                 idx = indice_riga[0]
                 df_simulazione.at[idx, 'AC_Costo_Reale'] += extra_costo
                 
-            # Ricalcoliamo l'EVM con la simulazione
+            # Ricalcoli
             df_sim_calc = calcola_evm(df_simulazione[df_simulazione['ID_WBS'].astype(str).str.contains('\.')].copy(), pd.Timestamp.today().date())
-            
-            # Calcoliamo la differenza globale
             df_reale_calc = calcola_evm(st.session_state.wbs_data[st.session_state.wbs_data['ID_WBS'].astype(str).str.contains('\.')].copy(), pd.Timestamp.today().date())
             
             eac_attuale = df_reale_calc['EAC'].sum()
             eac_simulato = df_sim_calc['EAC'].sum()
+            ac_attuale_tot = df_reale_calc['AC_Costo_Reale'].sum()
+            ac_simulato_tot = df_sim_calc['AC_Costo_Reale'].sum()
             delta_eac = eac_simulato - eac_attuale
             
-            st.metric(
-                label="Nuovo Costo Finale Stimato (EAC Simulato)", 
-                value=f"€ {eac_simulato:,.2f}", 
-                delta=f"Variazione: € {delta_eac:,.2f}" if delta_eac != 0 else "Nessun impatto", 
-                delta_color="inverse"
-            )
+            c_res1, c_res2 = st.columns([1, 2])
+            
+            with c_res1:
+                st.metric(
+                    label="Nuovo Costo Finale (EAC Simulato)", 
+                    value=f"€ {eac_simulato:,.2f}", 
+                    delta=f"Variazione: € {delta_eac:,.2f}" if delta_eac != 0 else "Nessun impatto", 
+                    delta_color="inverse"
+                )
+                st.markdown(f"*Costo attuale sostenuto: € {ac_attuale_tot:,.2f}*")
+                st.markdown(f"*Costo istantaneo simulato: € {ac_simulato_tot:,.2f}*")
+            
+            with c_res2:
+                # Mini grafico vettoriale: Forchetta di proiezione tra Attuale e Simulato
+                fig_sim = go.Figure()
+                
+                # Proiezione Attuale (Rossa)
+                fig_sim.add_trace(go.Scatter(
+                    x=["Oggi", "Fine Lavori"],
+                    y=[ac_attuale_tot, eac_attuale],
+                    mode='lines+markers+text',
+                    name='Traiettoria Attuale',
+                    line=dict(color='red', dash='dash', width=3),
+                    text=[f"€ {ac_attuale_tot:,.0f}", f"€ {eac_attuale:,.0f}"],
+                    textposition="bottom right"
+                ))
+                
+                # Proiezione Simulata (Blu)
+                fig_sim.add_trace(go.Scatter(
+                    x=["Oggi", "Fine Lavori"],
+                    y=[ac_simulato_tot, eac_simulato],
+                    mode='lines+markers+text',
+                    name='Traiettoria Simulata',
+                    line=dict(color='blue', dash='solid', width=3),
+                    text=[f"€ {ac_simulato_tot:,.0f}", f"€ {eac_simulato:,.0f}"],
+                    textposition="top left"
+                ))
+                
+                fig_sim.update_layout(
+                    title="Forchetta di Variazione Costi a Finire",
+                    height=250,
+                    margin=dict(l=10, r=10, t=30, b=10),
+                    yaxis_title="Importo (€)",
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+                )
+                st.plotly_chart(fig_sim, use_container_width=True)
 
     st.divider()
 
     # ---------------------------------------------------------
-    # SEZIONE 3: EXPORT REPORT DIREZIONALE
+    # SEZIONE 3: EXPORT REPORT DIREZIONALE IN WORD (.DOCX)
     # ---------------------------------------------------------
     st.subheader("3. Stampa Verbale di Direzione Lavori")
     
@@ -1068,7 +1110,7 @@ with tab7:
         d_end = col_f2.date_input("A data:", value=pd.Timestamp.today().date())
         df_stampa = df_stampa[(df_stampa['Data_Apertura'] >= d_start) & (df_stampa['Data_Apertura'] <= d_end)]
 
-    if st.button("📄 Genera Verbale HTML", use_container_width=True, type="primary"):
+    if st.button("📄 Genera Verbale WORD (.docx)", use_container_width=True, type="primary"):
         
         # Recupero i totali EVM correnti per il report
         df_evm_rep = calcola_evm(st.session_state.wbs_data[st.session_state.wbs_data['ID_WBS'].astype(str).str.contains('\.')].copy(), pd.Timestamp.today().date())
@@ -1079,52 +1121,57 @@ with tab7:
         spi_rep = tot_ev_rep / tot_pv_rep if tot_pv_rep > 0 else 1.0
         eac_rep = df_evm_rep['EAC'].sum()
         
-        # Costruzione tabella interventi HTML
-        table_html = "<table border='1' style='width:100%; border-collapse: collapse;' cellpadding='8'>"
-        table_html += "<tr style='background-color: #f2f2f2;'><th>Data</th><th>Attività WBS</th><th>Tipo</th><th>Descrizione Intervento / Disposizione</th><th>Assegnato a</th><th>Stato</th></tr>"
-        for _, row in df_stampa.iterrows():
-            table_html += f"<tr><td>{row['Data_Apertura']}</td><td>{row['ID_WBS_Rif']}</td><td>{row['Tipo_Azione']}</td><td>{row['Descrizione']}</td><td>{row['Responsabile_OBS']}</td><td><b>{row['Stato']}</b></td></tr>"
-        table_html += "</table>"
+        # Creazione del Documento Word
+        doc = Document()
         
-        # Costruzione dell'HTML del verbale
-        html_report = f"""
-        <html>
-        <head>
-            <style>
-                body {{ font-family: Arial, sans-serif; margin: 40px; color: #333; }}
-                h1 {{ color: #1E88E5; border-bottom: 2px solid #1E88E5; padding-bottom: 10px; }}
-                h2 {{ color: #424242; margin-top: 30px; }}
-                .metric-box {{ border: 1px solid #ddd; padding: 15px; margin: 10px 0; background-color: #fafafa; border-radius: 5px; }}
-                .footer {{ margin-top: 50px; font-size: 12px; color: #777; text-align: center; border-top: 1px solid #ddd; padding-top: 20px; }}
-            </style>
-        </head>
-        <body>
-            <h1>VERBALE DI DIREZIONE LAVORI</h1>
-            <p><b>Progetto:</b> {st.session_state.nome_progetto_attivo}</p>
-            <p><b>Data emissione verbale:</b> {pd.Timestamp.today().strftime('%d/%m/%Y')}</p>
-            
-            <h2>1. Stato Avanzamento Lavori (EVM)</h2>
-            <div class="metric-box">
-                <p><b>CPI (Efficienza Costi):</b> {cpi_rep:.2f} <i>(>1 indica risparmio, <1 indica perdita)</i></p>
-                <p><b>SPI (Efficienza Tempi):</b> {spi_rep:.2f} <i>(>1 indica anticipo, <1 indica ritardo)</i></p>
-                <p><b>Costo Finale Stimato (EAC):</b> &euro; {eac_rep:,.2f}</p>
-            </div>
-            
-            <h2>2. Disposizioni e Azioni (CAPA)</h2>
-            {table_html if not df_stampa.empty else "<p><i>Nessun intervento registrato nel periodo selezionato.</i></p>"}
-            
-            <div class="footer">
-                Generato automaticamente da Sistema GECO - Modulo Direzione Lavori<br>
-                Firma Direttore Lavori: _______________________________
-            </div>
-        </body>
-        </html>
-        """
+        # Intestazione Documento
+        doc.add_heading('VERBALE DI DIREZIONE LAVORI', 0)
+        doc.add_paragraph(f"Progetto: {st.session_state.nome_progetto_attivo}")
+        doc.add_paragraph(f"Data emissione verbale: {pd.Timestamp.today().strftime('%d/%m/%Y')}")
         
+        # Sezione EVM
+        doc.add_heading('1. Stato Avanzamento Lavori (EVM)', level=1)
+        p = doc.add_paragraph()
+        p.add_run(f"CPI (Efficienza Costi): {cpi_rep:.2f}\n").bold = True
+        p.add_run(f"SPI (Efficienza Tempi): {spi_rep:.2f}\n").bold = True
+        p.add_run(f"Costo Finale Stimato (EAC): € {eac_rep:,.2f}").bold = True
+        doc.add_paragraph("Nota: Un indicatore inferiore a 1.00 indica un superamento del budget o un ritardo sui tempi.")
+        
+        # Sezione Interventi (Tabella)
+        doc.add_heading('2. Disposizioni e Azioni (CAPA)', level=1)
+        
+        if not df_stampa.empty:
+            table = doc.add_table(rows=1, cols=5)
+            table.style = 'Table Grid'
+            hdr_cells = table.rows[0].cells
+            hdr_cells[0].text = 'Data'
+            hdr_cells[1].text = 'Attività WBS'
+            hdr_cells[2].text = 'Tipo'
+            hdr_cells[3].text = 'Descrizione Intervento'
+            hdr_cells[4].text = 'Stato'
+            
+            for _, row in df_stampa.iterrows():
+                row_cells = table.add_row().cells
+                row_cells[0].text = str(row['Data_Apertura'])
+                row_cells[1].text = str(row['ID_WBS_Rif'])
+                row_cells[2].text = str(row['Tipo_Azione'])
+                row_cells[3].text = str(row['Descrizione']) + f"\n(Assegnato: {row['Responsabile_OBS']})"
+                row_cells[4].text = str(row['Stato'])
+        else:
+            doc.add_paragraph("Nessun intervento registrato nel periodo selezionato.")
+            
+        doc.add_paragraph("\n\nFirma Direzione Lavori\n_________________________")
+        
+        # Salvataggio nel buffer in RAM
+        buffer = BytesIO()
+        doc.save(buffer)
+        buffer.seek(0)
+        
+        # Bottone di Download file Word
         st.download_button(
-            label="⬇️ Scarica File (.html) per stampa/PDF",
-            data=html_report,
-            file_name=f"Verbale_Cantiere_{pd.Timestamp.today().strftime('%Y%m%d')}.html",
-            mime="text/html",
+            label="⬇️ Clicca qui per scaricare il file Word pronto per la firma",
+            data=buffer,
+            file_name=f"Verbale_{st.session_state.nome_progetto_attivo}_{pd.Timestamp.today().strftime('%Y%m%d')}.docx",
+            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             type="secondary"
         )
