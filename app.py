@@ -159,17 +159,12 @@ with tab3:
     st.header("Incrocio Logico (Work Packages)")
     st.markdown("Generazione automatica dei nodi di collegamento tra risorse (OBS) e attività (WBS).")
     
-    # Inizializziamo il grafo
     graph = graphviz.Digraph(engine='dot')
-    
-    # 1. IMPOSTAZIONI GLOBALI GRAFO (Spaziatura e Linee)
-    # ranksep = distanza orizzontale, nodesep = distanza verticale tra i nodi
     graph.attr(rankdir='LR', ranksep='1.5', nodesep='0.8', splines='spline')
     graph.attr('node', fontname='Helvetica', fontsize='10', margin='0.2')
     
-    # Nodi OBS - Costruiti con sintassi HTML per evitare fuoriuscite di testo
+    # Nodi OBS 
     for _, row in st.session_state.obs_data.iterrows():
-        # Costruiamo la tabella HTML del nodo OBS
         label_html = f"<<TABLE BORDER='0' CELLBORDER='0' CELLSPACING='2'>"
         label_html += f"<TR><TD><B>{row['Ruolo']}</B></TD></TR>"
         label_html += f"<TR><TD>({row['Risorsa']})</TD></TR>"
@@ -180,19 +175,18 @@ with tab3:
         for col in colonne_custom:
             valore = row[col]
             if pd.notna(valore) and str(valore).strip() != "":
-                # Il testo extra (es. P.IVA) viene scritto più piccolo e in grigio
                 label_html += f"<TR><TD><FONT POINT-SIZE='9' COLOR='gray30'>{col}: {valore}</FONT></TD></TR>"
                 
         label_html += "</TABLE>>"
         
-        # Applichiamo lo stile grafico moderno (Box arrotondato)
+        # AGGIUNTA PREFISSO "OBS_" ALL'ID DEL NODO
         graph.node(
-            str(row['ID_OBS']), 
+            f"OBS_{row['ID_OBS']}",  # <--- PREFISSO QUI
             label=label_html, 
             shape='rect', 
             style='rounded,filled', 
-            fillcolor='#E1F5FE', # Azzurro chiaro
-            color='#0288D1',     # Bordo azzurro scuro
+            fillcolor='#E1F5FE', 
+            color='#0288D1',     
             penwidth='1.5'
         )
         
@@ -202,19 +196,19 @@ with tab3:
         attivita = str(row['Attività'])
         budget = row['BAC_Budget']
         
-        # Costruiamo la tabella HTML del nodo WBS
         wp_html = f"<<TABLE BORDER='0' CELLBORDER='0' CELLSPACING='4'>"
         wp_html += f"<TR><TD><B>WP: {attivita}</B></TD></TR>"
         wp_html += f"<TR><TD>Budget: &euro; {budget:,.2f}</TD></TR>"
         wp_html += "</TABLE>>"
         
+        # AGGIUNTA PREFISSO "WBS_" ALL'ID DEL NODO
         graph.node(
-            str(row['ID_WBS']), 
+            f"WBS_{row['ID_WBS']}", # <--- PREFISSO QUI
             label=wp_html, 
             shape='rect', 
             style='rounded,filled', 
-            fillcolor='#C8E6C9', # Verde pastello
-            color='#388E3C',     # Bordo verde scuro
+            fillcolor='#C8E6C9', 
+            color='#388E3C',     
             penwidth='1.5'
         )
         
@@ -222,10 +216,10 @@ with tab3:
         if pd.notna(row['ID_OBS_Assegnato']):
             obs_ids = str(row['ID_OBS_Assegnato']).split(',')
             for o_id in obs_ids:
-                # Disegniamo i cavi grigi e leggermente più spessi
+                # AGGIUNTA PREFISSI ALLE CONNESSIONI (Da OBS a WBS)
                 graph.edge(
-                    o_id.strip(), 
-                    str(row['ID_WBS']), 
+                    f"OBS_{o_id.strip()}",     # <--- PREFISSO ORIGINE
+                    f"WBS_{row['ID_WBS']}",    # <--- PREFISSO DESTINAZIONE
                     color='#757575', 
                     penwidth='1.5',
                     arrowsize='0.8'
