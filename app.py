@@ -486,7 +486,7 @@ with tab5:
         for _, row in critici_costo.iterrows():
             st.error(f"💸 **Sforamento Budget su '{row['Attività']}':** (CPI = {row['CPI']:.2f})")
             st.markdown(f"> *Hai speso **€ {row['AC_Costo_Reale']:,.2f}** per produrre un valore equivalente di soli **€ {row['EV']:,.2f}**. Stai perdendo marginalità.*")
-            st.markdown(f"> * **Soluzioni suggerite:** Analizza immediatamente le bolle di accompagnamento e il Registro Contabile. Possibili cause: inefficienza della manodopera, aumento prezzi materiali imprevisto, o errata valutazione del BAC iniziale.*")        """)
+            st.markdown(f"> * **Soluzioni suggerite:** Analizza immediatamente le bolle di accompagnamento e il Registro Contabile. Possibili cause: inefficienza della manodopera, aumento prezzi materiali imprevisto, o errata valutazione del BAC iniziale.*")
         
 # --- TAB 6: REGISTRO CONTABILE ---
 with tab6:
