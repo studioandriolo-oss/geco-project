@@ -69,29 +69,48 @@ def aggiorna_costi_reali():
 # Eseguiamo i calcoli in sequenza prima di disegnare l'interfaccia
 aggiorna_costi_reali()
 
-# Calcoli EVM Dinamici e Avanzati sul DataFrame
-def calcola_evm(df):
-    oggi = data_status # <--- usa la data scelta dall'utente
+# Calcoli EVM Dinamici, Avanzati e Sicuri sul DataFrame
+def calcola_evm(df, data_status):
+    oggi = pd.to_datetime(data_status).date()
     
-    # 1. Calcolo del Valore Pianificato (PV) in base al calendario
+    # 1. PULIZIA DATI: Trasforma eventuali "None", stringhe o celle vuote in numeri reali (0.0)
+    # Evita il TypeError se un utente cancella il contenuto di una cella numerica
+    df['BAC_Budget'] = pd.to_numeric(df['BAC_Budget'], errors='coerce').fillna(0.0)
+    df['%_Completamento'] = pd.to_numeric(df['%_Completamento'], errors='coerce').fillna(0.0)
+    df['AC_Costo_Reale'] = pd.to_numeric(df['AC_Costo_Reale'], errors='coerce').fillna(0.0)
+    
     def calcola_pv(row):
-        inizio = pd.to_datetime(row['Inizio_Previsto']).date() if pd.notna(row['Inizio_Previsto']) else None
-        fine = pd.to_datetime(row['Fine_Prevista']).date() if pd.notna(row['Fine_Prevista']) else None
-        bac = float(row['BAC_Budget'])
-        
-        if not inizio or not fine or bac == 0: return 0.0
-        if oggi >= fine: return bac 
-        if oggi <= inizio: return 0.0 
-        
-        giorni_totali = (fine - inizio).days
-        giorni_trascorsi = (oggi - inizio).days
-        if giorni_totali <= 0: return bac
-        
-        return bac * (giorni_trascorsi / giorni_totali)
+        try:
+            # 2. GESTIONE DATE SICURA: Assorbe formati misti, NaT e None senza bloccarsi
+            inizio_ts = pd.to_datetime(row['Inizio_Previsto'])
+            fine_ts = pd.to_datetime(row['Fine_Prevista'])
+            bac = float(row['BAC_Budget'])
+            
+            # Se manca una data o il budget è 0, non c'è valore pianificato
+            if pd.isna(inizio_ts) or pd.isna(fine_ts) or bac == 0: 
+                return 0.0
+                
+            inizio = inizio_ts.date()
+            fine = fine_ts.date()
+            
+            if oggi >= fine: return bac 
+            if oggi <= inizio: return 0.0 
+            
+            giorni_totali = (fine - inizio).days
+            giorni_trascorsi = (oggi - inizio).days
+            
+            if giorni_totali <= 0: return bac
+            return bac * (giorni_trascorsi / giorni_totali)
+            
+        except Exception:
+            # In caso di inserimento anomalo (es. lettere in un campo data), ignora e restituisci 0
+            return 0.0
 
     df['PV'] = df.apply(calcola_pv, axis=1)
     
-    df['EV'] = df['BAC_Budget'] * (df['%_Completamento'] / 100)
+    # 3. MATEMATICA PROTETTA
+    # Ora siamo certi che tutti i campi siano float, quindi le operazioni non daranno mai TypeError
+    df['EV'] = df['BAC_Budget'] * (df['%_Completamento'] / 100.0)
     df['CV'] = df['EV'] - df['AC_Costo_Reale'] 
     df['SV'] = df['EV'] - df['PV']             
     
@@ -100,7 +119,7 @@ def calcola_evm(df):
     
     return df
 
-# La prima inizializzazione la facciamo con la data odierna reale
+# Inizializzazione protetta
 st.session_state.wbs_data = calcola_evm(st.session_state.wbs_data, pd.Timestamp.today().date())
 
 # --- CREAZIONE TAB ---
