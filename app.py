@@ -193,6 +193,6 @@ with tab4:
                             .format({'CPI': "{:.2f}", 'SPI': "{:.2f}", 'CV': "€ {:.2f}"}), 
                      use_container_width=True)
             
-        st.dataframe(df_kpi.style.applymap(color_kpi, subset=['CPI', 'SPI'])
+        st.dataframe(df_kpi.style.map(color_kpi, subset=['CPI', 'SPI'])
                             .format({'CPI': "{:.2f}", 'SPI': "{:.2f}", 'CV': "€ {:.2f}"}), 
                      use_container_width=True)
