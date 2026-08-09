@@ -738,7 +738,7 @@ with tab5:
         )
         
         # Linea verticale per indicare la Data di Stato ("Oggi")
-        fig_scurve.add_vline(x=data_status_evm, line_width=2, line_dash="dash", line_color="gray", annotation_text="Data di Rilevamento")
+       fig_scurve.add_vline(x=str(data_status_evm), line_width=2, line_dash="dash", line_color="gray", annotation_text="Data di Rilevamento")
         
         st.plotly_chart(fig_scurve, use_container_width=True)
     else:
