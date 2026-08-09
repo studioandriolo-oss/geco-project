@@ -503,25 +503,28 @@ with tab3:
         costo_reale = float(row['AC_Costo_Reale'])
         completamento = float(row['%_Completamento'])
         
-        # Costruiamo la tabella HTML del nodo WBS arricchita
+        # Formattiamo le date per la visualizzazione
+        inizio_str = row['Inizio_Previsto'].strftime('%d/%m/%Y') if pd.notna(row['Inizio_Previsto']) else "N/D"
+        fine_str = row['Fine_Prevista'].strftime('%d/%m/%Y') if pd.notna(row['Fine_Prevista']) else "N/D"
+        
+        # Costruiamo la tabella HTML del nodo WBS arricchita con le Date
         wp_html = f"<<TABLE BORDER='0' CELLBORDER='0' CELLSPACING='4'>"
-        wp_html += f"<TR><TD><B>WP: {attivita}</B></TD></TR>"
-        wp_html += f"<TR><TD>Budget (BAC): &euro; {budget:,.2f}</TD></TR>"
-        wp_html += f"<TR><TD>Costo (AC): &euro; {costo_reale:,.2f}</TD></TR>"
-        wp_html += f"<TR><TD>Avanzamento: {completamento:.1f}%</TD></TR>"
+        wp_html += f"<TR><TD COLSPAN='2'><B>{row['ID_WBS']} - {attivita}</B></TD></TR>"
+        wp_html += f"<TR><TD ALIGN='LEFT'>Inizio: {inizio_str}</TD><TD ALIGN='RIGHT'>Fine: {fine_str}</TD></TR>"
+        wp_html += f"<TR><TD ALIGN='LEFT'>Budget: &euro; {budget:,.2f}</TD><TD ALIGN='RIGHT'>AC: &euro; {costo_reale:,.2f}</TD></TR>"
+        wp_html += f"<TR><TD COLSPAN='2'>Avanzamento: {completamento:.1f}%</TD></TR>"
         wp_html += "</TABLE>>"
         
-        # --- LOGICA BARRA DI PROGRESSO (GRAPHVIZ STRIPED) ---
+        # --- LOGICA BARRA DI PROGRESSO E PERCORSO CRITICO ---
         if completamento >= 100:
             stile = 'rounded,filled'
-            colore_sfondo = '#C8E6C9' # 100% Verde pastello
+            colore_sfondo = '#C8E6C9' 
         elif completamento <= 0:
             stile = 'rounded,filled'
-            colore_sfondo = 'white'   # 0% Bianco
+            colore_sfondo = 'white'   
         else:
             stile = 'rounded,striped'
             quota_verde = completamento / 100.0
-            # La sintassi "colore1;frazione:colore2" genera il riempimento progressivo da sinistra a destra
             colore_sfondo = f"#C8E6C9;{quota_verde}:white"
             
         graph.node(
@@ -748,9 +751,6 @@ with tab5:
         st.info("ℹ️ Non ci sono ancora date di pianificazione sufficienti per generare la Curva ad S.")
     
     st.divider()
-    
-    # --- GRAFICO A BARRE (Quello che avevamo già) ---
-    st.subheader("Raffronto Costi per Attività")
     
     # --- GRAFICO A BARRE ---
     st.subheader("Raffronto Costi per Attività")
