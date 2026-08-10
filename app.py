@@ -579,19 +579,40 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
 # --- TAB 1: SETUP WBS (Struttura Gerarchica) ---
 with tab1:
     st.header("WBS - Work Breakdown Structure")
-    st.markdown('*Puoi inserire livelli profondi a piacere (es. 1.1.2.1). Il sistema riconoscerà automaticamente i "Padri" e ne bloccherà i costi.*')
-    st.info("💡 **Come cancellare i dati operativi:** Per eliminare una riga operativa (foglia), **seleziona la spunta alla sua sinistra e premi Canc/Del sulla tua tastiera**.")
     
+    # --- PANNELLO ORGANIZZATORE UNIVERSALE ---
+    st.subheader("🔀 Organizzatore Gerarchico")
+    st.markdown('*Seleziona un nodo per **Declassarlo a Figlio** (destra), **Promuoverlo a Padre** (sinistra), **Spostarlo** su/giù o **Eliminarlo**.*')
+    
+    c_sel, c_btn1, c_btn2, c_btn3, c_btn4, c_btn5 = st.columns([3, 1.2, 1.2, 1, 1, 1])
+    
+    lista_wbs = st.session_state.wbs_data['ID_WBS'].astype(str) + " - " + st.session_state.wbs_data['Attività'].astype(str)
+    nodo_scelto = c_sel.selectbox("Seleziona una voce", options=lista_wbs, label_visibility="collapsed")
+    
+    if nodo_scelto:
+        id_scelto = nodo_scelto.split(' - ')[0]
+        if c_btn1.button("⬅️ Rendi Padre", use_container_width=True, help="Sposta a Sinistra e promuovi a livello superiore"):
+            modifica_struttura(id_scelto, 'sinistra')
+        if c_btn2.button("➡️ Rendi Figlio", use_container_width=True, help="Sposta a Destra per inserirlo sotto il capitolo precedente"):
+            modifica_struttura(id_scelto, 'destra')
+        if c_btn3.button("⬆️ Su", use_container_width=True):
+            modifica_struttura(id_scelto, 'su')
+        if c_btn4.button("⬇️ Giù", use_container_width=True):
+            modifica_struttura(id_scelto, 'giu')
+        if c_btn5.button("🗑️ Elimina", use_container_width=True):
+            modifica_struttura(id_scelto, 'elimina')
+            
+    st.divider()
+    
+    # --- TABELLE DEI DATI ---
     df = st.session_state.wbs_data.copy()
     df['Durata_Prevista (gg)'] = (pd.to_datetime(df['Fine_Prevista']) - pd.to_datetime(df['Inizio_Previsto'])).dt.days
     
-    # Le radici sono i nodi di livello 1 (quelli senza punto)
     is_root = ~df['ID_WBS'].astype(str).str.contains('\.')
     radici = df[is_root]
     
     df_aggiornato = pd.DataFrame()
     
-    # --- CICLO DI DISEGNO DELLE MACRO-CATEGORIE ---
     for idx_riga, radice in radici.iterrows():
         id_radice = str(radice['ID_WBS'])
         discendenti = df[df['ID_WBS'].astype(str).str.startswith(f"{id_radice}.")]
@@ -599,26 +620,6 @@ with tab1:
         
         with st.expander(f"📁 {id_radice} - {radice['Attività']} (Budget Totale Raggruppato: € {tot_budget:,.2f})", expanded=True):
             
-            # Pulsantiera di Gestione Padre (Sposta, Elimina)
-            col_del, col_up, col_down, _ = st.columns([1.5, 1, 1, 6])
-            
-            if col_del.button(f"🗑️ Elimina", key=f"del_{id_radice}"):
-                mask = (st.session_state.wbs_data['ID_WBS'].astype(str) == id_radice) | (st.session_state.wbs_data['ID_WBS'].astype(str).str.startswith(f"{id_radice}."))
-                st.session_state.wbs_data = st.session_state.wbs_data[~mask]
-                
-                if st.session_state.wbs_data.empty:
-                    st.session_state.wbs_data = pd.DataFrame([{'ID_WBS': '1', 'Attività': 'Progetto Principale', 'BAC_Budget': 0.0, '%_Completamento': 0.0, 'AC_Costo_Reale': 0.0}])
-                else:
-                    rinumera_albero() # Tappa i "buchi" lasciati dalla cancellazione
-                st.session_state.wbs_data = aggiorna_gerarchia(st.session_state.wbs_data)
-                st.rerun()
-                
-            if col_up.button("⬆️ Su", key=f"up_{id_radice}"):
-                sposta_padre(id_radice, 'su')
-                
-            if col_down.button("⬇️ Giù", key=f"down_{id_radice}"):
-                sposta_padre(id_radice, 'giu')
-
             discendenti_modificati = st.data_editor(
                 discendenti,
                 key=f"editor_wbs_idx_{idx_riga}_id_{id_radice}",
@@ -638,30 +639,23 @@ with tab1:
             
             df_aggiornato = pd.concat([df_aggiornato, pd.DataFrame([radice]), discendenti_modificati], ignore_index=True)
             
-    # --- MODULO SMART AGGIUNTA NUOVA MACRO-CATEGORIA ---
+    # INSERIMENTO NUOVI CAPITOLI
     with st.form("aggiungi_padre"):
-        st.write("Aggiungi un nuovo Capitolo (Macro-Categoria)")
+        st.write("Aggiungi un nuovo Capitolo Principale in fondo alla lista")
         c1, c2 = st.columns([4, 1])
-        nuova_att = c1.text_input("Nome della nuova Macro-Categoria", placeholder="Es. Isolamento Termico")
-        
+        nuova_att = c1.text_input("Nome", placeholder="Es. Isolamento a Cappotto")
         if c2.form_submit_button("➕ Aggiungi"):
             if nuova_att:
-                # Calcola in automatico l'ultimo ID WBS disponibile
                 is_root_calc = ~st.session_state.wbs_data['ID_WBS'].astype(str).str.contains('\.')
-                nuovo_id = str(len(st.session_state.wbs_data[is_root_calc]) + 1)
-                
-                nuova_riga = pd.DataFrame([{
-                    'ID_WBS': nuovo_id, 'Attività': nuova_att, 'BAC_Budget': 0.0, 
-                    '%_Completamento': 0, 'AC_Costo_Reale': 0.0
-                }])
+                nuovo_id = str(len(st.session_state.wbs_data[is_root_calc]) + 1) # Calcola l'ID in automatico
+                nuova_riga = pd.DataFrame([{'ID_WBS': nuovo_id, 'Attività': nuova_att, 'BAC_Budget': 0.0, '%_Completamento': 0.0, 'AC_Costo_Reale': 0.0}])
                 st.session_state.wbs_data = pd.concat([st.session_state.wbs_data, nuova_riga], ignore_index=True)
-                st.session_state.wbs_data = aggiorna_gerarchia(st.session_state.wbs_data)
-                st.rerun()
+                modifica_struttura('1', 'rinumera') # Salva e riordina
 
-    st.warning("⚠️ Clicca il tasto qui sotto per ricalcolare la gerarchia (budget e tempi) dopo aver aggiunto o eliminato lavorazioni nelle tabelle.")
-    if st.button("💾 SALVA MODIFICHE E RICALCOLA ALBERO WBS", type="primary", use_container_width=True):
+    st.info("💡 **Aggiunta Rapida Sottomenù:** Se aggiungi righe manualmente all'interno delle tabelle digitando il numero, premi questo tasto per farle assorbire correttamente nell'albero.")
+    if st.button("💾 SALVA INSERIMENTI MANUALI NELLE TABELLE", type="primary", use_container_width=True):
         st.session_state.wbs_data = aggiorna_gerarchia(df_aggiornato)
-        st.rerun()
+        modifica_struttura('1', 'rinumera')
         
 # --- TAB 2: SETUP OBS (Solo Risorse) ---
 with tab2:
