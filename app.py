@@ -86,6 +86,12 @@ def aggiorna_gerarchia(df):
     df_calc['AC_Costo_Reale'] = pd.to_numeric(df_calc['AC_Costo_Reale'], errors='coerce').fillna(0.0)
     df_calc['%_Completamento'] = pd.to_numeric(df_calc['%_Completamento'], errors='coerce').fillna(0.0)
     
+    # FIX TYPERROR: Forziamo le colonne delle date a "object" in modo che Pandas
+    # accetti tranquillamente oggetti datetime.date e celle vuote (None/NaN) mischiati.
+    for col in ['Inizio_Previsto', 'Fine_Prevista', 'Inizio_Effettivo', 'Fine_Effettiva']:
+        if col in df_calc.columns:
+            df_calc[col] = df_calc[col].astype(object)
+            
     ids = df_calc['ID_WBS'].astype(str).tolist()
     foglie = [uid for uid in ids if not any(other.startswith(uid + '.') for other in ids if other != uid)]
     df_calc['Is_Leaf'] = df_calc['ID_WBS'].astype(str).isin(foglie)
