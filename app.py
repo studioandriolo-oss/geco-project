@@ -10,9 +10,19 @@ from io import BytesIO
 from docx import Document
 import html
 import base64
+import streamlit as st
 
 # --- CONFIGURAZIONE PAGINA ---
 st.set_page_config(page_title="WBS/OBS Manager & EVM", layout="wide")
+
+st.markdown("""
+    <style>
+        .block-container {
+            padding-top: 1rem;
+            padding-bottom: 0rem;
+        }
+    </style>
+""", unsafe_allow_html=True)
 
 col_logo, col_title = st.columns([1, 9], vertical_alignment="center")
 
