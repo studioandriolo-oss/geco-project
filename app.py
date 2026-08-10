@@ -13,7 +13,7 @@ from docx import Document
 st.set_page_config(page_title="WBS/OBS Manager & EVM", layout="wide")
 st.title("🏗️ Project Workflow & EVM Controller")
 
-# --- SISTEMA DI LOGIN SICURO (TRAMITE SECRETS) ---
+# --- SISTEMA DI LOGIN SICURO (CON PERSISTENZA) ---
 try:
     USER_ID = st.secrets["USER_ID"]
     PASSWORD = st.secrets["PASSWORD"]
@@ -21,7 +21,10 @@ except KeyError:
     st.error("⚠️ Errore di sistema: Credenziali non trovate. Configura i 'Secrets' di Streamlit.")
     st.stop()
 
-if 'logged_in' not in st.session_state:
+# Legge l'URL per vedere se avevamo già fatto l'accesso (Sopravvive al tasto F5)
+if st.query_params.get("auth") == "valid":
+    st.session_state.logged_in = True
+elif 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
 
 if not st.session_state.logged_in:
@@ -36,6 +39,7 @@ if not st.session_state.logged_in:
             if submit:
                 if user_input == USER_ID and pass_input == PASSWORD:
                     st.session_state.logged_in = True
+                    st.query_params["auth"] = "valid" # Scrive la 'chiave' nell'URL
                     st.rerun() 
                 else:
                     st.error("Credenziali errate. Riprova.")                
@@ -409,6 +413,8 @@ with st.sidebar:
     
     if st.button("🚪 Esci (Logout)", type="primary", use_container_width=True):
         st.session_state.logged_in = False
+        if "auth" in st.query_params:
+            del st.query_params["auth"] # Rimuove la 'chiave' dall'URL
         st.rerun()
 
 
@@ -426,7 +432,7 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
 # --- TAB 1: SETUP WBS (Struttura Gerarchica) ---
 with tab1:
     st.header("WBS - Work Breakdown Structure")
-    st.markdown('*Puoi inserire livelli profondi a piacere (es. 1.1.2.1). Il sistema riconoscerà automaticamente i "Padri" e ne bloccherà i costi sommandoli dalle "Foglie".*')
+    st.markdown('*Puoi inserire livelli profondi a piacere (es. 1.1.2.1). Il sistema riconoscerà automaticamente i "Padri" e ne bloccherà i costi.*')
     
     df = st.session_state.wbs_data.copy()
     df['Durata_Prevista (gg)'] = (pd.to_datetime(df['Fine_Prevista']) - pd.to_datetime(df['Inizio_Previsto'])).dt.days
@@ -446,11 +452,11 @@ with tab1:
             
             discendenti_modificati = st.data_editor(
                 discendenti,
-                key=f"editor_wbs_idx_{idx_riga}_id_{id_radice}", # <--- CHIAVE ORA AL 100% UNIVOCA
+                key=f"editor_wbs_idx_{idx_riga}_id_{id_radice}",
                 num_rows="dynamic",
                 use_container_width=True,
                 hide_index=True,
-                disabled=["Durata_Prevista (gg)", "AC_Costo_Reale"],
+                disabled=["Durata_Prevista (gg)", "AC_Costo_Reale"], 
                 column_config={
                     "ID_WBS": st.column_config.TextColumn("ID WBS", required=True),
                     "Predecessori": st.column_config.TextColumn("Predecessori", help="Es. 1.1, 1.2"),
@@ -478,11 +484,11 @@ with tab1:
                 st.session_state.wbs_data = aggiorna_gerarchia(st.session_state.wbs_data)
                 st.rerun()
 
-    if not df_aggiornato.empty:
-        # Se c'è stata una modifica nella tabella, aggiorniamo l'albero maestro in background
-        if not df_aggiornato.equals(st.session_state.wbs_data):
-            st.session_state.wbs_data = aggiorna_gerarchia(df_aggiornato)
-            st.rerun()
+    # IL SALVATAGGIO ORA È MANUALE PER EVITARE LOOP DI DUPLICAZIONE
+    st.info("⚠️ Clicca il tasto qui sotto per ricalcolare la gerarchia dopo aver modificato i dati nella tabella.")
+    if st.button("💾 SALVA MODIFICHE E RICALCOLA ALBERO WBS", type="primary", use_container_width=True):
+        st.session_state.wbs_data = aggiorna_gerarchia(df_aggiornato)
+        st.rerun()
 
 # --- TAB 2: SETUP OBS (Solo Risorse) ---
 with tab2:
