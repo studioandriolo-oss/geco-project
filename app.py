@@ -961,7 +961,7 @@ with tab3:
         * 🚨 **Freccia Rossa Spessa:** Il flusso del **Percorso Critico**. Segue esattamente la catena logica di attività che determina la durata totale del cantiere.
         """)
 
-# --- TAB 4: CRONOPROGRAMMA (GANTT) ---
+--- TAB 4: CRONOPROGRAMMA (GANTT) ---
 with tab4:
     st.header("Cronoprogramma Lavori")
     
@@ -1023,7 +1023,7 @@ with tab4:
         st.plotly_chart(fig, use_container_width=True)
     else:
         st.info("⚠️ Il cronoprogramma è vuoto. **Assicurati di aver inserito le date di Inizio e Fine nelle righe di lavoro** all'interno dei capitoli (nel Tab 1).")
-
+        
 # --- TAB 5: EVM E CASH FLOW ---
 with tab5:
     st.header("Controllo Costi e Analisi EVM")
