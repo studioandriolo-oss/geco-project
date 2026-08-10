@@ -14,13 +14,13 @@ import base64
 # --- CONFIGURAZIONE PAGINA ---
 st.set_page_config(page_title="WBS/OBS Manager & EVM", layout="wide")
 
-col_logo, col_title = st.columns([1, 6])
+col_logo, col_title = st.columns([1, 8])
 
 with col_logo:
     try:
         with open("logo_base64.txt", "r") as f:
             logo_str = f.read().strip()
-        st.image(base64.b64decode(logo_str), width=100)
+        st.image(base64.b64decode(logo_str), width=120)
     except Exception:
         pass
 
