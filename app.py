@@ -693,17 +693,20 @@ with tab3:
     graph.attr('node', fontname='Helvetica', fontsize='10', margin='0.2')
     
     for _, row in st.session_state.obs_data.iterrows():
+        ruolo_safe = html.escape(str(row.get('Ruolo', '')))
+        risorsa_safe = html.escape(str(row.get('Risorsa', '')))
+        
         label_html = f"<<TABLE BORDER='0' CELLBORDER='0' CELLSPACING='2'>"
-        label_html += f"<TR><TD><B>{row['Ruolo']}</B></TD></TR>"
-        label_html += f"<TR><TD>({row['Risorsa']})</TD></TR>"
+        label_html += f"<TR><TD><B>{ruolo_safe}</B></TD></TR>"
+        label_html += f"<TR><TD>({risorsa_safe})</TD></TR>"
         
         colonne_base = ['ID_OBS', 'Ruolo', 'Risorsa', 'Tipo_Contratto', 'Note']
         colonne_custom = [col for col in st.session_state.obs_data.columns if col not in colonne_base]
         
         for col in colonne_custom:
-            valore = row[col]
+            valore = row.get(col, '')
             if pd.notna(valore) and str(valore).strip() != "":
-                label_html += f"<TR><TD><FONT POINT-SIZE='9' COLOR='gray30'>{col}: {valore}</FONT></TD></TR>"
+                label_html += f"<TR><TD><FONT POINT-SIZE='9' COLOR='gray30'>{html.escape(str(col))}: {html.escape(str(valore))}</FONT></TD></TR>"
         label_html += "</TABLE>>"
         
         graph.node(
@@ -720,7 +723,7 @@ with tab3:
     valid_wbs_ids = set(df_wp_reali['ID_WBS'].astype(str))
     
     for _, row in df_wp_reali.iterrows():
-        attivita = str(row['Attività'])
+        attivita_safe = html.escape(str(row.get('Attività', '')))
         budget = float(row['BAC_Budget'])
         costo_reale = float(row['AC_Costo_Reale'])
         completamento = float(row['%_Completamento'])
@@ -729,7 +732,6 @@ with tab3:
         margine = wp_cpm.get('slack', 0)
         is_critical = wp_cpm.get('is_critical', False)
         
-        # Conversione di sicurezza per evitare crash di Graphviz su date malformate
         inizio_val = pd.to_datetime(row['Inizio_Previsto'], errors='coerce')
         inizio_str = inizio_val.strftime('%d/%m/%Y') if pd.notna(inizio_val) else "N/D"
         
@@ -738,10 +740,11 @@ with tab3:
         
         testo_margine = f"<FONT COLOR='#D32F2F'><B>Margine: {margine} gg</B></FONT>" if is_critical else f"<FONT COLOR='#388E3C'>Margine: {margine} gg</FONT>"
         
+        # Simboli Euro scritti chiaramente, senza l'uso dell'entità HTML che manda in crash Graphviz
         wp_html = f"<<TABLE BORDER='0' CELLBORDER='0' CELLSPACING='4'>"
-        wp_html += f"<TR><TD COLSPAN='2'><B>{row['ID_WBS']} - {attivita}</B></TD></TR>"
+        wp_html += f"<TR><TD COLSPAN='2'><B>{row['ID_WBS']} - {attivita_safe}</B></TD></TR>"
         wp_html += f"<TR><TD ALIGN='LEFT'>Inizio: {inizio_str}</TD><TD ALIGN='RIGHT'>Fine: {fine_str}</TD></TR>"
-        wp_html += f"<TR><TD ALIGN='LEFT'>Budget: &euro; {budget:,.2f}</TD><TD ALIGN='RIGHT'>AC: &euro; {costo_reale:,.2f}</TD></TR>"
+        wp_html += f"<TR><TD ALIGN='LEFT'>Budget: € {budget:,.2f}</TD><TD ALIGN='RIGHT'>AC: € {costo_reale:,.2f}</TD></TR>"
         wp_html += f"<TR><TD ALIGN='LEFT'>Avanzamento: {completamento:.1f}%</TD><TD ALIGN='RIGHT'>{testo_margine}</TD></TR>"
         wp_html += "</TABLE>>"
         
@@ -769,13 +772,13 @@ with tab3:
             penwidth=spessore_bordo
         )
         
-        if pd.notna(row['ID_OBS_Assegnato']):
+        if pd.notna(row['ID_OBS_Assegnato']) and str(row['ID_OBS_Assegnato']).strip() not in ['', 'None', 'nan']:
             obs_ids = str(row['ID_OBS_Assegnato']).split(',')
             for o_id in obs_ids:
                 if o_id.strip():
                     graph.edge(f"OBS_{o_id.strip()}", f"WBS_{row['ID_WBS']}", color='#757575', penwidth='1.5', arrowsize='0.8')
                     
-        if mostra_relazioni and 'Predecessori' in row and pd.notna(row['Predecessori']) and str(row['Predecessori']).strip() != "":
+        if mostra_relazioni and 'Predecessori' in row and pd.notna(row['Predecessori']) and str(row['Predecessori']).strip() not in ['', 'None', 'nan']:
             preds = str(row['Predecessori']).split(',')
             for p_id in preds:
                 p_id = p_id.strip()
@@ -802,53 +805,11 @@ with tab3:
                         arrowsize=freccia
                     )
 
+    # Rendering Nativo Streamlit (Anticrash & Antiframe)
     try:
-        raw_svg = graph.pipe(format='svg').decode('utf-8')
-        svg_data = raw_svg[raw_svg.find('<svg'):]
-        
-        html_code = f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <script src="https://cdn.jsdelivr.net/npm/svg-pan-zoom@3.6.1/dist/svg-pan-zoom.min.js"></script>
-            <style>
-                body {{ margin: 0; padding: 0; overflow: hidden; background-color: #fafafa; }}
-                #svg-container {{ width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center; }}
-                svg {{ width: 100% !important; height: 100% !important; }}
-            </style>
-        </head>
-        <body>
-            <div id="svg-container">
-                {svg_data}
-            </div>
-            <script>
-                window.onload = function() {{
-                    var svgElement = document.querySelector('svg');
-                    if (svgElement) {{
-                        svgElement.setAttribute('id', 'grafo-interattivo');
-                        svgElement.removeAttribute('width');
-                        svgElement.removeAttribute('height');
-                        var panZoom = svgPanZoom('#grafo-interattivo', {{
-                            zoomEnabled: true,
-                            controlIconsEnabled: true,
-                            fit: true,
-                            center: true,
-                            minZoom: 0.1,
-                            maxZoom: 10,
-                            mouseWheelZoomEnabled: true
-                        }});
-                    }} else {{
-                        document.getElementById('svg-container').innerHTML = "Errore grafico SVG.";
-                    }}
-                }};
-            </script>
-        </body>
-        </html>
-        """
-        components.html(html_code, height=600)
+        st.graphviz_chart(graph, use_container_width=True)
     except Exception as e:
         st.error(f"Errore nella generazione del grafo: {e}")
-        st.graphviz_chart(graph)
 
     st.divider()
     st.subheader("📖 Legenda del Grafo")
@@ -870,7 +831,7 @@ with tab3:
         * 🔀 **Freccia Arancione Tratteggiata:** Relazione logica standard (es. *L'attività B inizia dopo l'attività A*).
         * 🚨 **Freccia Rossa Spessa:** Il flusso del **Percorso Critico**. Segue esattamente la catena logica di attività che determina la durata totale del cantiere.
         """)
-
+        
 # --- TAB 4: CRONOPROGRAMMA (GANTT) ---
 with tab4:
     st.header("Cronoprogramma Lavori")
