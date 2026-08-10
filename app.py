@@ -1216,6 +1216,17 @@ with tab6:
     st.header("Registro Contabile")
     st.markdown("Inserisci qui le fatture e i SAL. Gli importi netti si sommeranno automaticamente aggiornando la voce *AC_Costo_Reale* nella WBS.")
     
+    # FIX ERRORE: Forziamo i tipi di dato per "Data" e "Importo_Netto" per evitare crash sulle celle vuote
+    df_reg = st.session_state.registro_data.copy()
+    if not df_reg.empty:
+        df_reg['Data'] = pd.to_datetime(df_reg['Data'], errors='coerce').dt.date
+        df_reg['Importo_Netto'] = pd.to_numeric(df_reg['Importo_Netto'], errors='coerce')
+    else:
+        df_reg['Data'] = pd.Series(dtype='object') 
+        df_reg['Importo_Netto'] = pd.Series(dtype='float64')
+        
+    st.session_state.registro_data = df_reg
+    
     leaf_wbs = get_foglie(st.session_state.wbs_data)
     wbs_options = [f"{row['ID_WBS']} - {row['Attività']}" for _, row in leaf_wbs.iterrows()]
     
@@ -1246,7 +1257,7 @@ with tab6:
     if not edited_registro.equals(st.session_state.registro_data):
         st.session_state.registro_data = edited_registro
         st.rerun()
-
+        
 # --- TAB 7: DIREZIONE LAVORI, CAPA & REPORTISTICA ---
 with tab7:
     st.header("Direzione Lavori: Interventi (CAPA) e Simulazioni")
