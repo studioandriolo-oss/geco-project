@@ -426,7 +426,7 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
 # --- TAB 1: SETUP WBS (Struttura Gerarchica) ---
 with tab1:
     st.header("WBS - Work Breakdown Structure")
-    st.markdown("*Puoi inserire livelli profondi a piacere (es. 1.1.2.1). Il sistema riconoscerà automaticamente i "Padri" e ne bloccherà i costi sommandoli dalle "Foglie".*")
+    st.markdown('*Puoi inserire livelli profondi a piacere (es. 1.1.2.1). Il sistema riconoscerà automaticamente i "Padri" e ne bloccherà i costi sommandoli dalle "Foglie".*')
     
     df = st.session_state.wbs_data.copy()
     df['Durata_Prevista (gg)'] = (pd.to_datetime(df['Fine_Prevista']) - pd.to_datetime(df['Inizio_Previsto'])).dt.days
