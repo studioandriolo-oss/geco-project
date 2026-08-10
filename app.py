@@ -522,6 +522,25 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
 # --- TAB 1: SETUP WBS (Struttura Gerarchica) ---
 with tab1:
     st.header("WBS - Work Breakdown Structure")
+    st.subheader("🔀 Organizzatore Gerarchico")
+    st.markdown('*Seleziona un nodo per **Declassarlo a Figlio** (destra), **Promuoverlo a Padre** (sinistra), **Spostarlo** su/giù o **Eliminarlo**.*')
+    
+    c_sel, c_btn1, c_btn2, c_btn3 = st.columns([3, 1, 1, 1])
+    
+    lista_wbs = st.session_state.wbs_data['ID_WBS'].astype(str) + " - " + st.session_state.wbs_data['Attività'].astype(str)
+    nodo_scelto = c_sel.selectbox("Seleziona una voce", options=lista_wbs, label_visibility="collapsed")
+    
+    if nodo_scelto:
+        id_scelto = nodo_scelto.split(' - ')[0]
+        if c_btn1.button("⬆️ Su", use_container_width=True):
+            modifica_struttura(id_scelto, 'su')
+        if c_btn2.button("⬇️ Giù", use_container_width=True):
+            modifica_struttura(id_scelto, 'giu')
+        if c_btn3.button("🗑️ Elimina", use_container_width=True):
+            modifica_struttura(id_scelto, 'elimina')
+            
+    st.divider()
+ 
     st.markdown('*I numeri ID sono **completamente bloccati per garantire l\'integrità del database logico**. Usa i pulsanti sotto ogni capitolo per spostare e rientrare le voci in automatico.*')
     
     df = st.session_state.wbs_data.copy()
