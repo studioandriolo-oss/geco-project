@@ -1288,6 +1288,11 @@ with tab7:
     # ---------------------------------------------------------
     st.subheader("1. Registro Azioni Correttive e Preventive (CAPA)")
     
+    # FIX: Ripristino delle intestazioni di colonna se perse durante il caricamento di un JSON vuoto
+    colonne_capa_base = ['Data_Apertura', 'ID_WBS_Rif', 'Tipo_Azione', 'Descrizione', 'Responsabile_OBS', 'Stato']
+    if st.session_state.capa_data.empty and len(st.session_state.capa_data.columns) == 0:
+        st.session_state.capa_data = pd.DataFrame(columns=colonne_capa_base)
+    
     edited_capa = st.data_editor(
         st.session_state.capa_data,
         num_rows="dynamic",
@@ -1305,8 +1310,6 @@ with tab7:
     if not edited_capa.equals(st.session_state.capa_data):
         st.session_state.capa_data = edited_capa
         st.rerun()
-
-    st.divider()
     
     # ---------------------------------------------------------
     # SEZIONE 2: SIMULATORE WHAT-IF (PROJECT CRASHING)
