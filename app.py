@@ -8,6 +8,7 @@ from datetime import datetime, date
 import json
 from io import BytesIO
 from docx import Document
+import html
 
 # --- CONFIGURAZIONE PAGINA ---
 st.set_page_config(page_title="WBS/OBS Manager & EVM", layout="wide")
@@ -47,7 +48,6 @@ if not st.session_state.logged_in:
 
 # --- 1. INIZIALIZZAZIONE DATI (MODELLO OPERATIVO PULITO) ---
 if 'wbs_data' not in st.session_state:
-    # Genera un singolo nodo radice vuoto per inizializzare l'interfaccia
     st.session_state.wbs_data = pd.DataFrame([{
         'ID_WBS': '1', 
         'Attività': 'Progetto Principale', 
@@ -81,7 +81,6 @@ if 'nome_progetto_attivo' not in st.session_state:
 # --- 2. MOTORI MATEMATICI (Albero Gerarchico e Analisi) ---
 
 def aggiorna_gerarchia(df):
-    """Motore Roll-up: Somma budget, costi, date e % dai livelli inferiori a quelli superiori"""
     df_calc = df.copy()
     df_calc['BAC_Budget'] = pd.to_numeric(df_calc['BAC_Budget'], errors='coerce').fillna(0.0)
     df_calc['AC_Costo_Reale'] = pd.to_numeric(df_calc['AC_Costo_Reale'], errors='coerce').fillna(0.0)
@@ -123,7 +122,6 @@ def aggiorna_gerarchia(df):
     return df_calc
 
 def modifica_struttura(id_target, azione):
-    """Algoritmo Outliner: Sposta interi blocchi (nodi + figli), rientra, sporge e rinumera tutto il progetto."""
     df = st.session_state.wbs_data.copy()
     
     def get_sort_key(wbs_id):
@@ -220,7 +218,6 @@ def modifica_struttura(id_target, azione):
     st.rerun()
     
 def get_foglie(df):
-    """Estrae solo i nodi operativi (le Foglie), escludendo i contenitori (Padri)"""
     ids = df['ID_WBS'].astype(str).tolist()
     foglie = [uid for uid in ids if not any(other.startswith(uid + '.') for other in ids if other != uid)]
     return df[df['ID_WBS'].astype(str).isin(foglie)].copy()
@@ -507,7 +504,7 @@ with st.sidebar:
     if st.button("🚪 Esci (Logout)", type="primary", use_container_width=True):
         st.session_state.logged_in = False
         if "auth" in st.query_params:
-            del st.query_params["auth"] # Rimuove la 'chiave' dall'URL
+            del st.query_params["auth"]
         st.rerun()
 
 
@@ -527,7 +524,6 @@ with tab1:
     st.header("WBS - Work Breakdown Structure")
     st.markdown('*I numeri ID sono **completamente bloccati per garantire l\'integrità del database logico**. Usa i pulsanti sotto ogni capitolo per spostare e rientrare le voci in automatico.*')
     
-    # --- TABELLE DEI DATI ---
     df = st.session_state.wbs_data.copy()
     
     colonne_date = ['Inizio_Previsto', 'Fine_Prevista', 'Inizio_Effettivo', 'Fine_Effettiva']
@@ -554,7 +550,6 @@ with tab1:
             colonne_bloccate = ["ID_WBS", "Durata_Prevista (gg)", "AC_Costo_Reale", "PV", "EV", "CV", "SV", "SPI", "CPI", "EAC", "ETC", "VAC"]
             colonne_bloccate = [col for col in colonne_bloccate if col in discendenti.columns]
             
-            # LA TABELLA DEL CAPITOLO
             discendenti_modificati = st.data_editor(
                 discendenti,
                 key=f"editor_wbs_idx_{idx_riga}_id_{id_radice}",
@@ -572,7 +567,6 @@ with tab1:
                 }
             )
             
-            # Gestione delle righe appena create (Assegnazione ID temporaneo invisibile)
             for i_row, row_mod in discendenti_modificati.iterrows():
                 val_id = str(row_mod['ID_WBS']).strip()
                 if val_id == '' or val_id == 'None' or val_id == 'nan':
@@ -580,7 +574,6 @@ with tab1:
             
             df_aggiornato = pd.concat([df_aggiornato, pd.DataFrame([radice]), discendenti_modificati], ignore_index=True)
             
-            # --- PANNELLO DI SPOSTAMENTO INTERNO AL CAPITOLO (OUTLINER) ---
             if not discendenti.empty:
                 st.markdown("↕️ **Sposta / Modifica Livello (Outliner):**")
                 c_sel, c1, c2, c3, c4 = st.columns([3, 1.5, 1.5, 1, 1])
@@ -599,11 +592,9 @@ with tab1:
                     if c4.button("⬇️ Giù", key=f"d_{id_radice}", use_container_width=True): 
                         modifica_struttura(id_loc, 'giu')
                         
-            # Tasto per eliminare l'intero capitolo
             if st.button(f"🗑️ Elimina intero capitolo '{id_radice}'", key=f"del_cap_{id_radice}"):
                 modifica_struttura(id_radice, 'elimina')
 
-    # INSERIMENTO NUOVI CAPITOLI (RADICI)
     with st.form("aggiungi_padre"):
         st.write("Aggiungi un nuovo Capitolo Principale in fondo alla lista")
         c1, c2 = st.columns([4, 1])
@@ -684,17 +675,21 @@ with tab3:
     graph.attr('node', fontname='Helvetica', fontsize='10', margin='0.2')
     
     for _, row in st.session_state.obs_data.iterrows():
+        # FIX CRASH IMMAGINE: Sterilizziamo i campi per evitare l'errore di Graphviz con i caratteri speciali
+        ruolo_safe = html.escape(str(row.get('Ruolo', '')))
+        risorsa_safe = html.escape(str(row.get('Risorsa', '')))
+        
         label_html = f"<<TABLE BORDER='0' CELLBORDER='0' CELLSPACING='2'>"
-        label_html += f"<TR><TD><B>{row['Ruolo']}</B></TD></TR>"
-        label_html += f"<TR><TD>({row['Risorsa']})</TD></TR>"
+        label_html += f"<TR><TD><B>{ruolo_safe}</B></TD></TR>"
+        label_html += f"<TR><TD>({risorsa_safe})</TD></TR>"
         
         colonne_base = ['ID_OBS', 'Ruolo', 'Risorsa', 'Tipo_Contratto', 'Note']
         colonne_custom = [col for col in st.session_state.obs_data.columns if col not in colonne_base]
         
         for col in colonne_custom:
-            valore = row[col]
+            valore = row.get(col, '')
             if pd.notna(valore) and str(valore).strip() != "":
-                label_html += f"<TR><TD><FONT POINT-SIZE='9' COLOR='gray30'>{col}: {valore}</FONT></TD></TR>"
+                label_html += f"<TR><TD><FONT POINT-SIZE='9' COLOR='gray30'>{html.escape(str(col))}: {html.escape(str(valore))}</FONT></TD></TR>"
         label_html += "</TABLE>>"
         
         graph.node(
@@ -707,12 +702,11 @@ with tab3:
             penwidth='1.5'
         )
         
-    # FIX ERRORE: Usiamo il motore logico 'get_foglie' per identificare le corrette lavorazioni attive
     df_wp_reali = get_foglie(st.session_state.wbs_data)
     valid_wbs_ids = set(df_wp_reali['ID_WBS'].astype(str))
     
     for _, row in df_wp_reali.iterrows():
-        attivita = str(row['Attività'])
+        attivita_safe = html.escape(str(row.get('Attività', '')))
         budget = float(row['BAC_Budget'])
         costo_reale = float(row['AC_Costo_Reale'])
         completamento = float(row['%_Completamento'])
@@ -721,7 +715,6 @@ with tab3:
         margine = wp_cpm.get('slack', 0)
         is_critical = wp_cpm.get('is_critical', False)
         
-        # FIX ERRORE GRAFO BIANCO: Gestione sicura delle date per impedire l'arresto anomalo di Graphviz
         inizio_val = pd.to_datetime(row['Inizio_Previsto'], errors='coerce')
         inizio_str = inizio_val.strftime('%d/%m/%Y') if pd.notna(inizio_val) else "N/D"
         
@@ -730,11 +723,10 @@ with tab3:
         
         testo_margine = f"<FONT COLOR='#D32F2F'><B>Margine: {margine} gg</B></FONT>" if is_critical else f"<FONT COLOR='#388E3C'>Margine: {margine} gg</FONT>"
         
-        # (Grafiche originali intatte come da tua indicazione)
         wp_html = f"<<TABLE BORDER='0' CELLBORDER='0' CELLSPACING='4'>"
-        wp_html += f"<TR><TD COLSPAN='2'><B>{row['ID_WBS']} - {attivita}</B></TD></TR>"
+        wp_html += f"<TR><TD COLSPAN='2'><B>{row['ID_WBS']} - {attivita_safe}</B></TD></TR>"
         wp_html += f"<TR><TD ALIGN='LEFT'>Inizio: {inizio_str}</TD><TD ALIGN='RIGHT'>Fine: {fine_str}</TD></TR>"
-        wp_html += f"<TR><TD ALIGN='LEFT'>Budget: &euro; {budget:,.2f}</TD><TD ALIGN='RIGHT'>AC: &euro; {costo_reale:,.2f}</TD></TR>"
+        wp_html += f"<TR><TD ALIGN='LEFT'>Budget: &#8364; {budget:,.2f}</TD><TD ALIGN='RIGHT'>AC: &#8364; {costo_reale:,.2f}</TD></TR>"
         wp_html += f"<TR><TD ALIGN='LEFT'>Avanzamento: {completamento:.1f}%</TD><TD ALIGN='RIGHT'>{testo_margine}</TD></TR>"
         wp_html += "</TABLE>>"
         
@@ -762,14 +754,13 @@ with tab3:
             penwidth=spessore_bordo
         )
         
-        # FIX ERRORE COLLEGAMENTI: Evitiamo la costruzione di "fili fantasma" se non c'è una OBS vera
         if pd.notna(row['ID_OBS_Assegnato']) and str(row['ID_OBS_Assegnato']).strip() not in ['', 'None', 'nan']:
             obs_ids = str(row['ID_OBS_Assegnato']).split(',')
             for o_id in obs_ids:
                 if o_id.strip():
                     graph.edge(f"OBS_{o_id.strip()}", f"WBS_{row['ID_WBS']}", color='#757575', penwidth='1.5', arrowsize='0.8')
                     
-        if mostra_relazioni and 'Predecessori' in row and pd.notna(row['Predecessori']) and str(row['Predecessori']).strip() != "":
+        if mostra_relazioni and 'Predecessori' in row and pd.notna(row['Predecessori']) and str(row['Predecessori']).strip() not in ['', 'None', 'nan']:
             preds = str(row['Predecessori']).split(',')
             for p_id in preds:
                 p_id = p_id.strip()
@@ -841,7 +832,7 @@ with tab3:
         """
         components.html(html_code, height=600)
     except Exception as e:
-        st.error(f"Errore nella generazione del grafo: {e}")
+        st.error(f"Errore nella generazione del grafo (Verifica inserimenti con caratteri speciali): {e}")
         st.graphviz_chart(graph)
 
     st.divider()
@@ -884,50 +875,54 @@ with tab4:
         df_gantt['Inizio_Effettivo'] = pd.to_datetime(df_gantt['Inizio_Effettivo'])
         df_gantt['Fine_Effettiva'] = pd.to_datetime(df_gantt['Fine_Effettiva']).fillna(pd.to_datetime(data_status_gantt))
         
-        fig = go.Figure()
+        df_gantt['Task'] = df_gantt['ID_WBS'].astype(str) + " - " + df_gantt['Attività']
         
+        gantt_data = []
+        
+        # FIX ERRORE ANNO 2000: Utilizziamo il motore standard px.timeline che calcola le date in totale autonomia
         if vista in ["Progetto (Baseline)", "Comparativa"]:
-            # FIX ERRORE ANNO 2000: Aggiungiamo tecnicamente 1 giorno a tutte le durate (in millisecondi). 
-            # In questo modo anche i Task "In giornata" (Durata matematica 0) vengono resi visibili da Plotly.
-            durata_prevista_ms = (df_gantt['Fine_Prevista'] - df_gantt['Inizio_Previsto'] + pd.Timedelta(days=1)).dt.total_seconds() * 1000
-            
-            fig.add_trace(go.Bar(
-                x=durata_prevista_ms,
-                y=df_gantt['ID_WBS'].astype(str) + " - " + df_gantt['Attività'],
-                base=df_gantt['Inizio_Previsto'],
-                orientation='h',
-                name='Baseline',
-                width=0.4, 
-                marker=dict(color='rgba(0, 0, 255, 0.4)') if vista == "Comparativa" else dict(color='blue')
-            ))
-            
+            for _, row in df_gantt.iterrows():
+                if pd.notna(row['Inizio_Previsto']) and pd.notna(row['Fine_Prevista']):
+                    end_date = row['Fine_Prevista'] + pd.Timedelta(days=1)
+                    gantt_data.append(dict(
+                        Task=row['Task'], 
+                        Start=row['Inizio_Previsto'], 
+                        Finish=end_date, 
+                        Tipo='Baseline'
+                    ))
+                    
         if vista in ["Esecuzione (Esecutivo)", "Comparativa"]:
-            df_esec = df_gantt.dropna(subset=['Inizio_Effettivo']).copy()
-            if not df_esec.empty:
-                durata_effettiva_ms = (df_esec['Fine_Effettiva'] - df_esec['Inizio_Effettivo'] + pd.Timedelta(days=1)).dt.total_seconds() * 1000
-                
-                fig.add_trace(go.Bar(
-                    x=durata_effettiva_ms,
-                    y=df_esec['ID_WBS'].astype(str) + " - " + df_esec['Attività'],
-                    base=df_esec['Inizio_Effettivo'],
-                    orientation='h',
-                    name='Esecutivo',
-                    width=0.2, 
-                    marker=dict(color='red')
-                ))
+            for _, row in df_gantt.iterrows():
+                if pd.notna(row['Inizio_Effettivo']):
+                    end_date = row['Fine_Effettiva'] + pd.Timedelta(days=1)
+                    gantt_data.append(dict(
+                        Task=row['Task'], 
+                        Start=row['Inizio_Effettivo'], 
+                        Finish=end_date, 
+                        Tipo='Esecutivo'
+                    ))
+                    
+        if gantt_data:
+            df_plot = pd.DataFrame(gantt_data)
             
-        fig.update_layout(
-            barmode='overlay', 
-            height=600, 
-            bargap=0.3, 
-            xaxis_title="Linea Temporale", 
-            yaxis_title="Lavorazioni (WBS)", 
-            yaxis={'autorange': 'reversed'},
-            xaxis_type='date' 
-        )
-        st.plotly_chart(fig, use_container_width=True)
+            fig = px.timeline(
+                df_plot, 
+                x_start="Start", 
+                x_end="Finish", 
+                y="Task", 
+                color="Tipo",
+                color_discrete_map={'Baseline': 'rgba(0, 0, 255, 0.5)', 'Esecutivo': 'red'}
+            )
+            
+            fig.update_layout(barmode='overlay')
+            fig.update_yaxes(autorange="reversed")
+            fig.update_layout(height=600, xaxis_title="Linea Temporale", yaxis_title="Lavorazioni (WBS)")
+            
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("⚠️ Non ci sono date valide per generare il grafico.")
     else:
-        st.info("⚠️ Il cronoprogramma è vuoto. **Assicurati di aver inserito le date di Inizio e Fine nelle righe di lavoro** e di aver salvato i dati (nel Tab 1).")
+        st.info("⚠️ Il cronoprogramma è vuoto. **Assicurati di aver inserito le date di Inizio e Fine nelle righe di lavoro** all'interno dei capitoli (nel Tab 1).")
         
 # --- TAB 5: EVM E CASH FLOW ---
 with tab5:
@@ -1112,7 +1107,7 @@ with tab5:
         
         for _, row in critici_tempo.iterrows():
             st.error(f"⏳ **Ritardo Schedulazione su '{row['Attività']}':** (SPI = {row['SPI']:.2f})")
-            st.markdown(f"> *Il Work Package sta generating meno valore del previsto. Dato lo scostamento, **devi accelerare la produzione**.*")
+            st.markdown(f"> *Il Work Package sta generando meno valore del previsto. Dato lo scostamento, **devi accelerare la produzione**.*")
             st.markdown(f"> * **Soluzioni suggerite:** Verifica la disponibilità della risorsa ({row['ID_OBS_Assegnato']}), valuta di approvare lavoro straordinario o affianca un sub-appaltatore per recuperare il gap prima che intacchi il percorso critico (CPM).*")
             
         for _, row in critici_costo.iterrows():
