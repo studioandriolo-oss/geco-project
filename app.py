@@ -1195,6 +1195,9 @@ with tab6:
     leaf_wbs = get_foglie(st.session_state.wbs_data)
     wbs_options = [f"{row['ID_WBS']} - {row['Attività']}" for _, row in leaf_wbs.iterrows()]
     
+    # --- CREAZIONE LISTA FORNITORI DAL TAB OBS ---
+    obs_options = [""] + [f"{row['ID_OBS']} - {row['Risorsa']}" for _, row in st.session_state.obs_data.iterrows() if pd.notna(row['ID_OBS'])]
+    
     edited_registro = st.data_editor(
         st.session_state.registro_data,
         num_rows="dynamic",
@@ -1203,7 +1206,11 @@ with tab6:
         column_config={
             "Data": st.column_config.DateColumn("Data Registrazione"),
             "N_Doc": st.column_config.TextColumn("N° Doc/Fattura"),
-            "Fornitore": st.column_config.TextColumn("Fornitore (OBS)"),
+            "Fornitore": st.column_config.SelectboxColumn(
+                "Fornitore (OBS) ▾",
+                options=obs_options,
+                help="Scegli il fornitore dall'anagrafica OBS caricata nel Tab 2"
+            ),
             "Descrizione": st.column_config.TextColumn("Descrizione / Note"),
             "Importo_Netto": st.column_config.NumberColumn(
                 "Importo Netto (€)", 
@@ -1231,7 +1238,7 @@ with tab7:
     wbs_options_capa = [f"{row['ID_WBS']} - {row['Attività']}" for _, row in leaf_wbs_capa.iterrows()]
     
     df_obs_capa = st.session_state.obs_data
-    obs_options_capa = [f"{row['ID_OBS']} - {row['Ruolo']}" for _, row in df_obs_capa.iterrows()]
+    obs_options_capa = [f"{row['ID_OBS']} - {row['Risorsa']}" for _, row in df_obs_capa.iterrows()]
     
     # ---------------------------------------------------------
     # SEZIONE 1: REGISTRO DEGLI INTERVENTI (ACTION LOG)
@@ -1248,7 +1255,7 @@ with tab7:
             "ID_WBS_Rif": st.column_config.SelectboxColumn("Attività WBS (Rif.)", options=wbs_options_capa, required=True),
             "Tipo_Azione": st.column_config.SelectboxColumn("Tipo", options=["Correttiva ▾", "Preventiva ▾"], required=True),
             "Descrizione": st.column_config.TextColumn("Descrizione Intervento / Ordine", width="large"),
-            "Responsabile_OBS": st.column_config.SelectboxColumn("Assegnato a (OBS)", options=obs_options_capa, required=True),
+            "Responsabile_OBS": st.column_config.SelectboxColumn("Risorsa (OBS)", options=obs_options_capa, required=True),
             "Stato": st.column_config.SelectboxColumn("Stato", options=["Aperto ▾", "In Lavorazione ▾", "Chiuso ▾"], required=True)
         }
     )
