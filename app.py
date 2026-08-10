@@ -80,6 +80,63 @@ if 'nome_progetto_attivo' not in st.session_state:
 
 # --- 2. MOTORI MATEMATICI (Albero Gerarchico e Analisi) ---
 
+def rinumera_albero():
+    """Riassegna l'ordine da 1 a N a tutte le radici e rinomina di conseguenza tutti i figli."""
+    df = st.session_state.wbs_data.copy()
+    is_root = ~df['ID_WBS'].astype(str).str.contains('\.')
+    radici_list = df[is_root]['ID_WBS'].astype(str).tolist()
+    
+    mapping = {old_id: str(new_idx + 1) for new_idx, old_id in enumerate(radici_list)}
+    
+    def aggiorna_id(val):
+        if not val or pd.isna(val) or str(val).strip() == '': return val
+        parts = str(val).strip().split('.')
+        if parts[0] in mapping:
+            parts[0] = mapping[parts[0]]
+        return '.'.join(parts)
+        
+    def aggiorna_preds(val):
+        if not val or pd.isna(val) or str(val).strip() == '': return val
+        preds = [p.strip() for p in str(val).split(',')]
+        new_preds = [aggiorna_id(p) for p in preds]
+        return ', '.join(new_preds)
+        
+    df['ID_WBS'] = df['ID_WBS'].apply(aggiorna_id)
+    if 'Predecessori' in df.columns:
+        df['Predecessori'] = df['Predecessori'].apply(aggiorna_preds)
+        
+    st.session_state.wbs_data = df
+
+def sposta_padre(id_radice, direzione):
+    """Sposta una macro-categoria su o giù nell'elenco riordinando il DataFrame."""
+    df = st.session_state.wbs_data.copy()
+    is_root = ~df['ID_WBS'].astype(str).str.contains('\.')
+    radici_list = df[is_root]['ID_WBS'].astype(str).tolist()
+    
+    if id_radice not in radici_list: return
+    idx = radici_list.index(id_radice)
+    
+    if direzione == 'su' and idx > 0:
+        radici_list[idx], radici_list[idx-1] = radici_list[idx-1], radici_list[idx]
+    elif direzione == 'giu' and idx < len(radici_list) - 1:
+        radici_list[idx], radici_list[idx+1] = radici_list[idx+1], radici_list[idx]
+    else:
+        return
+        
+    order_map = {val: i for i, val in enumerate(radici_list)}
+    
+    df['temp_root'] = df['ID_WBS'].astype(str).apply(lambda x: x.split('.')[0])
+    df['temp_order'] = df['temp_root'].map(order_map)
+    df['sort_key'] = df['ID_WBS'].astype(str).apply(lambda x: [p.zfill(5) for p in x.split('.')])
+    
+    # Riordina in base al nuovo ordine delle radici
+    df = df.sort_values(by=['temp_order', 'sort_key']).drop(columns=['temp_root', 'temp_order', 'sort_key']).reset_index(drop=True)
+    st.session_state.wbs_data = df
+    
+    rinumera_albero()
+    st.session_state.wbs_data = aggiorna_gerarchia(st.session_state.wbs_data)
+    st.rerun()
+
 def get_foglie(df):
     """Estrae solo i nodi operativi (le Foglie), escludendo i contenitori (Padri)"""
     ids = df['ID_WBS'].astype(str).tolist()
@@ -433,6 +490,7 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
 with tab1:
     st.header("WBS - Work Breakdown Structure")
     st.markdown('*Puoi inserire livelli profondi a piacere (es. 1.1.2.1). Il sistema riconoscerà automaticamente i "Padri" e ne bloccherà i costi.*')
+    st.info("💡 **Come cancellare i dati operativi:** Per eliminare una riga operativa (foglia), **seleziona la spunta alla sua sinistra e premi Canc/Del sulla tua tastiera**.")
     
     df = st.session_state.wbs_data.copy()
     df['Durata_Prevista (gg)'] = (pd.to_datetime(df['Fine_Prevista']) - pd.to_datetime(df['Inizio_Previsto'])).dt.days
@@ -443,6 +501,7 @@ with tab1:
     
     df_aggiornato = pd.DataFrame()
     
+    # --- CICLO DI DISEGNO DELLE MACRO-CATEGORIE ---
     for idx_riga, radice in radici.iterrows():
         id_radice = str(radice['ID_WBS'])
         discendenti = df[df['ID_WBS'].astype(str).str.startswith(f"{id_radice}.")]
@@ -450,6 +509,26 @@ with tab1:
         
         with st.expander(f"📁 {id_radice} - {radice['Attività']} (Budget Totale Raggruppato: € {tot_budget:,.2f})", expanded=True):
             
+            # Pulsantiera di Gestione Padre (Sposta, Elimina)
+            col_del, col_up, col_down, _ = st.columns([1.5, 1, 1, 6])
+            
+            if col_del.button(f"🗑️ Elimina", key=f"del_{id_radice}"):
+                mask = (st.session_state.wbs_data['ID_WBS'].astype(str) == id_radice) | (st.session_state.wbs_data['ID_WBS'].astype(str).str.startswith(f"{id_radice}."))
+                st.session_state.wbs_data = st.session_state.wbs_data[~mask]
+                
+                if st.session_state.wbs_data.empty:
+                    st.session_state.wbs_data = pd.DataFrame([{'ID_WBS': '1', 'Attività': 'Progetto Principale', 'BAC_Budget': 0.0, '%_Completamento': 0.0, 'AC_Costo_Reale': 0.0}])
+                else:
+                    rinumera_albero() # Tappa i "buchi" lasciati dalla cancellazione
+                st.session_state.wbs_data = aggiorna_gerarchia(st.session_state.wbs_data)
+                st.rerun()
+                
+            if col_up.button("⬆️ Su", key=f"up_{id_radice}"):
+                sposta_padre(id_radice, 'su')
+                
+            if col_down.button("⬇️ Giù", key=f"down_{id_radice}"):
+                sposta_padre(id_radice, 'giu')
+
             discendenti_modificati = st.data_editor(
                 discendenti,
                 key=f"editor_wbs_idx_{idx_riga}_id_{id_radice}",
@@ -469,13 +548,18 @@ with tab1:
             
             df_aggiornato = pd.concat([df_aggiornato, pd.DataFrame([radice]), discendenti_modificati], ignore_index=True)
             
+    # --- MODULO SMART AGGIUNTA NUOVA MACRO-CATEGORIA ---
     with st.form("aggiungi_padre"):
-        st.write("Aggiungi un nuovo Nodo Radice (Macro-Categoria)")
-        c1, c2, c3 = st.columns([2, 5, 2])
-        nuovo_id = c1.text_input("ID (es. 2)")
-        nuova_att = c2.text_input("Nome Macro-Categoria")
-        if c3.form_submit_button("➕ Aggiungi Radice"):
-            if nuovo_id and nuova_att:
+        st.write("Aggiungi un nuovo Capitolo (Macro-Categoria)")
+        c1, c2 = st.columns([4, 1])
+        nuova_att = c1.text_input("Nome della nuova Macro-Categoria", placeholder="Es. Isolamento Termico")
+        
+        if c2.form_submit_button("➕ Aggiungi"):
+            if nuova_att:
+                # Calcola in automatico l'ultimo ID WBS disponibile
+                is_root_calc = ~st.session_state.wbs_data['ID_WBS'].astype(str).str.contains('\.')
+                nuovo_id = str(len(st.session_state.wbs_data[is_root_calc]) + 1)
+                
                 nuova_riga = pd.DataFrame([{
                     'ID_WBS': nuovo_id, 'Attività': nuova_att, 'BAC_Budget': 0.0, 
                     '%_Completamento': 0, 'AC_Costo_Reale': 0.0
@@ -484,12 +568,11 @@ with tab1:
                 st.session_state.wbs_data = aggiorna_gerarchia(st.session_state.wbs_data)
                 st.rerun()
 
-    # IL SALVATAGGIO ORA È MANUALE PER EVITARE LOOP DI DUPLICAZIONE
-    st.info("⚠️ Clicca il tasto qui sotto per ricalcolare la gerarchia dopo aver modificato i dati nella tabella.")
+    st.warning("⚠️ Clicca il tasto qui sotto per ricalcolare la gerarchia (budget e tempi) dopo aver aggiunto o eliminato lavorazioni nelle tabelle.")
     if st.button("💾 SALVA MODIFICHE E RICALCOLA ALBERO WBS", type="primary", use_container_width=True):
         st.session_state.wbs_data = aggiorna_gerarchia(df_aggiornato)
         st.rerun()
-
+        
 # --- TAB 2: SETUP OBS (Solo Risorse) ---
 with tab2:
     st.header("OBS - Organization Breakdown Structure")
