@@ -626,6 +626,13 @@ with tab1:
     
     # --- TABELLE DEI DATI ---
     df = st.session_state.wbs_data.copy()
+    
+    # FIX ERRORE: Forziamo il tipo "Data" sulle colonne per evitare crash con celle vuote (NaN/Float)
+    colonne_date = ['Inizio_Previsto', 'Fine_Prevista', 'Inizio_Effettivo', 'Fine_Effettiva']
+    for col in colonne_date:
+        if col in df.columns:
+            df[col] = pd.to_datetime(df[col], errors='coerce').dt.date
+            
     df['Durata_Prevista (gg)'] = (pd.to_datetime(df['Fine_Prevista']) - pd.to_datetime(df['Inizio_Previsto'])).dt.days
     
     is_root = ~df['ID_WBS'].astype(str).str.contains('\.')
@@ -642,14 +649,20 @@ with tab1:
             
             st.caption("Per aggiungere nuove lavorazioni in questo capitolo, clicca l'ultima riga grigia in fondo. L'ID definitivo verrà assegnato in automatico al salvataggio.")
             
-            # LA TABELLA DEL CAPITOLO (ID_WBS COMPLETAMENTE BLOCCATO)
+            # Elenco delle colonne derivate e bloccate per evitare errori di battitura
+            colonne_bloccate = ["ID_WBS", "Durata_Prevista (gg)", "AC_Costo_Reale", "PV", "EV", "CV", "SV", "SPI", "CPI", "EAC", "ETC", "VAC"]
+            
+            # Rimuoviamo dalla lista di blocco eventuali colonne che per qualche motivo non sono ancora nel dataframe (sicurezza extra)
+            colonne_bloccate = [col for col in colonne_bloccate if col in discendenti.columns]
+            
+            # LA TABELLA DEL CAPITOLO
             discendenti_modificati = st.data_editor(
                 discendenti,
                 key=f"editor_wbs_idx_{idx_riga}_id_{id_radice}",
                 num_rows="dynamic",
                 use_container_width=True,
                 hide_index=True,
-                disabled=["ID_WBS", "Durata_Prevista (gg)", "AC_Costo_Reale"], 
+                disabled=colonne_bloccate, 
                 column_config={
                     "ID_WBS": st.column_config.TextColumn("ID WBS (Auto)", help="Numerazione automatica protetta dal sistema"),
                     "Predecessori": st.column_config.TextColumn("Predecessori", help="Es. 1.1, 1.2"),
@@ -700,7 +713,20 @@ with tab1:
             if nuova_att:
                 is_root_calc = ~st.session_state.wbs_data['ID_WBS'].astype(str).str.contains('\.')
                 nuovo_id = str(len(st.session_state.wbs_data[is_root_calc]) + 1)
-                nuova_riga = pd.DataFrame([{'ID_WBS': nuovo_id, 'Attività': nuova_att, 'BAC_Budget': 0.0, '%_Completamento': 0.0, 'AC_Costo_Reale': 0.0}])
+                
+                # FIX ERRORE: Dichiariamo esplicitamente la riga completa con tutte le colonne vuote
+                nuova_riga = pd.DataFrame([{
+                    'ID_WBS': nuovo_id, 
+                    'Attività': nuova_att, 
+                    'Inizio_Previsto': None,
+                    'Fine_Prevista': None,
+                    'Inizio_Effettivo': None,
+                    'Fine_Effettiva': None,
+                    'BAC_Budget': 0.0, 
+                    '%_Completamento': 0.0, 
+                    'AC_Costo_Reale': 0.0,
+                    'Predecessori': None
+                }])
                 st.session_state.wbs_data = pd.concat([st.session_state.wbs_data, nuova_riga], ignore_index=True)
                 modifica_struttura('1', 'rinumera') 
 
