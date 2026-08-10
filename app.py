@@ -127,66 +127,109 @@ def modifica_struttura(id_target, azione):
     """Algoritmo Outliner: Sposta interi blocchi (nodi + figli), rientra, sporge e rinumera tutto il progetto."""
     df = st.session_state.wbs_data.copy()
     
-    # Se elimina, filtriamo subito (elimina nodo e tutti i suoi discendenti)
+    # Helper per estrarre una chiave di ordinamento numerica dagli ID (es. 1.10 viene dopo 1.2)
+    def get_sort_key(wbs_id):
+        return [int(x) if x.isdigit() else x for x in str(wbs_id).split('.')]
+    
+    # Prepariamo il DataFrame aggiungendo il livello di profondità
+    df['sort_key'] = df['ID_WBS'].apply(get_sort_key)
+    df = df.sort_values(by='sort_key').reset_index(drop=True)
+    df['Livello'] = df['ID_WBS'].apply(lambda x: len(str(x).split('.')))
+    
     if azione == 'elimina':
         mask = (df['ID_WBS'].astype(str) == id_target) | (df['ID_WBS'].astype(str).str.startswith(f"{id_target}."))
         df = df[~mask]
-        if df.empty: # Non lasciare mai il database vuoto
-            df = pd.DataFrame([{'ID_WBS': '1', 'Attività': 'Progetto Principale', 'BAC_Budget': 0.0, '%_Completamento': 0.0, 'AC_Costo_Reale': 0.0}])
-    
-    # Calcoliamo Livelli e ordiniamo per il ricalcolo spaziale
-    df['sort_key'] = df['ID_WBS'].astype(str).apply(lambda x: '.'.join([p.zfill(5) for p in x.split('.')]))
-    df = df.sort_values(by='sort_key').reset_index(drop=True)
-    df['Livello'] = df['ID_WBS'].astype(str).apply(lambda x: len(x.split('.')))
-    
-    ids = df['ID_WBS'].astype(str).tolist()
-    
-    if azione not in ['elimina', 'rinumera']:
+        if df.empty:
+            df = pd.DataFrame([{'ID_WBS': '1', 'Attività': 'Progetto Principale', 'BAC_Budget': 0.0, '%_Completamento': 0.0, 'AC_Costo_Reale': 0.0, 'Livello': 1}])
+            st.session_state.wbs_data = df.drop(columns=['Livello'])
+            st.rerun()
+            
+    elif azione in ['su', 'giu', 'destra', 'sinistra']:
+        ids = df['ID_WBS'].astype(str).tolist()
         if id_target not in ids: return
-        target_idx = ids.index(id_target)
-        target_level = df.at[target_idx, 'Livello']
         
-        # Identifica il "Blocco" da spostare (il target + tutti i suoi figli)
-        end_idx = target_idx + 1
-        while end_idx < len(df) and df.at[end_idx, 'Livello'] > target_level:
+        idx = ids.index(id_target)
+        livello_target = df.at[idx, 'Livello']
+        
+        # Identifica il "Blocco" da spostare (il target + tutti i suoi figli/sottocartelle)
+        end_idx = idx + 1
+        while end_idx < len(df) and df.at[end_idx, 'Livello'] > livello_target:
             end_idx += 1
-        block_indices = list(range(target_idx, end_idx))
+        blocco_target = list(range(idx, end_idx))
         
-        # AZIONI DI SPOSTAMENTO (Outliner)
-        if azione == 'sinistra' and target_level > 1:
-            df.loc[block_indices, 'Livello'] -= 1  # Promuove a Padre
-            
-        elif azione == 'destra' and target_idx > 0 and df.at[target_idx - 1, 'Livello'] >= target_level:
-            df.loc[block_indices, 'Livello'] += 1  # Declassa a Figlio
-            
+        # --- LOGICA DI SPOSTAMENTO ---
+        if azione == 'destra':
+            # Rendi Figlio: Può rientrare solo se l'elemento sopra di lui ha un livello >= al suo
+            if idx > 0 and df.at[idx - 1, 'Livello'] >= livello_target:
+                df.loc[blocco_target, 'Livello'] += 1
+                
+        elif azione == 'sinistra':
+            # Rendi Padre: Può uscire verso sinistra solo se non è già una Radice Assoluta (livello 1)
+            if livello_target > 1:
+                df.loc[blocco_target, 'Livello'] -= 1
+                
         elif azione == 'su':
-            prev_sibling_idx = -1
-            for i in range(target_idx - 1, -1, -1):
-                if df.at[i, 'Livello'] < target_level: break # Trovato padre, stop
-                if df.at[i, 'Livello'] == target_level:
-                    prev_sibling_idx = i
-                    break
-            if prev_sibling_idx != -1:
-                sibling_block = list(range(prev_sibling_idx, target_idx))
+            # Cambia Ordine Su: Trova il "fratello" precedente allo stesso livello
+            prev_idx = idx - 1
+            while prev_idx >= 0 and df.at[prev_idx, 'Livello'] > livello_target:
+                prev_idx -= 1
+            # Se ha trovato un fratello, li scambiamo
+            if prev_idx >= 0 and df.at[prev_idx, 'Livello'] == livello_target:
+                blocco_prev = list(range(prev_idx, idx))
                 new_order = list(range(len(df)))
-                new_order[prev_sibling_idx:end_idx] = block_indices + sibling_block
+                new_order[prev_idx:end_idx] = blocco_target + blocco_prev
                 df = df.iloc[new_order].reset_index(drop=True)
                 
         elif azione == 'giu':
-            next_sibling_idx = -1
-            for i in range(end_idx, len(df)):
-                if df.at[i, 'Livello'] < target_level: break
-                if df.at[i, 'Livello'] == target_level:
-                    next_sibling_idx = i
-                    break
-            if next_sibling_idx != -1:
-                sibling_end = next_sibling_idx + 1
-                while sibling_end < len(df) and df.at[sibling_end, 'Livello'] > target_level:
-                    sibling_end += 1
-                sibling_block = list(range(next_sibling_idx, sibling_end))
+            # Cambia Ordine Giù: Trova il "fratello" successivo allo stesso livello
+            next_idx = end_idx
+            if next_idx < len(df) and df.at[next_idx, 'Livello'] == livello_target:
+                next_end = next_idx + 1
+                while next_end < len(df) and df.at[next_end, 'Livello'] > livello_target:
+                    next_end += 1
+                blocco_next = list(range(next_idx, next_end))
                 new_order = list(range(len(df)))
-                new_order[target_idx:sibling_end] = sibling_block + block_indices
+                new_order[idx:next_end] = blocco_next + blocco_target
                 df = df.iloc[new_order].reset_index(drop=True)
+
+    # --- RIFACIMENTO ID WBS DA ZERO (Rinumerazione Totale) ---
+    nuovi_id = []
+    counters = {}
+    
+    for index, row in df.iterrows():
+        liv = row['Livello']
+        
+        # 1. Pulisce i contatori delle sottocartelle precedenti
+        for k in list(counters.keys()):
+            if k > liv:
+                del counters[k]
+                
+        # 2. Incrementa di +1 il contatore del livello attuale
+        counters[liv] = counters.get(liv, 0) + 1
+        
+        # 3. Costruisce la stringa con i punti (es. "3.1.2")
+        id_parts = [str(counters[i]) for i in range(1, liv + 1)]
+        nuovi_id.append(".".join(id_parts))
+        
+    # Mappatura Vecchi ID -> Nuovi ID per sistemare la colonna "Predecessori"
+    old_ids = df['ID_WBS'].astype(str).tolist()
+    mapping = dict(zip(old_ids, nuovi_id))
+    
+    def aggiorna_preds(val):
+        if not val or pd.isna(val) or str(val).strip() == '': return val
+        preds = [p.strip() for p in str(val).split(',')]
+        new_preds = [mapping.get(p, p) for p in preds]
+        return ', '.join(new_preds)
+        
+    df['ID_WBS'] = nuovi_id
+    if 'Predecessori' in df.columns:
+        df['Predecessori'] = df['Predecessori'].apply(aggiorna_preds)
+        
+    # Pulizia colonne temporanee e salvataggio
+    df = df.drop(columns=['Livello', 'sort_key'])
+    st.session_state.wbs_data = df
+    st.session_state.wbs_data = aggiorna_gerarchia(st.session_state.wbs_data)
+    st.rerun()
                 
     # FASE 2: Ricalcolo intelligente degli ID WBS in base ai nuovi livelli (Rinumerazione Totale)
     nuovi_id = []
