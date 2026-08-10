@@ -685,28 +685,28 @@ with tab2:
 with tab3:
     st.header("Incrocio Logico (Work Packages e Percorso Critico)")
     
+    # Attiviamo l'algoritmo CPM in background
     cpm_data = calcola_cpm(st.session_state.wbs_data)
+    
     mostra_relazioni = st.toggle("👁️ Mostra Relazioni tra WP (Interferenze)", value=True)
     
     graph = graphviz.Digraph(engine='dot')
     graph.attr(rankdir='LR', ranksep='1.5', nodesep='0.8', splines='spline')
     graph.attr('node', fontname='Helvetica', fontsize='10', margin='0.2')
     
+    # --- NODI OBS ---
     for _, row in st.session_state.obs_data.iterrows():
-        ruolo_safe = html.escape(str(row.get('Ruolo', '')))
-        risorsa_safe = html.escape(str(row.get('Risorsa', '')))
-        
         label_html = f"<<TABLE BORDER='0' CELLBORDER='0' CELLSPACING='2'>"
-        label_html += f"<TR><TD><B>{ruolo_safe}</B></TD></TR>"
-        label_html += f"<TR><TD>({risorsa_safe})</TD></TR>"
+        label_html += f"<TR><TD><B>{row['Ruolo']}</B></TD></TR>"
+        label_html += f"<TR><TD>({row['Risorsa']})</TD></TR>"
         
         colonne_base = ['ID_OBS', 'Ruolo', 'Risorsa', 'Tipo_Contratto', 'Note']
         colonne_custom = [col for col in st.session_state.obs_data.columns if col not in colonne_base]
         
         for col in colonne_custom:
-            valore = row.get(col, '')
+            valore = row[col]
             if pd.notna(valore) and str(valore).strip() != "":
-                label_html += f"<TR><TD><FONT POINT-SIZE='9' COLOR='gray30'>{html.escape(str(col))}: {html.escape(str(valore))}</FONT></TD></TR>"
+                label_html += f"<TR><TD><FONT POINT-SIZE='9' COLOR='gray30'>{col}: {valore}</FONT></TD></TR>"
         label_html += "</TABLE>>"
         
         graph.node(
@@ -719,35 +719,41 @@ with tab3:
             penwidth='1.5'
         )
         
+    # --- NODI WBS E PERCORSO CRITICO ---
+    # CORREZIONE 1: Usiamo la logica get_foglie() per pescare i veri task operativi dal Tab 1
     df_wp_reali = get_foglie(st.session_state.wbs_data)
     valid_wbs_ids = set(df_wp_reali['ID_WBS'].astype(str))
     
     for _, row in df_wp_reali.iterrows():
-        attivita_safe = html.escape(str(row.get('Attività', '')))
+        # Protezione caratteri speciali (come <, &) che bloccano il disegno
+        attivita = html.escape(str(row['Attività']))
         budget = float(row['BAC_Budget'])
         costo_reale = float(row['AC_Costo_Reale'])
         completamento = float(row['%_Completamento'])
         
+        # Recuperiamo i dati CPM per questo nodo specifico
         wp_cpm = cpm_data.get(str(row['ID_WBS']).strip(), {})
         margine = wp_cpm.get('slack', 0)
         is_critical = wp_cpm.get('is_critical', False)
         
+        # CORREZIONE 2: Lettura sicura delle date per evitare crash del grafico (Schermo Bianco)
         inizio_val = pd.to_datetime(row['Inizio_Previsto'], errors='coerce')
         inizio_str = inizio_val.strftime('%d/%m/%Y') if pd.notna(inizio_val) else "N/D"
         
         fine_val = pd.to_datetime(row['Fine_Prevista'], errors='coerce')
         fine_str = fine_val.strftime('%d/%m/%Y') if pd.notna(fine_val) else "N/D"
         
+        # HTML arricchito: Margine in rosso se critico
         testo_margine = f"<FONT COLOR='#D32F2F'><B>Margine: {margine} gg</B></FONT>" if is_critical else f"<FONT COLOR='#388E3C'>Margine: {margine} gg</FONT>"
         
-        # Simboli Euro scritti chiaramente, senza l'uso dell'entità HTML che manda in crash Graphviz
         wp_html = f"<<TABLE BORDER='0' CELLBORDER='0' CELLSPACING='4'>"
-        wp_html += f"<TR><TD COLSPAN='2'><B>{row['ID_WBS']} - {attivita_safe}</B></TD></TR>"
+        wp_html += f"<TR><TD COLSPAN='2'><B>{row['ID_WBS']} - {attivita}</B></TD></TR>"
         wp_html += f"<TR><TD ALIGN='LEFT'>Inizio: {inizio_str}</TD><TD ALIGN='RIGHT'>Fine: {fine_str}</TD></TR>"
-        wp_html += f"<TR><TD ALIGN='LEFT'>Budget: € {budget:,.2f}</TD><TD ALIGN='RIGHT'>AC: € {costo_reale:,.2f}</TD></TR>"
+        wp_html += f"<TR><TD ALIGN='LEFT'>Budget: &euro; {budget:,.2f}</TD><TD ALIGN='RIGHT'>AC: &euro; {costo_reale:,.2f}</TD></TR>"
         wp_html += f"<TR><TD ALIGN='LEFT'>Avanzamento: {completamento:.1f}%</TD><TD ALIGN='RIGHT'>{testo_margine}</TD></TR>"
         wp_html += "</TABLE>>"
         
+        # Gestione Stile (Barra di progresso)
         if completamento >= 100:
             stile = 'rounded,filled'
             colore_sfondo = '#C8E6C9' 
@@ -759,8 +765,9 @@ with tab3:
             quota_verde = completamento / 100.0
             colore_sfondo = f"#C8E6C9;{quota_verde}:white"
             
-        bordo_colore = '#D32F2F' if is_critical else '#388E3C'  
-        spessore_bordo = '3.0' if is_critical else '1.5'        
+        # --- APPLICAZIONE STILE PERCORSO CRITICO ---
+        bordo_colore = '#D32F2F' if is_critical else '#388E3C'  # Rosso se critico, altrimenti verde scuro
+        spessore_bordo = '3.0' if is_critical else '1.5'        # Più spesso se critico
         
         graph.node(
             f"WBS_{row['ID_WBS']}", 
@@ -772,12 +779,14 @@ with tab3:
             penwidth=spessore_bordo
         )
         
+        # Assegnazioni OBS (Linee grigie)
         if pd.notna(row['ID_OBS_Assegnato']) and str(row['ID_OBS_Assegnato']).strip() not in ['', 'None', 'nan']:
             obs_ids = str(row['ID_OBS_Assegnato']).split(',')
             for o_id in obs_ids:
                 if o_id.strip():
                     graph.edge(f"OBS_{o_id.strip()}", f"WBS_{row['ID_WBS']}", color='#757575', penwidth='1.5', arrowsize='0.8')
                     
+        # Connessioni WP (Il Fiume Logico)
         if mostra_relazioni and 'Predecessori' in row and pd.notna(row['Predecessori']) and str(row['Predecessori']).strip() not in ['', 'None', 'nan']:
             preds = str(row['Predecessori']).split(',')
             for p_id in preds:
@@ -785,13 +794,14 @@ with tab3:
                 if p_id in valid_wbs_ids:
                     pred_is_critical = cpm_data.get(p_id, {}).get('is_critical', False)
                     
+                    # Se ENTRAMBI i nodi sono sul percorso critico, coloriamo il cavo di rosso spesso
                     if is_critical and pred_is_critical:
-                        colore_cavo = '#D32F2F' 
+                        colore_cavo = '#D32F2F' # Rosso fuoco
                         stile_cavo = 'solid'
                         spessore_cavo = '2.5'
                         freccia = '1.0'
                     else:
-                        colore_cavo = '#FF9800' 
+                        colore_cavo = '#FF9800' # Arancione standard
                         stile_cavo = 'dashed'
                         spessore_cavo = '1.0'
                         freccia = '0.6'
@@ -805,12 +815,56 @@ with tab3:
                         arrowsize=freccia
                     )
 
-    # Rendering Nativo Streamlit (Anticrash & Antiframe)
+    # Rendering interattivo
     try:
-        st.graphviz_chart(graph, use_container_width=True)
+        raw_svg = graph.pipe(format='svg').decode('utf-8')
+        svg_data = raw_svg[raw_svg.find('<svg'):]
+        
+        html_code = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <script src="https://cdn.jsdelivr.net/npm/svg-pan-zoom@3.6.1/dist/svg-pan-zoom.min.js"></script>
+            <style>
+                body {{ margin: 0; padding: 0; overflow: hidden; background-color: #fafafa; }}
+                #svg-container {{ width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center; }}
+                svg {{ width: 100% !important; height: 100% !important; }}
+            </style>
+        </head>
+        <body>
+            <div id="svg-container">
+                {svg_data}
+            </div>
+            <script>
+                window.onload = function() {{
+                    var svgElement = document.querySelector('svg');
+                    if (svgElement) {{
+                        svgElement.setAttribute('id', 'grafo-interattivo');
+                        svgElement.removeAttribute('width');
+                        svgElement.removeAttribute('height');
+                        var panZoom = svgPanZoom('#grafo-interattivo', {{
+                            zoomEnabled: true,
+                            controlIconsEnabled: true,
+                            fit: true,
+                            center: true,
+                            minZoom: 0.1,
+                            maxZoom: 10,
+                            mouseWheelZoomEnabled: true
+                        }});
+                    }} else {{
+                        document.getElementById('svg-container').innerHTML = "Errore grafico SVG.";
+                    }}
+                }};
+            </script>
+        </body>
+        </html>
+        """
+        components.html(html_code, height=600)
     except Exception as e:
         st.error(f"Errore nella generazione del grafo: {e}")
+        st.graphviz_chart(graph)
 
+    # --- NUOVA LEGENDA DEL GRAFO ---
     st.divider()
     st.subheader("📖 Legenda del Grafo")
     
