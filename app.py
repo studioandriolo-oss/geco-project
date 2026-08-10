@@ -127,8 +127,8 @@ def aggiorna_gerarchia(df):
                 else:
                     df_calc.at[index, '%_Completamento'] = discendenti['%_Completamento'].mean()
                     
-    # Ripristiniamo un ordine naturale (es. 1.2 viene prima di 1.10)
-    df_calc['sort_key'] = df_calc['ID_WBS'].astype(str).apply(lambda x: [int(p) if p.isdigit() else p for p in x.split('.')])
+    # Ripristiniamo l'ordine usando un padding di stringhe (FIX PER L'ERRORE)
+    df_calc['sort_key'] = df_calc['ID_WBS'].astype(str).apply(lambda x: [p.zfill(5) for p in x.split('.')])
     df_calc = df_calc.sort_values(by='sort_key').drop(columns=['sort_key', 'Is_Leaf', 'Livello']).reset_index(drop=True)
     return df_calc
 
