@@ -622,15 +622,16 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
 # --- TAB 1: SETUP WBS (Struttura Gerarchica) ---
 with tab1:
     st.header("WBS - Work Breakdown Structure")
+    st.markdown('*I numeri ID sono **bloccati e gestiti dal sistema**. Usa il menù qui sotto per spostare, indentare o promuovere i vari livelli logici.*')
     
     # --- PANNELLO ORGANIZZATORE UNIVERSALE ---
     st.subheader("🔀 Organizzatore Gerarchico")
-    st.markdown('*Seleziona un nodo per **Declassarlo a Figlio** (destra), **Promuoverlo a Padre** (sinistra), **Spostarlo** su/giù o **Eliminarlo**.*')
+    st.info("💡 Seleziona un nodo dal menù a tendina per **Declassarlo a Figlio** (destra), **Promuoverlo a Padre** (sinistra), **Spostarlo** su/giù o **Eliminarlo**.")
     
     c_sel, c_btn1, c_btn2, c_btn3, c_btn4, c_btn5 = st.columns([3, 1.2, 1.2, 1, 1, 1])
     
     lista_wbs = st.session_state.wbs_data['ID_WBS'].astype(str) + " - " + st.session_state.wbs_data['Attività'].astype(str)
-    nodo_scelto = c_sel.selectbox("Seleziona una voce", options=lista_wbs, label_visibility="collapsed")
+    nodo_scelto = c_sel.selectbox("Seleziona una voce da spostare", options=lista_wbs, label_visibility="collapsed")
     
     if nodo_scelto:
         id_scelto = nodo_scelto.split(' - ')[0]
@@ -663,15 +664,18 @@ with tab1:
         
         with st.expander(f"📁 {id_radice} - {radice['Attività']} (Budget Totale Raggruppato: € {tot_budget:,.2f})", expanded=True):
             
+            st.caption(f"Per aggiungere nuove lavorazioni in questo capitolo, clicca l'ultima riga grigia in fondo. L'ID verrà calcolato automaticamente salvando.")
+            
             discendenti_modificati = st.data_editor(
                 discendenti,
                 key=f"editor_wbs_idx_{idx_riga}_id_{id_radice}",
                 num_rows="dynamic",
                 use_container_width=True,
                 hide_index=True,
-                disabled=["Durata_Prevista (gg)", "AC_Costo_Reale"], 
+                # BLOCCO TOTALE DELLA COMPILAZIONE MANUALE ID_WBS:
+                disabled=["ID_WBS", "Durata_Prevista (gg)", "AC_Costo_Reale"], 
                 column_config={
-                    "ID_WBS": st.column_config.TextColumn("ID WBS", required=True),
+                    "ID_WBS": st.column_config.TextColumn("ID WBS (Auto)", help="Calcolato in automatico dal sistema"),
                     "Predecessori": st.column_config.TextColumn("Predecessori", help="Es. 1.1, 1.2"),
                     "Inizio_Previsto": st.column_config.DateColumn("Inizio Previsto"),
                     "Fine_Prevista": st.column_config.DateColumn("Fine Prevista"),
@@ -680,24 +684,33 @@ with tab1:
                 }
             )
             
+            # Gestione "intelligente" delle righe appena create dall'utente (che hanno l'ID vuoto)
+            for i_row, row_mod in discendenti_modificati.iterrows():
+                val_id = str(row_mod['ID_WBS']).strip()
+                if val_id == '' or val_id == 'None' or val_id == 'nan':
+                    # Assegna un ID temporaneo. Verrà rinominato in bell'ordine dal motore al salvataggio.
+                    discendenti_modificati.at[i_row, 'ID_WBS'] = f"{id_radice}.999{i_row}"
+            
             df_aggiornato = pd.concat([df_aggiornato, pd.DataFrame([radice]), discendenti_modificati], ignore_index=True)
             
-    # INSERIMENTO NUOVI CAPITOLI
+    # INSERIMENTO NUOVI CAPITOLI (RADICI)
     with st.form("aggiungi_padre"):
         st.write("Aggiungi un nuovo Capitolo Principale in fondo alla lista")
         c1, c2 = st.columns([4, 1])
         nuova_att = c1.text_input("Nome", placeholder="Es. Isolamento a Cappotto")
-        if c2.form_submit_button("➕ Aggiungi"):
+        if c2.form_submit_button("➕ Aggiungi Capitolo"):
             if nuova_att:
                 is_root_calc = ~st.session_state.wbs_data['ID_WBS'].astype(str).str.contains('\.')
-                nuovo_id = str(len(st.session_state.wbs_data[is_root_calc]) + 1) # Calcola l'ID in automatico
+                nuovo_id = str(len(st.session_state.wbs_data[is_root_calc]) + 1)
                 nuova_riga = pd.DataFrame([{'ID_WBS': nuovo_id, 'Attività': nuova_att, 'BAC_Budget': 0.0, '%_Completamento': 0.0, 'AC_Costo_Reale': 0.0}])
                 st.session_state.wbs_data = pd.concat([st.session_state.wbs_data, nuova_riga], ignore_index=True)
-                modifica_struttura('1', 'rinumera') # Salva e riordina
+                modifica_struttura('1', 'rinumera') 
 
-    st.info("💡 **Aggiunta Rapida Sottomenù:** Se aggiungi righe manualmente all'interno delle tabelle digitando il numero, premi questo tasto per farle assorbire correttamente nell'albero.")
-    if st.button("💾 SALVA INSERIMENTI MANUALI NELLE TABELLE", type="primary", use_container_width=True):
-        st.session_state.wbs_data = aggiorna_gerarchia(df_aggiornato)
+    st.divider()
+    st.warning("⚠️ **Hai modificato le tabelle?** Clicca il tasto qui sotto per far calcolare al sistema la nuova numerazione e riallineare l'albero WBS.")
+    if st.button("💾 SALVA MODIFICHE TABELLE E RICALCOLA", type="primary", use_container_width=True):
+        st.session_state.wbs_data = df_aggiornato
+        # Questo comando 'pialla' gli ID temporanei inserendo i numeri perfetti in sequenza logica
         modifica_struttura('1', 'rinumera')
         
 # --- TAB 2: SETUP OBS (Solo Risorse) ---
