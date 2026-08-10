@@ -967,27 +967,28 @@ with tab4:
     
     c1, c2 = st.columns([1, 2])
     vista = c1.selectbox("Seleziona Vista", ["Progetto (Baseline)", "Esecuzione (Esecutivo)", "Comparativa"])
+    data_status_gantt = c2.date_input("📅 Data di Rilevamento (Simulazione avanzamento cantiere)", value=pd.Timestamp.today().date())
     
-    data_status_gantt = c2.date_input("📅 Data di Rilevamento (Simulazione avanzamento cantiere)", value=date(2026, 10, 15))
+    df_gantt = get_foglie(st.session_state.wbs_data).copy()
     
-    df_gantt = st.session_state.wbs_data.copy()
-    df_gantt = df_gantt[df_gantt['ID_WBS'].astype(str).str.contains('\.')] 
+    # FIX: Eliminiamo dal grafico le righe in cui non sono state ancora inserite le date
+    df_gantt = df_gantt.dropna(subset=['Inizio_Previsto', 'Fine_Prevista'])
     
     if not df_gantt.empty:
         df_gantt['Inizio_Previsto'] = pd.to_datetime(df_gantt['Inizio_Previsto'])
         df_gantt['Fine_Prevista'] = pd.to_datetime(df_gantt['Fine_Prevista'])
         df_gantt['Inizio_Effettivo'] = pd.to_datetime(df_gantt['Inizio_Effettivo'])
-        
         df_gantt['Fine_Effettiva'] = pd.to_datetime(df_gantt['Fine_Effettiva']).fillna(pd.to_datetime(data_status_gantt))
         
         fig = go.Figure()
         
         if vista in ["Progetto (Baseline)", "Comparativa"]:
+            # FIX ERRORE ANNO 2000: Riallineamento in millisecondi per l'asse temporale
             durata_prevista_ms = (df_gantt['Fine_Prevista'] - df_gantt['Inizio_Previsto']).dt.total_seconds() * 1000
             
             fig.add_trace(go.Bar(
                 x=durata_prevista_ms,
-                y=df_gantt['Attività'],
+                y=df_gantt['ID_WBS'].astype(str) + " - " + df_gantt['Attività'],
                 base=df_gantt['Inizio_Previsto'],
                 orientation='h',
                 name='Baseline',
@@ -997,30 +998,31 @@ with tab4:
             
         if vista in ["Esecuzione (Esecutivo)", "Comparativa"]:
             df_esec = df_gantt.dropna(subset=['Inizio_Effettivo']).copy()
-            durata_effettiva_ms = (df_esec['Fine_Effettiva'] - df_esec['Inizio_Effettivo']).dt.total_seconds() * 1000
-            
-            fig.add_trace(go.Bar(
-                x=durata_effettiva_ms,
-                y=df_esec['Attività'],
-                base=df_esec['Inizio_Effettivo'],
-                orientation='h',
-                name='Esecutivo',
-                width=0.2, 
-                marker=dict(color='red')
-            ))
+            if not df_esec.empty:
+                durata_effettiva_ms = (df_esec['Fine_Effettiva'] - df_esec['Inizio_Effettivo']).dt.total_seconds() * 1000
+                
+                fig.add_trace(go.Bar(
+                    x=durata_effettiva_ms,
+                    y=df_esec['ID_WBS'].astype(str) + " - " + df_esec['Attività'],
+                    base=df_esec['Inizio_Effettivo'],
+                    orientation='h',
+                    name='Esecutivo',
+                    width=0.2, 
+                    marker=dict(color='red')
+                ))
             
         fig.update_layout(
             barmode='overlay', 
             height=600, 
             bargap=0.3, 
             xaxis_title="Linea Temporale", 
-            yaxis_title="WBS", 
+            yaxis_title="Lavorazioni (WBS)", 
             yaxis={'autorange': 'reversed'},
             xaxis_type='date' 
         )
         st.plotly_chart(fig, use_container_width=True)
     else:
-        st.info("Nessuna attività operativa presente nel cronoprogramma.")
+        st.info("⚠️ Il cronoprogramma è vuoto. **Assicurati di aver inserito le date di Inizio e Fine nelle righe di lavoro** all'interno dei capitoli (nel Tab 1).")
 
 # --- TAB 5: EVM E CASH FLOW ---
 with tab5:
