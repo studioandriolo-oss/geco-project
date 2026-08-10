@@ -14,15 +14,18 @@ import base64
 # --- CONFIGURAZIONE PAGINA ---
 st.set_page_config(page_title="WBS/OBS Manager & EVM", layout="wide")
 
-try:
-    with open("logo_base64.txt", "r") as f:
-        logo_str = f.read().strip()
-    logo_bytes = base64.b64decode(logo_str)
-    st.image(logo_bytes, width=120)  # Modifica 'width' per regolare la dimensione
-except Exception:
-    pass
+col_logo, col_title = st.columns([1, 6])
 
-st.title("Project Workflow & EVM Controller")
+with col_logo:
+    try:
+        with open("logo_base64.txt", "r") as f:
+            logo_str = f.read().strip()
+        st.image(base64.b64decode(logo_str), width=100)
+    except Exception:
+        pass
+
+with col_title:
+    st.title("Project Workflow & EVM Controller")
 
 # --- SISTEMA DI LOGIN SICURO (CON PERSISTENZA) ---
 try:
