@@ -80,63 +80,153 @@ if 'nome_progetto_attivo' not in st.session_state:
 
 # --- 2. MOTORI MATEMATICI (Albero Gerarchico e Analisi) ---
 
-def rinumera_albero():
-    """Riassegna l'ordine da 1 a N a tutte le radici e rinomina di conseguenza tutti i figli."""
+def aggiorna_gerarchia(df):
+    """Motore Roll-up: Somma budget, costi, date e % dai livelli inferiori a quelli superiori"""
+    df_calc = df.copy()
+    df_calc['BAC_Budget'] = pd.to_numeric(df_calc['BAC_Budget'], errors='coerce').fillna(0.0)
+    df_calc['AC_Costo_Reale'] = pd.to_numeric(df_calc['AC_Costo_Reale'], errors='coerce').fillna(0.0)
+    df_calc['%_Completamento'] = pd.to_numeric(df_calc['%_Completamento'], errors='coerce').fillna(0.0)
+    
+    ids = df_calc['ID_WBS'].astype(str).tolist()
+    foglie = [uid for uid in ids if not any(other.startswith(uid + '.') for other in ids if other != uid)]
+    df_calc['Is_Leaf'] = df_calc['ID_WBS'].astype(str).isin(foglie)
+    
+    df_calc['Livello'] = df_calc['ID_WBS'].astype(str).apply(lambda x: len(x.split('.')))
+    df_calc = df_calc.sort_values(by='Livello', ascending=False)
+    
+    for index, row in df_calc.iterrows():
+        uid = str(row['ID_WBS'])
+        if not row['Is_Leaf']:
+            discendenti = df_calc[df_calc['ID_WBS'].astype(str).str.startswith(uid + '.') & df_calc['Is_Leaf']]
+            if not discendenti.empty:
+                df_calc.at[index, 'BAC_Budget'] = discendenti['BAC_Budget'].sum()
+                df_calc.at[index, 'AC_Costo_Reale'] = discendenti['AC_Costo_Reale'].sum()
+                
+                inizio_min = pd.to_datetime(discendenti['Inizio_Previsto']).min()
+                fine_max = pd.to_datetime(discendenti['Fine_Prevista']).max()
+                if pd.notna(inizio_min): df_calc.at[index, 'Inizio_Previsto'] = inizio_min.date()
+                if pd.notna(fine_max): df_calc.at[index, 'Fine_Prevista'] = fine_max.date()
+                
+                inizio_eff_min = pd.to_datetime(discendenti['Inizio_Effettivo']).min()
+                fine_eff_max = pd.to_datetime(discendenti['Fine_Effettiva']).max()
+                if pd.notna(inizio_eff_min): df_calc.at[index, 'Inizio_Effettivo'] = inizio_eff_min.date()
+                if pd.notna(fine_eff_max): df_calc.at[index, 'Fine_Effettiva'] = fine_eff_max.date()
+                
+                tot_bac = discendenti['BAC_Budget'].sum()
+                if tot_bac > 0:
+                    df_calc.at[index, '%_Completamento'] = (discendenti['BAC_Budget'] * discendenti['%_Completamento']).sum() / tot_bac
+                else:
+                    df_calc.at[index, '%_Completamento'] = discendenti['%_Completamento'].mean()
+                    
+    # FIX ERRORE: Usiamo join() per creare una stringa invece di una lista unhashable
+    df_calc['sort_key'] = df_calc['ID_WBS'].astype(str).apply(lambda x: '.'.join([p.zfill(5) for p in x.split('.')]))
+    df_calc = df_calc.sort_values(by='sort_key').drop(columns=['sort_key', 'Is_Leaf', 'Livello']).reset_index(drop=True)
+    return df_calc
+
+def modifica_struttura(id_target, azione):
+    """Algoritmo Outliner: Sposta interi blocchi (nodi + figli), rientra, sporge e rinumera tutto il progetto."""
     df = st.session_state.wbs_data.copy()
-    is_root = ~df['ID_WBS'].astype(str).str.contains('\.')
-    radici_list = df[is_root]['ID_WBS'].astype(str).tolist()
     
-    mapping = {old_id: str(new_idx + 1) for new_idx, old_id in enumerate(radici_list)}
+    # Se elimina, filtriamo subito (elimina nodo e tutti i suoi discendenti)
+    if azione == 'elimina':
+        mask = (df['ID_WBS'].astype(str) == id_target) | (df['ID_WBS'].astype(str).str.startswith(f"{id_target}."))
+        df = df[~mask]
+        if df.empty: # Non lasciare mai il database vuoto
+            df = pd.DataFrame([{'ID_WBS': '1', 'Attività': 'Progetto Principale', 'BAC_Budget': 0.0, '%_Completamento': 0.0, 'AC_Costo_Reale': 0.0}])
     
-    def aggiorna_id(val):
-        if not val or pd.isna(val) or str(val).strip() == '': return val
-        parts = str(val).strip().split('.')
-        if parts[0] in mapping:
-            parts[0] = mapping[parts[0]]
-        return '.'.join(parts)
+    # Calcoliamo Livelli e ordiniamo per il ricalcolo spaziale
+    df['sort_key'] = df['ID_WBS'].astype(str).apply(lambda x: '.'.join([p.zfill(5) for p in x.split('.')]))
+    df = df.sort_values(by='sort_key').reset_index(drop=True)
+    df['Livello'] = df['ID_WBS'].astype(str).apply(lambda x: len(x.split('.')))
+    
+    ids = df['ID_WBS'].astype(str).tolist()
+    
+    if azione not in ['elimina', 'rinumera']:
+        if id_target not in ids: return
+        target_idx = ids.index(id_target)
+        target_level = df.at[target_idx, 'Livello']
         
+        # Identifica il "Blocco" da spostare (il target + tutti i suoi figli)
+        end_idx = target_idx + 1
+        while end_idx < len(df) and df.at[end_idx, 'Livello'] > target_level:
+            end_idx += 1
+        block_indices = list(range(target_idx, end_idx))
+        
+        # AZIONI DI SPOSTAMENTO (Outliner)
+        if azione == 'sinistra' and target_level > 1:
+            df.loc[block_indices, 'Livello'] -= 1  # Promuove a Padre
+            
+        elif azione == 'destra' and target_idx > 0 and df.at[target_idx - 1, 'Livello'] >= target_level:
+            df.loc[block_indices, 'Livello'] += 1  # Declassa a Figlio
+            
+        elif azione == 'su':
+            prev_sibling_idx = -1
+            for i in range(target_idx - 1, -1, -1):
+                if df.at[i, 'Livello'] < target_level: break # Trovato padre, stop
+                if df.at[i, 'Livello'] == target_level:
+                    prev_sibling_idx = i
+                    break
+            if prev_sibling_idx != -1:
+                sibling_block = list(range(prev_sibling_idx, target_idx))
+                new_order = list(range(len(df)))
+                new_order[prev_sibling_idx:end_idx] = block_indices + sibling_block
+                df = df.iloc[new_order].reset_index(drop=True)
+                
+        elif azione == 'giu':
+            next_sibling_idx = -1
+            for i in range(end_idx, len(df)):
+                if df.at[i, 'Livello'] < target_level: break
+                if df.at[i, 'Livello'] == target_level:
+                    next_sibling_idx = i
+                    break
+            if next_sibling_idx != -1:
+                sibling_end = next_sibling_idx + 1
+                while sibling_end < len(df) and df.at[sibling_end, 'Livello'] > target_level:
+                    sibling_end += 1
+                sibling_block = list(range(next_sibling_idx, sibling_end))
+                new_order = list(range(len(df)))
+                new_order[target_idx:sibling_end] = sibling_block + block_indices
+                df = df.iloc[new_order].reset_index(drop=True)
+                
+    # FASE 2: Ricalcolo intelligente degli ID WBS in base ai nuovi livelli (Rinumerazione Totale)
+    nuovi_id = []
+    counters = {} 
+    
+    for idx, row in df.iterrows():
+        liv = row['Livello']
+        if idx == 0: liv = 1
+        else:
+            prev_liv = df.at[idx-1, 'Livello']
+            if liv > prev_liv + 1: liv = prev_liv + 1 # Sanitizzazione saltelli
+                
+        df.at[idx, 'Livello'] = liv
+        counters[liv] = counters.get(liv, 0) + 1
+        for k in list(counters.keys()):
+            if k > liv: counters[k] = 0 # Azzera sottomenù
+                
+        nuovo_id = ".".join([str(counters[i]) for i in range(1, liv + 1)])
+        nuovi_id.append(nuovo_id)
+        
+    old_ids = df['ID_WBS'].astype(str).tolist()
+    mapping = dict(zip(old_ids, nuovi_id))
+    
+    # Aggiorna in automatico i collegamenti (Predecessori)
     def aggiorna_preds(val):
         if not val or pd.isna(val) or str(val).strip() == '': return val
         preds = [p.strip() for p in str(val).split(',')]
-        new_preds = [aggiorna_id(p) for p in preds]
+        new_preds = [mapping.get(p, p) for p in preds]
         return ', '.join(new_preds)
         
-    df['ID_WBS'] = df['ID_WBS'].apply(aggiorna_id)
+    df['ID_WBS'] = nuovi_id
     if 'Predecessori' in df.columns:
         df['Predecessori'] = df['Predecessori'].apply(aggiorna_preds)
         
+    df = df.drop(columns=['Livello', 'sort_key'])
+    
     st.session_state.wbs_data = df
-
-def sposta_padre(id_radice, direzione):
-    """Sposta una macro-categoria su o giù nell'elenco riordinando il DataFrame."""
-    df = st.session_state.wbs_data.copy()
-    is_root = ~df['ID_WBS'].astype(str).str.contains('\.')
-    radici_list = df[is_root]['ID_WBS'].astype(str).tolist()
-    
-    if id_radice not in radici_list: return
-    idx = radici_list.index(id_radice)
-    
-    if direzione == 'su' and idx > 0:
-        radici_list[idx], radici_list[idx-1] = radici_list[idx-1], radici_list[idx]
-    elif direzione == 'giu' and idx < len(radici_list) - 1:
-        radici_list[idx], radici_list[idx+1] = radici_list[idx+1], radici_list[idx]
-    else:
-        return
-        
-    order_map = {val: i for i, val in enumerate(radici_list)}
-    
-    df['temp_root'] = df['ID_WBS'].astype(str).apply(lambda x: x.split('.')[0])
-    df['temp_order'] = df['temp_root'].map(order_map)
-    df['sort_key'] = df['ID_WBS'].astype(str).apply(lambda x: [p.zfill(5) for p in x.split('.')])
-    
-    # Riordina in base al nuovo ordine delle radici
-    df = df.sort_values(by=['temp_order', 'sort_key']).drop(columns=['temp_root', 'temp_order', 'sort_key']).reset_index(drop=True)
-    st.session_state.wbs_data = df
-    
-    rinumera_albero()
     st.session_state.wbs_data = aggiorna_gerarchia(st.session_state.wbs_data)
     st.rerun()
-
+    
 def get_foglie(df):
     """Estrae solo i nodi operativi (le Foglie), escludendo i contenitori (Padri)"""
     ids = df['ID_WBS'].astype(str).tolist()
