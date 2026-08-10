@@ -207,10 +207,28 @@ def modifica_struttura(id_target, azione):
     old_ids = df['ID_WBS'].astype(str).tolist()
     mapping = dict(zip(old_ids, nuovi_id))
     
+    # FIX BUG 1: Aggiornamento intelligente della stringa del menù a tendina (Predecessori)
     def aggiorna_preds(val):
-        if not val or pd.isna(val) or str(val).strip() == '': return val
+        if not val or pd.isna(val) or str(val).strip() in ['', 'None', 'nan']: 
+            return val
+        
         preds = [p.strip() for p in str(val).split(',')]
-        new_preds = [mapping.get(p, p) for p in preds]
+        new_preds = []
+        
+        for p in preds:
+            # Dividiamo la stringa "1.1 - Attività" in ["1.1", "Attività"]
+            parts = p.split(' - ', 1)
+            vecchio_id = parts[0].strip()
+            
+            # Troviamo il nuovo ID mappato
+            nuovo_id = mapping.get(vecchio_id, vecchio_id)
+            
+            # Ricomponiamo la stringa esattamente com'era (o manteniamo solo il numero se era vecchio stile)
+            if len(parts) > 1:
+                new_preds.append(f"{nuovo_id} - {parts[1]}")
+            else:
+                new_preds.append(nuovo_id)
+                
         return ', '.join(new_preds)
         
     df['ID_WBS'] = nuovi_id
@@ -231,7 +249,9 @@ def get_foglie(df):
 def aggiorna_costi_reali():
     df_reg = st.session_state.registro_data.copy()
     if not df_reg.empty:
-        df_reg['ID_WBS_calc'] = df_reg['Voce_WBS'].astype(str).apply(lambda x: x.split(' - ')[0] if ' - ' in x else None)
+        df_reg['ID_WBS_calc'] = df_reg['Voce_WBS'].astype(str).apply(
+            lambda x: str(x).split(' - ')[0].strip() if pd.notna(x) and str(x).strip() not in ['', 'None', 'nan'] else None
+        )
         costi_raggruppati = df_reg.groupby('ID_WBS_calc')['Importo_Netto'].sum().reset_index()
         cost_map = dict(zip(costi_raggruppati['ID_WBS_calc'], costi_raggruppati['Importo_Netto']))
         wbs = st.session_state.wbs_data
