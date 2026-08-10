@@ -418,7 +418,7 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
     "👥 OBS (Risorse)", 
     "🕸️ Nodi & Matrice", 
     "📅 Cronoprogramma", 
-    "📈 EVM & Cash Flow",
+    "📈 Earned Value & Cash Flow",
     "🧾 Reg. Contabile",
     "🛠️ Direzione & CAPA"
 ])
@@ -437,7 +437,7 @@ with tab1:
     
     df_aggiornato = pd.DataFrame()
     
-    for _, radice in radici.iterrows():
+    for idx_riga, radice in radici.iterrows():
         id_radice = str(radice['ID_WBS'])
         discendenti = df[df['ID_WBS'].astype(str).str.startswith(f"{id_radice}.")]
         tot_budget = radice['BAC_Budget']
@@ -446,11 +446,11 @@ with tab1:
             
             discendenti_modificati = st.data_editor(
                 discendenti,
-                key=f"editor_wbs_{id_radice}",
+                key=f"editor_wbs_idx_{idx_riga}_id_{id_radice}", # <--- CHIAVE ORA AL 100% UNIVOCA
                 num_rows="dynamic",
                 use_container_width=True,
                 hide_index=True,
-                disabled=["Durata_Prevista (gg)", "AC_Costo_Reale"], # ID_WBS è sbloccato per permettere diramazioni
+                disabled=["Durata_Prevista (gg)", "AC_Costo_Reale"],
                 column_config={
                     "ID_WBS": st.column_config.TextColumn("ID WBS", required=True),
                     "Predecessori": st.column_config.TextColumn("Predecessori", help="Es. 1.1, 1.2"),
@@ -524,7 +524,7 @@ with tab2:
         
 # --- TAB 3: MATRICE E GRAFO A NODI ---
 with tab3:
-    st.header("Incrocio Logico (Work Packages e Percorso Critico)")
+    st.header("Incrocio Logico - Work Packages e Percorso Critico -")
     
     cpm_data = calcola_cpm(st.session_state.wbs_data)
     mostra_relazioni = st.toggle("👁️ Mostra Relazioni tra WP (Interferenze)", value=True)
