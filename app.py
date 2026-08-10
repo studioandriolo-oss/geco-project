@@ -118,7 +118,6 @@ def aggiorna_gerarchia(df):
                 else:
                     df_calc.at[index, '%_Completamento'] = discendenti['%_Completamento'].mean()
                     
-    # FIX ERRORE: Usiamo join() per creare una stringa invece di una lista unhashable
     df_calc['sort_key'] = df_calc['ID_WBS'].astype(str).apply(lambda x: '.'.join([p.zfill(5) for p in x.split('.')]))
     df_calc = df_calc.sort_values(by='sort_key').drop(columns=['sort_key', 'Is_Leaf', 'Livello']).reset_index(drop=True)
     return df_calc
@@ -127,11 +126,9 @@ def modifica_struttura(id_target, azione):
     """Algoritmo Outliner: Sposta interi blocchi (nodi + figli), rientra, sporge e rinumera tutto il progetto."""
     df = st.session_state.wbs_data.copy()
     
-    # Helper per estrarre una chiave di ordinamento numerica dagli ID (es. 1.10 viene dopo 1.2)
     def get_sort_key(wbs_id):
         return [int(x) if x.isdigit() else x for x in str(wbs_id).split('.')]
     
-    # Prepariamo il DataFrame aggiungendo il livello di profondità
     df['sort_key'] = df['ID_WBS'].apply(get_sort_key)
     df = df.sort_values(by='sort_key').reset_index(drop=True)
     df['Livello'] = df['ID_WBS'].apply(lambda x: len(str(x).split('.')))
@@ -151,29 +148,23 @@ def modifica_struttura(id_target, azione):
         idx = ids.index(id_target)
         livello_target = df.at[idx, 'Livello']
         
-        # Identifica il "Blocco" da spostare (il target + tutti i suoi figli/sottocartelle)
         end_idx = idx + 1
         while end_idx < len(df) and df.at[end_idx, 'Livello'] > livello_target:
             end_idx += 1
         blocco_target = list(range(idx, end_idx))
         
-        # --- LOGICA DI SPOSTAMENTO ---
         if azione == 'destra':
-            # Rendi Figlio: Può rientrare solo se l'elemento sopra di lui ha un livello >= al suo
             if idx > 0 and df.at[idx - 1, 'Livello'] >= livello_target:
                 df.loc[blocco_target, 'Livello'] += 1
                 
         elif azione == 'sinistra':
-            # Rendi Padre: Può uscire verso sinistra solo se non è già una Radice Assoluta (livello 1)
             if livello_target > 1:
                 df.loc[blocco_target, 'Livello'] -= 1
                 
         elif azione == 'su':
-            # Cambia Ordine Su: Trova il "fratello" precedente allo stesso livello
             prev_idx = idx - 1
             while prev_idx >= 0 and df.at[prev_idx, 'Livello'] > livello_target:
                 prev_idx -= 1
-            # Se ha trovato un fratello, li scambiamo
             if prev_idx >= 0 and df.at[prev_idx, 'Livello'] == livello_target:
                 blocco_prev = list(range(prev_idx, idx))
                 new_order = list(range(len(df)))
@@ -181,7 +172,6 @@ def modifica_struttura(id_target, azione):
                 df = df.iloc[new_order].reset_index(drop=True)
                 
         elif azione == 'giu':
-            # Cambia Ordine Giù: Trova il "fratello" successivo allo stesso livello
             next_idx = end_idx
             if next_idx < len(df) and df.at[next_idx, 'Livello'] == livello_target:
                 next_end = next_idx + 1
@@ -192,46 +182,6 @@ def modifica_struttura(id_target, azione):
                 new_order[idx:next_end] = blocco_next + blocco_target
                 df = df.iloc[new_order].reset_index(drop=True)
 
-    # --- RIFACIMENTO ID WBS DA ZERO (Rinumerazione Totale) ---
-    nuovi_id = []
-    counters = {}
-    
-    for index, row in df.iterrows():
-        liv = row['Livello']
-        
-        # 1. Pulisce i contatori delle sottocartelle precedenti
-        for k in list(counters.keys()):
-            if k > liv:
-                del counters[k]
-                
-        # 2. Incrementa di +1 il contatore del livello attuale
-        counters[liv] = counters.get(liv, 0) + 1
-        
-        # 3. Costruisce la stringa con i punti (es. "3.1.2")
-        id_parts = [str(counters[i]) for i in range(1, liv + 1)]
-        nuovi_id.append(".".join(id_parts))
-        
-    # Mappatura Vecchi ID -> Nuovi ID per sistemare la colonna "Predecessori"
-    old_ids = df['ID_WBS'].astype(str).tolist()
-    mapping = dict(zip(old_ids, nuovi_id))
-    
-    def aggiorna_preds(val):
-        if not val or pd.isna(val) or str(val).strip() == '': return val
-        preds = [p.strip() for p in str(val).split(',')]
-        new_preds = [mapping.get(p, p) for p in preds]
-        return ', '.join(new_preds)
-        
-    df['ID_WBS'] = nuovi_id
-    if 'Predecessori' in df.columns:
-        df['Predecessori'] = df['Predecessori'].apply(aggiorna_preds)
-        
-    # Pulizia colonne temporanee e salvataggio
-    df = df.drop(columns=['Livello', 'sort_key'])
-    st.session_state.wbs_data = df
-    st.session_state.wbs_data = aggiorna_gerarchia(st.session_state.wbs_data)
-    st.rerun()
-                
-    # FASE 2: Ricalcolo intelligente degli ID WBS in base ai nuovi livelli (Rinumerazione Totale)
     nuovi_id = []
     counters = {} 
     
@@ -240,12 +190,12 @@ def modifica_struttura(id_target, azione):
         if idx == 0: liv = 1
         else:
             prev_liv = df.at[idx-1, 'Livello']
-            if liv > prev_liv + 1: liv = prev_liv + 1 # Sanitizzazione saltelli
+            if liv > prev_liv + 1: liv = prev_liv + 1 
                 
         df.at[idx, 'Livello'] = liv
         counters[liv] = counters.get(liv, 0) + 1
         for k in list(counters.keys()):
-            if k > liv: counters[k] = 0 # Azzera sottomenù
+            if k > liv: counters[k] = 0 
                 
         nuovo_id = ".".join([str(counters[i]) for i in range(1, liv + 1)])
         nuovi_id.append(nuovo_id)
@@ -253,7 +203,6 @@ def modifica_struttura(id_target, azione):
     old_ids = df['ID_WBS'].astype(str).tolist()
     mapping = dict(zip(old_ids, nuovi_id))
     
-    # Aggiorna in automatico i collegamenti (Predecessori)
     def aggiorna_preds(val):
         if not val or pd.isna(val) or str(val).strip() == '': return val
         preds = [p.strip() for p in str(val).split(',')]
@@ -273,54 +222,8 @@ def modifica_struttura(id_target, azione):
 def get_foglie(df):
     """Estrae solo i nodi operativi (le Foglie), escludendo i contenitori (Padri)"""
     ids = df['ID_WBS'].astype(str).tolist()
-    # Un nodo è "foglia" se non esiste nessun altro nodo che inizia con il suo "ID."
     foglie = [uid for uid in ids if not any(other.startswith(uid + '.') for other in ids if other != uid)]
     return df[df['ID_WBS'].astype(str).isin(foglie)].copy()
-
-def aggiorna_gerarchia(df):
-    """Motore Roll-up: Somma budget, costi, date e % dai livelli inferiori a quelli superiori"""
-    df_calc = df.copy()
-    df_calc['BAC_Budget'] = pd.to_numeric(df_calc['BAC_Budget'], errors='coerce').fillna(0.0)
-    df_calc['AC_Costo_Reale'] = pd.to_numeric(df_calc['AC_Costo_Reale'], errors='coerce').fillna(0.0)
-    df_calc['%_Completamento'] = pd.to_numeric(df_calc['%_Completamento'], errors='coerce').fillna(0.0)
-    
-    ids = df_calc['ID_WBS'].astype(str).tolist()
-    foglie = [uid for uid in ids if not any(other.startswith(uid + '.') for other in ids if other != uid)]
-    df_calc['Is_Leaf'] = df_calc['ID_WBS'].astype(str).isin(foglie)
-    
-    # Ordiniamo dal livello più profondo (es. 1.1.1) a quello più alto (es. 1)
-    df_calc['Livello'] = df_calc['ID_WBS'].astype(str).apply(lambda x: len(x.split('.')))
-    df_calc = df_calc.sort_values(by='Livello', ascending=False)
-    
-    for index, row in df_calc.iterrows():
-        uid = str(row['ID_WBS'])
-        if not row['Is_Leaf']:
-            # Se è un padre, aggrega i valori da TUTTE le sue foglie discendenti
-            discendenti = df_calc[df_calc['ID_WBS'].astype(str).str.startswith(uid + '.') & df_calc['Is_Leaf']]
-            if not discendenti.empty:
-                df_calc.at[index, 'BAC_Budget'] = discendenti['BAC_Budget'].sum()
-                df_calc.at[index, 'AC_Costo_Reale'] = discendenti['AC_Costo_Reale'].sum()
-                
-                inizio_min = pd.to_datetime(discendenti['Inizio_Previsto']).min()
-                fine_max = pd.to_datetime(discendenti['Fine_Prevista']).max()
-                if pd.notna(inizio_min): df_calc.at[index, 'Inizio_Previsto'] = inizio_min.date()
-                if pd.notna(fine_max): df_calc.at[index, 'Fine_Prevista'] = fine_max.date()
-                
-                inizio_eff_min = pd.to_datetime(discendenti['Inizio_Effettivo']).min()
-                fine_eff_max = pd.to_datetime(discendenti['Fine_Effettiva']).max()
-                if pd.notna(inizio_eff_min): df_calc.at[index, 'Inizio_Effettivo'] = inizio_eff_min.date()
-                if pd.notna(fine_eff_max): df_calc.at[index, 'Fine_Effettiva'] = fine_eff_max.date()
-                
-                tot_bac = discendenti['BAC_Budget'].sum()
-                if tot_bac > 0:
-                    df_calc.at[index, '%_Completamento'] = (discendenti['BAC_Budget'] * discendenti['%_Completamento']).sum() / tot_bac
-                else:
-                    df_calc.at[index, '%_Completamento'] = discendenti['%_Completamento'].mean()
-                    
-    # Ripristiniamo l'ordine usando un padding di stringhe (FIX PER L'ERRORE)
-    df_calc['sort_key'] = df_calc['ID_WBS'].astype(str).apply(lambda x: [p.zfill(5) for p in x.split('.')])
-    df_calc = df_calc.sort_values(by='sort_key').drop(columns=['sort_key', 'Is_Leaf', 'Livello']).reset_index(drop=True)
-    return df_calc
 
 def aggiorna_costi_reali():
     df_reg = st.session_state.registro_data.copy()
@@ -627,7 +530,6 @@ with tab1:
     # --- TABELLE DEI DATI ---
     df = st.session_state.wbs_data.copy()
     
-    # FIX ERRORE: Forziamo il tipo "Data" sulle colonne per evitare crash con celle vuote (NaN/Float)
     colonne_date = ['Inizio_Previsto', 'Fine_Prevista', 'Inizio_Effettivo', 'Fine_Effettiva']
     for col in colonne_date:
         if col in df.columns:
@@ -649,10 +551,7 @@ with tab1:
             
             st.caption("Per aggiungere nuove lavorazioni in questo capitolo, clicca l'ultima riga grigia in fondo. L'ID definitivo verrà assegnato in automatico al salvataggio.")
             
-            # Elenco delle colonne derivate e bloccate per evitare errori di battitura
             colonne_bloccate = ["ID_WBS", "Durata_Prevista (gg)", "AC_Costo_Reale", "PV", "EV", "CV", "SV", "SPI", "CPI", "EAC", "ETC", "VAC"]
-            
-            # Rimuoviamo dalla lista di blocco eventuali colonne che per qualche motivo non sono ancora nel dataframe (sicurezza extra)
             colonne_bloccate = [col for col in colonne_bloccate if col in discendenti.columns]
             
             # LA TABELLA DEL CAPITOLO
@@ -714,7 +613,6 @@ with tab1:
                 is_root_calc = ~st.session_state.wbs_data['ID_WBS'].astype(str).str.contains('\.')
                 nuovo_id = str(len(st.session_state.wbs_data[is_root_calc]) + 1)
                 
-                # FIX ERRORE: Dichiariamo esplicitamente la riga completa con tutte le colonne vuote
                 nuova_riga = pd.DataFrame([{
                     'ID_WBS': nuovo_id, 
                     'Attività': nuova_att, 
@@ -779,7 +677,6 @@ with tab3:
     st.header("Incrocio Logico (Work Packages e Percorso Critico)")
     
     cpm_data = calcola_cpm(st.session_state.wbs_data)
-    
     mostra_relazioni = st.toggle("👁️ Mostra Relazioni tra WP (Interferenze)", value=True)
     
     graph = graphviz.Digraph(engine='dot')
@@ -810,7 +707,8 @@ with tab3:
             penwidth='1.5'
         )
         
-    df_wp_reali = st.session_state.wbs_data[st.session_state.wbs_data['ID_WBS'].astype(str).str.contains('\.')]
+    # FIX ERRORE: Usiamo il motore logico 'get_foglie' per identificare le corrette lavorazioni attive
+    df_wp_reali = get_foglie(st.session_state.wbs_data)
     valid_wbs_ids = set(df_wp_reali['ID_WBS'].astype(str))
     
     for _, row in df_wp_reali.iterrows():
@@ -823,11 +721,16 @@ with tab3:
         margine = wp_cpm.get('slack', 0)
         is_critical = wp_cpm.get('is_critical', False)
         
-        inizio_str = row['Inizio_Previsto'].strftime('%d/%m/%Y') if pd.notna(row['Inizio_Previsto']) else "N/D"
-        fine_str = row['Fine_Prevista'].strftime('%d/%m/%Y') if pd.notna(row['Fine_Prevista']) else "N/D"
+        # FIX ERRORE GRAFO BIANCO: Gestione sicura delle date per impedire l'arresto anomalo di Graphviz
+        inizio_val = pd.to_datetime(row['Inizio_Previsto'], errors='coerce')
+        inizio_str = inizio_val.strftime('%d/%m/%Y') if pd.notna(inizio_val) else "N/D"
+        
+        fine_val = pd.to_datetime(row['Fine_Prevista'], errors='coerce')
+        fine_str = fine_val.strftime('%d/%m/%Y') if pd.notna(fine_val) else "N/D"
         
         testo_margine = f"<FONT COLOR='#D32F2F'><B>Margine: {margine} gg</B></FONT>" if is_critical else f"<FONT COLOR='#388E3C'>Margine: {margine} gg</FONT>"
         
+        # (Grafiche originali intatte come da tua indicazione)
         wp_html = f"<<TABLE BORDER='0' CELLBORDER='0' CELLSPACING='4'>"
         wp_html += f"<TR><TD COLSPAN='2'><B>{row['ID_WBS']} - {attivita}</B></TD></TR>"
         wp_html += f"<TR><TD ALIGN='LEFT'>Inizio: {inizio_str}</TD><TD ALIGN='RIGHT'>Fine: {fine_str}</TD></TR>"
@@ -859,13 +762,14 @@ with tab3:
             penwidth=spessore_bordo
         )
         
-        if pd.notna(row['ID_OBS_Assegnato']):
+        # FIX ERRORE COLLEGAMENTI: Evitiamo la costruzione di "fili fantasma" se non c'è una OBS vera
+        if pd.notna(row['ID_OBS_Assegnato']) and str(row['ID_OBS_Assegnato']).strip() not in ['', 'None', 'nan']:
             obs_ids = str(row['ID_OBS_Assegnato']).split(',')
             for o_id in obs_ids:
                 if o_id.strip():
                     graph.edge(f"OBS_{o_id.strip()}", f"WBS_{row['ID_WBS']}", color='#757575', penwidth='1.5', arrowsize='0.8')
                     
-        if mostra_relazioni and 'Predecessori' in row and pd.notna(row['Predecessori']):
+        if mostra_relazioni and 'Predecessori' in row and pd.notna(row['Predecessori']) and str(row['Predecessori']).strip() != "":
             preds = str(row['Predecessori']).split(',')
             for p_id in preds:
                 p_id = p_id.strip()
@@ -961,7 +865,7 @@ with tab3:
         * 🚨 **Freccia Rossa Spessa:** Il flusso del **Percorso Critico**. Segue esattamente la catena logica di attività che determina la durata totale del cantiere.
         """)
 
---- TAB 4: CRONOPROGRAMMA (GANTT) ---
+# --- TAB 4: CRONOPROGRAMMA (GANTT) ---
 with tab4:
     st.header("Cronoprogramma Lavori")
     
@@ -971,7 +875,7 @@ with tab4:
     
     df_gantt = get_foglie(st.session_state.wbs_data).copy()
     
-    # FIX: Eliminiamo dal grafico le righe in cui non sono state ancora inserite le date
+    # Rimuoviamo in sicurezza le attività che non possiedono ancora una data di inizio/fine
     df_gantt = df_gantt.dropna(subset=['Inizio_Previsto', 'Fine_Prevista'])
     
     if not df_gantt.empty:
@@ -983,8 +887,9 @@ with tab4:
         fig = go.Figure()
         
         if vista in ["Progetto (Baseline)", "Comparativa"]:
-            # FIX ERRORE ANNO 2000: Riallineamento in millisecondi per l'asse temporale
-            durata_prevista_ms = (df_gantt['Fine_Prevista'] - df_gantt['Inizio_Previsto']).dt.total_seconds() * 1000
+            # FIX ERRORE ANNO 2000: Aggiungiamo tecnicamente 1 giorno a tutte le durate (in millisecondi). 
+            # In questo modo anche i Task "In giornata" (Durata matematica 0) vengono resi visibili da Plotly.
+            durata_prevista_ms = (df_gantt['Fine_Prevista'] - df_gantt['Inizio_Previsto'] + pd.Timedelta(days=1)).dt.total_seconds() * 1000
             
             fig.add_trace(go.Bar(
                 x=durata_prevista_ms,
@@ -999,7 +904,7 @@ with tab4:
         if vista in ["Esecuzione (Esecutivo)", "Comparativa"]:
             df_esec = df_gantt.dropna(subset=['Inizio_Effettivo']).copy()
             if not df_esec.empty:
-                durata_effettiva_ms = (df_esec['Fine_Effettiva'] - df_esec['Inizio_Effettivo']).dt.total_seconds() * 1000
+                durata_effettiva_ms = (df_esec['Fine_Effettiva'] - df_esec['Inizio_Effettivo'] + pd.Timedelta(days=1)).dt.total_seconds() * 1000
                 
                 fig.add_trace(go.Bar(
                     x=durata_effettiva_ms,
@@ -1022,7 +927,7 @@ with tab4:
         )
         st.plotly_chart(fig, use_container_width=True)
     else:
-        st.info("⚠️ Il cronoprogramma è vuoto. **Assicurati di aver inserito le date di Inizio e Fine nelle righe di lavoro** all'interno dei capitoli (nel Tab 1).")
+        st.info("⚠️ Il cronoprogramma è vuoto. **Assicurati di aver inserito le date di Inizio e Fine nelle righe di lavoro** e di aver salvato i dati (nel Tab 1).")
         
 # --- TAB 5: EVM E CASH FLOW ---
 with tab5:
@@ -1207,7 +1112,7 @@ with tab5:
         
         for _, row in critici_tempo.iterrows():
             st.error(f"⏳ **Ritardo Schedulazione su '{row['Attività']}':** (SPI = {row['SPI']:.2f})")
-            st.markdown(f"> *Il Work Package sta generando meno valore del previsto. Dato lo scostamento, **devi accelerare la produzione**.*")
+            st.markdown(f"> *Il Work Package sta generating meno valore del previsto. Dato lo scostamento, **devi accelerare la produzione**.*")
             st.markdown(f"> * **Soluzioni suggerite:** Verifica la disponibilità della risorsa ({row['ID_OBS_Assegnato']}), valuta di approvare lavoro straordinario o affianca un sub-appaltatore per recuperare il gap prima che intacchi il percorso critico (CPM).*")
             
         for _, row in critici_costo.iterrows():
@@ -1220,7 +1125,6 @@ with tab6:
     st.header("Registro Contabile")
     st.markdown("Inserisci qui le fatture e i SAL. Gli importi netti si sommeranno automaticamente aggiornando la voce *AC_Costo_Reale* nella WBS.")
     
-    # FIX ERRORE: Forziamo i tipi di dato per "Data" e "Importo_Netto" per evitare crash sulle celle vuote
     df_reg = st.session_state.registro_data.copy()
     if not df_reg.empty:
         df_reg['Data'] = pd.to_datetime(df_reg['Data'], errors='coerce').dt.date
