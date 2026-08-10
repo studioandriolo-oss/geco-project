@@ -74,7 +74,59 @@ if 'nome_progetto_attivo' not in st.session_state:
     st.session_state.nome_progetto_attivo = "Nuovo_Progetto"
 
 
-# --- 2. MOTORI MATEMATICI (Definiti Prima dei Tab) ---
+# --- 2. MOTORI MATEMATICI (Albero Gerarchico e Analisi) ---
+
+def get_foglie(df):
+    """Estrae solo i nodi operativi (le Foglie), escludendo i contenitori (Padri)"""
+    ids = df['ID_WBS'].astype(str).tolist()
+    # Un nodo è "foglia" se non esiste nessun altro nodo che inizia con il suo "ID."
+    foglie = [uid for uid in ids if not any(other.startswith(uid + '.') for other in ids if other != uid)]
+    return df[df['ID_WBS'].astype(str).isin(foglie)].copy()
+
+def aggiorna_gerarchia(df):
+    """Motore Roll-up: Somma budget, costi, date e % dai livelli inferiori a quelli superiori"""
+    df_calc = df.copy()
+    df_calc['BAC_Budget'] = pd.to_numeric(df_calc['BAC_Budget'], errors='coerce').fillna(0.0)
+    df_calc['AC_Costo_Reale'] = pd.to_numeric(df_calc['AC_Costo_Reale'], errors='coerce').fillna(0.0)
+    df_calc['%_Completamento'] = pd.to_numeric(df_calc['%_Completamento'], errors='coerce').fillna(0.0)
+    
+    ids = df_calc['ID_WBS'].astype(str).tolist()
+    foglie = [uid for uid in ids if not any(other.startswith(uid + '.') for other in ids if other != uid)]
+    df_calc['Is_Leaf'] = df_calc['ID_WBS'].astype(str).isin(foglie)
+    
+    # Ordiniamo dal livello più profondo (es. 1.1.1) a quello più alto (es. 1)
+    df_calc['Livello'] = df_calc['ID_WBS'].astype(str).apply(lambda x: len(x.split('.')))
+    df_calc = df_calc.sort_values(by='Livello', ascending=False)
+    
+    for index, row in df_calc.iterrows():
+        uid = str(row['ID_WBS'])
+        if not row['Is_Leaf']:
+            # Se è un padre, aggrega i valori da TUTTE le sue foglie discendenti
+            discendenti = df_calc[df_calc['ID_WBS'].astype(str).str.startswith(uid + '.') & df_calc['Is_Leaf']]
+            if not discendenti.empty:
+                df_calc.at[index, 'BAC_Budget'] = discendenti['BAC_Budget'].sum()
+                df_calc.at[index, 'AC_Costo_Reale'] = discendenti['AC_Costo_Reale'].sum()
+                
+                inizio_min = pd.to_datetime(discendenti['Inizio_Previsto']).min()
+                fine_max = pd.to_datetime(discendenti['Fine_Prevista']).max()
+                if pd.notna(inizio_min): df_calc.at[index, 'Inizio_Previsto'] = inizio_min.date()
+                if pd.notna(fine_max): df_calc.at[index, 'Fine_Prevista'] = fine_max.date()
+                
+                inizio_eff_min = pd.to_datetime(discendenti['Inizio_Effettivo']).min()
+                fine_eff_max = pd.to_datetime(discendenti['Fine_Effettiva']).max()
+                if pd.notna(inizio_eff_min): df_calc.at[index, 'Inizio_Effettivo'] = inizio_eff_min.date()
+                if pd.notna(fine_eff_max): df_calc.at[index, 'Fine_Effettiva'] = fine_eff_max.date()
+                
+                tot_bac = discendenti['BAC_Budget'].sum()
+                if tot_bac > 0:
+                    df_calc.at[index, '%_Completamento'] = (discendenti['BAC_Budget'] * discendenti['%_Completamento']).sum() / tot_bac
+                else:
+                    df_calc.at[index, '%_Completamento'] = discendenti['%_Completamento'].mean()
+                    
+    # Ripristiniamo un ordine naturale (es. 1.2 viene prima di 1.10)
+    df_calc['sort_key'] = df_calc['ID_WBS'].astype(str).apply(lambda x: [int(p) if p.isdigit() else p for p in x.split('.')])
+    df_calc = df_calc.sort_values(by='sort_key').drop(columns=['sort_key', 'Is_Leaf', 'Livello']).reset_index(drop=True)
+    return df_calc
 
 def aggiorna_costi_reali():
     df_reg = st.session_state.registro_data.copy()
@@ -100,7 +152,6 @@ def calcola_evm(df, data_status):
             
             if pd.isna(inizio_ts) or pd.isna(fine_ts) or bac == 0: 
                 return 0.0
-                
             inizio = inizio_ts.date()
             fine = fine_ts.date()
             
@@ -109,10 +160,8 @@ def calcola_evm(df, data_status):
             
             giorni_totali = (fine - inizio).days
             giorni_trascorsi = (oggi - inizio).days
-            
             if giorni_totali <= 0: return bac
             return bac * (giorni_trascorsi / giorni_totali)
-            
         except Exception:
             return 0.0
 
@@ -127,12 +176,10 @@ def calcola_evm(df, data_status):
     df['EAC'] = df.apply(lambda x: x['BAC_Budget'] / x['CPI'] if x['CPI'] > 0 else x['BAC_Budget'], axis=1)
     df['ETC'] = df['EAC'] - df['AC_Costo_Reale']
     df['VAC'] = df['BAC_Budget'] - df['EAC']
-    
     return df
 
 def genera_dati_scurve(df_wbs, df_reg, data_status):
     oggi = pd.to_datetime(data_status).date()
-    
     date_inizio = pd.to_datetime(df_wbs['Inizio_Previsto']).dropna().dt.date
     date_fine = pd.to_datetime(df_wbs['Fine_Prevista']).dropna().dt.date
     
@@ -141,7 +188,6 @@ def genera_dati_scurve(df_wbs, df_reg, data_status):
         
     min_date = date_inizio.min()
     max_date = date_fine.max()
-    
     date_range = pd.date_range(start=min_date, end=max_date)
     
     df_reg_calc = df_reg.copy()
@@ -161,7 +207,6 @@ def genera_dati_scurve(df_wbs, df_reg, data_status):
         
         for _, row in df_wbs.iterrows():
             bac = float(row['BAC_Budget']) if pd.notna(row['BAC_Budget']) else 0.0
-            
             ip = pd.to_datetime(row['Inizio_Previsto']).date() if pd.notna(row['Inizio_Previsto']) else None
             fp = pd.to_datetime(row['Fine_Prevista']).date() if pd.notna(row['Fine_Prevista']) else None
             if ip and fp and bac > 0:
@@ -191,49 +236,31 @@ def genera_dati_scurve(df_wbs, df_reg, data_status):
             ac_val = None
             ev_val = None
             
-        dati.append({
-            'Data': d,
-            'PV (Valore Pianificato)': pv_giorno,
-            'EV (Valore Guadagnato)': ev_val,
-            'AC (Costo Reale)': ac_val
-        })
-        
+        dati.append({'Data': d, 'PV (Valore Pianificato)': pv_giorno, 'EV (Valore Guadagnato)': ev_val, 'AC (Costo Reale)': ac_val})
     return pd.DataFrame(dati)
 
 def calcola_cpm(df_wbs):
-    # Filtriamo solo le lavorazioni operative
-    df_wp = df_wbs[df_wbs['ID_WBS'].astype(str).str.contains('\.')].copy()
+    df_wp = get_foglie(df_wbs)
     cpm_nodes = {}
     
-    # SETUP: Inizializziamo i nodi e calcoliamo le durate previste
     for _, row in df_wp.iterrows():
         node_id = str(row['ID_WBS']).strip()
         inizio = pd.to_datetime(row['Inizio_Previsto'], errors='coerce')
         fine = pd.to_datetime(row['Fine_Prevista'], errors='coerce')
         
-        # Calcoliamo i giorni lavorativi
-        if pd.notna(inizio) and pd.notna(fine):
-            durata = max((fine - inizio).days, 1) # Minimo 1 giorno
-        else:
-            durata = 1
-            
+        durata = max((fine - inizio).days, 1) if pd.notna(inizio) and pd.notna(fine) else 1
         preds = [p.strip() for p in str(row['Predecessori']).split(',')] if pd.notna(row['Predecessori']) and str(row['Predecessori']).strip() != '' else []
         
         cpm_nodes[node_id] = {
-            'durata': durata,
-            'preds': preds,
-            'succs': [],
-            'ES': 0, 'EF': 0, 'LS': 0, 'LF': 0, 'slack': 0,
-            'is_critical': False
+            'durata': durata, 'preds': preds, 'succs': [],
+            'ES': 0, 'EF': 0, 'LS': 0, 'LF': 0, 'slack': 0, 'is_critical': False
         }
         
-    # Popoliamo i successori
     for n_id, data in cpm_nodes.items():
         for p_id in data['preds']:
             if p_id in cpm_nodes:
                 cpm_nodes[p_id]['succs'].append(n_id)
                 
-    # FASE 1: FORWARD PASS (Andata)
     changed = True
     while changed:
         changed = False
@@ -245,11 +272,8 @@ def calcola_cpm(df_wbs):
             new_es = max_ef
             new_ef = new_es + data['durata']
             if new_es != data['ES'] or new_ef != data['EF']:
-                data['ES'] = new_es
-                data['EF'] = new_ef
-                changed = True
+                data['ES'] = new_es; data['EF'] = new_ef; changed = True
                 
-    # FASE 2: BACKWARD PASS (Ritorno)
     project_duration = max([data['EF'] for data in cpm_nodes.values()], default=0)
     for n_id, data in cpm_nodes.items():
         data['LF'] = project_duration
@@ -265,11 +289,8 @@ def calcola_cpm(df_wbs):
             new_lf = min_ls
             new_ls = new_lf - data['durata']
             if new_lf != data['LF'] or new_ls != data['LS']:
-                data['LF'] = new_lf
-                data['LS'] = new_ls
-                changed = True
+                data['LF'] = new_lf; data['LS'] = new_ls; changed = True
                 
-    # FASE 3: MARGINI E CRITICITÀ
     for n_id, data in cpm_nodes.items():
         data['slack'] = data['LS'] - data['ES']
         if data['slack'] <= 0:
@@ -279,6 +300,7 @@ def calcola_cpm(df_wbs):
 
 # --- 3. ESECUZIONE CALCOLI INIZIALI ---
 aggiorna_costi_reali()
+st.session_state.wbs_data = aggiorna_gerarchia(st.session_state.wbs_data)
 st.session_state.wbs_data = calcola_evm(st.session_state.wbs_data, pd.Timestamp.today().date())
 
 # --- SIDEBAR: GESTIONE PROGETTI A SCOMPARSA ---
@@ -376,6 +398,7 @@ with st.sidebar:
             if 'capa_data' in st.session_state and 'Data_Apertura' in st.session_state.capa_data.columns:
                 st.session_state.capa_data['Data_Apertura'] = pd.to_datetime(st.session_state.capa_data['Data_Apertura']).dt.date
             
+            st.session_state.wbs_data = aggiorna_gerarchia(st.session_state.wbs_data)
             st.session_state.nome_progetto_attivo = uploaded_file.name.replace(".json", "")
             st.success("Dati ripristinati!")
             
@@ -400,13 +423,15 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
     "🛠️ Direzione & CAPA"
 ])
 
-# --- TAB 1: SETUP WBS (Solo Lavorazioni) ---
+# --- TAB 1: SETUP WBS (Struttura Gerarchica) ---
 with tab1:
     st.header("WBS - Work Breakdown Structure")
+    st.markdown("*Puoi inserire livelli profondi a piacere (es. 1.1.2.1). Il sistema riconoscerà automaticamente i "Padri" e ne bloccherà i costi sommandoli dalle "Foglie".*")
     
-    df = st.session_state.wbs_data
+    df = st.session_state.wbs_data.copy()
     df['Durata_Prevista (gg)'] = (pd.to_datetime(df['Fine_Prevista']) - pd.to_datetime(df['Inizio_Previsto'])).dt.days
     
+    # Le radici sono i nodi di livello 1 (quelli senza punto)
     is_root = ~df['ID_WBS'].astype(str).str.contains('\.')
     radici = df[is_root]
     
@@ -415,9 +440,9 @@ with tab1:
     for _, radice in radici.iterrows():
         id_radice = str(radice['ID_WBS'])
         discendenti = df[df['ID_WBS'].astype(str).str.startswith(f"{id_radice}.")]
-        tot_budget = discendenti['BAC_Budget'].sum()
+        tot_budget = radice['BAC_Budget']
         
-        with st.expander(f"📁 {id_radice} - {radice['Attività']} (Budget Raggruppato: € {tot_budget:,.2f})", expanded=True):
+        with st.expander(f"📁 {id_radice} - {radice['Attività']} (Budget Totale Raggruppato: € {tot_budget:,.2f})", expanded=True):
             
             discendenti_modificati = st.data_editor(
                 discendenti,
@@ -425,12 +450,10 @@ with tab1:
                 num_rows="dynamic",
                 use_container_width=True,
                 hide_index=True,
-                disabled=["Durata_Prevista (gg)", "ID_WBS", "AC_Costo_Reale"],
+                disabled=["Durata_Prevista (gg)", "AC_Costo_Reale"], # ID_WBS è sbloccato per permettere diramazioni
                 column_config={
-                    "Predecessori": st.column_config.TextColumn(
-                        "Predecessori (WP)",
-                        help="ID dei WP che devono finire prima (es. 1.1, 1.2)"
-                    ),
+                    "ID_WBS": st.column_config.TextColumn("ID WBS", required=True),
+                    "Predecessori": st.column_config.TextColumn("Predecessori", help="Es. 1.1, 1.2"),
                     "Inizio_Previsto": st.column_config.DateColumn("Inizio Previsto"),
                     "Fine_Prevista": st.column_config.DateColumn("Fine Prevista"),
                     "Inizio_Effettivo": st.column_config.DateColumn("Inizio Effettivo"),
@@ -438,28 +461,28 @@ with tab1:
                 }
             )
             
-            radice_aggiornata = radice.copy()
-            radice_aggiornata['BAC_Budget'] = discendenti_modificati['BAC_Budget'].sum()
-            radice_aggiornata['AC_Costo_Reale'] = discendenti_modificati['AC_Costo_Reale'].sum()
-            
-            df_aggiornato = pd.concat([df_aggiornato, pd.DataFrame([radice_aggiornata]), discendenti_modificati], ignore_index=True)
+            df_aggiornato = pd.concat([df_aggiornato, pd.DataFrame([radice]), discendenti_modificati], ignore_index=True)
             
     with st.form("aggiungi_padre"):
-        st.write("Aggiungi nuova Macro-Categoria")
+        st.write("Aggiungi un nuovo Nodo Radice (Macro-Categoria)")
         c1, c2, c3 = st.columns([2, 5, 2])
-        nuovo_id = c1.text_input("ID (es. 5)")
-        nuova_att = c2.text_input("Nome Categoria")
-        if c3.form_submit_button("➕ Aggiungi"):
+        nuovo_id = c1.text_input("ID (es. 2)")
+        nuova_att = c2.text_input("Nome Macro-Categoria")
+        if c3.form_submit_button("➕ Aggiungi Radice"):
             if nuovo_id and nuova_att:
                 nuova_riga = pd.DataFrame([{
                     'ID_WBS': nuovo_id, 'Attività': nuova_att, 'BAC_Budget': 0.0, 
                     '%_Completamento': 0, 'AC_Costo_Reale': 0.0
                 }])
                 st.session_state.wbs_data = pd.concat([st.session_state.wbs_data, nuova_riga], ignore_index=True)
+                st.session_state.wbs_data = aggiorna_gerarchia(st.session_state.wbs_data)
                 st.rerun()
 
     if not df_aggiornato.empty:
-        st.session_state.wbs_data = df_aggiornato
+        # Se c'è stata una modifica nella tabella, aggiorniamo l'albero maestro in background
+        if not df_aggiornato.equals(st.session_state.wbs_data):
+            st.session_state.wbs_data = aggiorna_gerarchia(df_aggiornato)
+            st.rerun()
 
 # --- TAB 2: SETUP OBS (Solo Risorse) ---
 with tab2:
@@ -504,7 +527,6 @@ with tab3:
     st.header("Incrocio Logico (Work Packages e Percorso Critico)")
     
     cpm_data = calcola_cpm(st.session_state.wbs_data)
-    
     mostra_relazioni = st.toggle("👁️ Mostra Relazioni tra WP (Interferenze)", value=True)
     
     graph = graphviz.Digraph(engine='dot')
@@ -535,7 +557,7 @@ with tab3:
             penwidth='1.5'
         )
         
-    df_wp_reali = st.session_state.wbs_data[st.session_state.wbs_data['ID_WBS'].astype(str).str.contains('\.')]
+    df_wp_reali = get_foglie(st.session_state.wbs_data)
     valid_wbs_ids = set(df_wp_reali['ID_WBS'].astype(str))
     
     for _, row in df_wp_reali.iterrows():
@@ -695,8 +717,7 @@ with tab4:
     
     data_status_gantt = c2.date_input("📅 Data di Rilevamento (Simulazione avanzamento cantiere)", value=date(2026, 10, 15))
     
-    df_gantt = st.session_state.wbs_data.copy()
-    df_gantt = df_gantt[df_gantt['ID_WBS'].astype(str).str.contains('\.')] 
+    df_gantt = get_foglie(st.session_state.wbs_data)
     
     if not df_gantt.empty:
         df_gantt['Inizio_Previsto'] = pd.to_datetime(df_gantt['Inizio_Previsto'])
@@ -753,9 +774,7 @@ with tab5:
     
     data_status_evm = st.date_input("📅 Data di Stato (Status Date) per l'analisi EVM:", value=date(2026, 10, 15))
     
-    df_completo = st.session_state.wbs_data.copy()
-    df_evm = df_completo[df_completo['ID_WBS'].astype(str).str.contains('\.')].copy()
-    
+    df_evm = get_foglie(st.session_state.wbs_data)
     df_evm = calcola_evm(df_evm, data_status_evm)
     
     tot_bac = df_evm['BAC_Budget'].sum()
@@ -945,8 +964,7 @@ with tab6:
     st.header("Registro Contabile")
     st.markdown("Inserisci qui le fatture e i SAL. Gli importi netti si sommeranno automaticamente aggiornando la voce *AC_Costo_Reale* nella WBS.")
     
-    df_wbs = st.session_state.wbs_data
-    leaf_wbs = df_wbs[df_wbs['ID_WBS'].astype(str).str.contains('\.')]
+    leaf_wbs = get_foglie(st.session_state.wbs_data)
     wbs_options = [f"{row['ID_WBS']} - {row['Attività']}" for _, row in leaf_wbs.iterrows()]
     
     edited_registro = st.data_editor(
@@ -981,8 +999,7 @@ with tab6:
 with tab7:
     st.header("Direzione Lavori: Interventi (CAPA) e Simulazioni")
     
-    df_wbs_capa = st.session_state.wbs_data
-    leaf_wbs_capa = df_wbs_capa[df_wbs_capa['ID_WBS'].astype(str).str.contains('\.')]
+    leaf_wbs_capa = get_foglie(st.session_state.wbs_data)
     wbs_options_capa = [f"{row['ID_WBS']} - {row['Attività']}" for _, row in leaf_wbs_capa.iterrows()]
     
     df_obs_capa = st.session_state.obs_data
@@ -1038,8 +1055,8 @@ with tab7:
                 df_simulazione.at[idx, 'AC_Costo_Reale'] += extra_costo
                 
             oggi = pd.Timestamp.today().date()
-            df_sim_calc = calcola_evm(df_simulazione[df_simulazione['ID_WBS'].astype(str).str.contains('\.')].copy(), oggi)
-            df_reale_calc = calcola_evm(st.session_state.wbs_data[st.session_state.wbs_data['ID_WBS'].astype(str).str.contains('\.')].copy(), oggi)
+            df_sim_calc = calcola_evm(get_foglie(df_simulazione), oggi)
+            df_reale_calc = calcola_evm(get_foglie(st.session_state.wbs_data), oggi)
             
             eac_attuale = df_reale_calc['EAC'].sum()
             eac_simulato = df_sim_calc['EAC'].sum()
@@ -1134,7 +1151,7 @@ with tab7:
 
     if st.button("📄 Genera Verbale WORD (.docx)", use_container_width=True, type="primary"):
         
-        df_evm_rep = calcola_evm(st.session_state.wbs_data[st.session_state.wbs_data['ID_WBS'].astype(str).str.contains('\.')].copy(), pd.Timestamp.today().date())
+        df_evm_rep = calcola_evm(get_foglie(st.session_state.wbs_data), pd.Timestamp.today().date())
         tot_ev_rep = df_evm_rep['EV'].sum()
         tot_ac_rep = df_evm_rep['AC_Costo_Reale'].sum()
         tot_pv_rep = df_evm_rep['PV'].sum()
