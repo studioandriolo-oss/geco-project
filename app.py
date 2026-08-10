@@ -9,10 +9,20 @@ import json
 from io import BytesIO
 from docx import Document
 import html
+import base64
 
 # --- CONFIGURAZIONE PAGINA ---
 st.set_page_config(page_title="WBS/OBS Manager & EVM", layout="wide")
-st.title("🏗️ Project Workflow & EVM Controller")
+
+try:
+    with open("logo_base64.txt", "r") as f:
+        logo_str = f.read().strip()
+    logo_bytes = base64.b64decode(logo_str)
+    st.image(logo_bytes, width=120)  # Modifica 'width' per regolare la dimensione
+except Exception:
+    pass
+
+st.title("Project Workflow & EVM Controller")
 
 # --- SISTEMA DI LOGIN SICURO (CON PERSISTENZA) ---
 try:
