@@ -522,8 +522,7 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
 # --- TAB 1: SETUP WBS (Struttura Gerarchica) ---
 with tab1:
     st.header("WBS - Work Breakdown Structure")
-    st.subheader("🔀 Organizzatore Gerarchico")
-    st.markdown('*Seleziona un nodo per **Declassarlo a Figlio** (destra), **Promuoverlo a Padre** (sinistra), **Spostarlo** su/giù o **Eliminarlo**.*')
+    st.subheader("🔀 Organizzatore Capitoli")
     
     c_sel, c_btn1, c_btn2, c_btn3 = st.columns([3, 1, 1, 1])
     
@@ -694,21 +693,17 @@ with tab3:
     graph.attr('node', fontname='Helvetica', fontsize='10', margin='0.2')
     
     for _, row in st.session_state.obs_data.iterrows():
-        # FIX CRASH IMMAGINE: Sterilizziamo i campi per evitare l'errore di Graphviz con i caratteri speciali
-        ruolo_safe = html.escape(str(row.get('Ruolo', '')))
-        risorsa_safe = html.escape(str(row.get('Risorsa', '')))
-        
         label_html = f"<<TABLE BORDER='0' CELLBORDER='0' CELLSPACING='2'>"
-        label_html += f"<TR><TD><B>{ruolo_safe}</B></TD></TR>"
-        label_html += f"<TR><TD>({risorsa_safe})</TD></TR>"
+        label_html += f"<TR><TD><B>{row['Ruolo']}</B></TD></TR>"
+        label_html += f"<TR><TD>({row['Risorsa']})</TD></TR>"
         
         colonne_base = ['ID_OBS', 'Ruolo', 'Risorsa', 'Tipo_Contratto', 'Note']
         colonne_custom = [col for col in st.session_state.obs_data.columns if col not in colonne_base]
         
         for col in colonne_custom:
-            valore = row.get(col, '')
+            valore = row[col]
             if pd.notna(valore) and str(valore).strip() != "":
-                label_html += f"<TR><TD><FONT POINT-SIZE='9' COLOR='gray30'>{html.escape(str(col))}: {html.escape(str(valore))}</FONT></TD></TR>"
+                label_html += f"<TR><TD><FONT POINT-SIZE='9' COLOR='gray30'>{col}: {valore}</FONT></TD></TR>"
         label_html += "</TABLE>>"
         
         graph.node(
@@ -725,7 +720,7 @@ with tab3:
     valid_wbs_ids = set(df_wp_reali['ID_WBS'].astype(str))
     
     for _, row in df_wp_reali.iterrows():
-        attivita_safe = html.escape(str(row.get('Attività', '')))
+        attivita = str(row['Attività'])
         budget = float(row['BAC_Budget'])
         costo_reale = float(row['AC_Costo_Reale'])
         completamento = float(row['%_Completamento'])
@@ -734,6 +729,7 @@ with tab3:
         margine = wp_cpm.get('slack', 0)
         is_critical = wp_cpm.get('is_critical', False)
         
+        # Conversione di sicurezza per evitare crash di Graphviz su date malformate
         inizio_val = pd.to_datetime(row['Inizio_Previsto'], errors='coerce')
         inizio_str = inizio_val.strftime('%d/%m/%Y') if pd.notna(inizio_val) else "N/D"
         
@@ -743,9 +739,9 @@ with tab3:
         testo_margine = f"<FONT COLOR='#D32F2F'><B>Margine: {margine} gg</B></FONT>" if is_critical else f"<FONT COLOR='#388E3C'>Margine: {margine} gg</FONT>"
         
         wp_html = f"<<TABLE BORDER='0' CELLBORDER='0' CELLSPACING='4'>"
-        wp_html += f"<TR><TD COLSPAN='2'><B>{row['ID_WBS']} - {attivita_safe}</B></TD></TR>"
+        wp_html += f"<TR><TD COLSPAN='2'><B>{row['ID_WBS']} - {attivita}</B></TD></TR>"
         wp_html += f"<TR><TD ALIGN='LEFT'>Inizio: {inizio_str}</TD><TD ALIGN='RIGHT'>Fine: {fine_str}</TD></TR>"
-        wp_html += f"<TR><TD ALIGN='LEFT'>Budget: &#8364; {budget:,.2f}</TD><TD ALIGN='RIGHT'>AC: &#8364; {costo_reale:,.2f}</TD></TR>"
+        wp_html += f"<TR><TD ALIGN='LEFT'>Budget: &euro; {budget:,.2f}</TD><TD ALIGN='RIGHT'>AC: &euro; {costo_reale:,.2f}</TD></TR>"
         wp_html += f"<TR><TD ALIGN='LEFT'>Avanzamento: {completamento:.1f}%</TD><TD ALIGN='RIGHT'>{testo_margine}</TD></TR>"
         wp_html += "</TABLE>>"
         
@@ -773,13 +769,13 @@ with tab3:
             penwidth=spessore_bordo
         )
         
-        if pd.notna(row['ID_OBS_Assegnato']) and str(row['ID_OBS_Assegnato']).strip() not in ['', 'None', 'nan']:
+        if pd.notna(row['ID_OBS_Assegnato']):
             obs_ids = str(row['ID_OBS_Assegnato']).split(',')
             for o_id in obs_ids:
                 if o_id.strip():
                     graph.edge(f"OBS_{o_id.strip()}", f"WBS_{row['ID_WBS']}", color='#757575', penwidth='1.5', arrowsize='0.8')
                     
-        if mostra_relazioni and 'Predecessori' in row and pd.notna(row['Predecessori']) and str(row['Predecessori']).strip() not in ['', 'None', 'nan']:
+        if mostra_relazioni and 'Predecessori' in row and pd.notna(row['Predecessori']) and str(row['Predecessori']).strip() != "":
             preds = str(row['Predecessori']).split(',')
             for p_id in preds:
                 p_id = p_id.strip()
@@ -851,7 +847,7 @@ with tab3:
         """
         components.html(html_code, height=600)
     except Exception as e:
-        st.error(f"Errore nella generazione del grafo (Verifica inserimenti con caratteri speciali): {e}")
+        st.error(f"Errore nella generazione del grafo: {e}")
         st.graphviz_chart(graph)
 
     st.divider()
@@ -894,52 +890,47 @@ with tab4:
         df_gantt['Inizio_Effettivo'] = pd.to_datetime(df_gantt['Inizio_Effettivo'])
         df_gantt['Fine_Effettiva'] = pd.to_datetime(df_gantt['Fine_Effettiva']).fillna(pd.to_datetime(data_status_gantt))
         
-        df_gantt['Task'] = df_gantt['ID_WBS'].astype(str) + " - " + df_gantt['Attività']
+        fig = go.Figure()
         
-        gantt_data = []
-        
-        # FIX ERRORE ANNO 2000: Utilizziamo il motore standard px.timeline che calcola le date in totale autonomia
         if vista in ["Progetto (Baseline)", "Comparativa"]:
-            for _, row in df_gantt.iterrows():
-                if pd.notna(row['Inizio_Previsto']) and pd.notna(row['Fine_Prevista']):
-                    end_date = row['Fine_Prevista'] + pd.Timedelta(days=1)
-                    gantt_data.append(dict(
-                        Task=row['Task'], 
-                        Start=row['Inizio_Previsto'], 
-                        Finish=end_date, 
-                        Tipo='Baseline'
-                    ))
-                    
+            # + pd.Timedelta(days=1) risolve il bug dell'asse anno 2000 per attività che durano "in giornata"
+            durata_prevista_ms = (df_gantt['Fine_Prevista'] - df_gantt['Inizio_Previsto'] + pd.Timedelta(days=1)).dt.total_seconds() * 1000
+            
+            fig.add_trace(go.Bar(
+                x=durata_prevista_ms,
+                y=df_gantt['ID_WBS'].astype(str) + " - " + df_gantt['Attività'],
+                base=df_gantt['Inizio_Previsto'],
+                orientation='h',
+                name='Baseline',
+                width=0.4, 
+                marker=dict(color='rgba(0, 0, 255, 0.4)' if vista == "Comparativa" else 'blue')
+            ))
+            
         if vista in ["Esecuzione (Esecutivo)", "Comparativa"]:
-            for _, row in df_gantt.iterrows():
-                if pd.notna(row['Inizio_Effettivo']):
-                    end_date = row['Fine_Effettiva'] + pd.Timedelta(days=1)
-                    gantt_data.append(dict(
-                        Task=row['Task'], 
-                        Start=row['Inizio_Effettivo'], 
-                        Finish=end_date, 
-                        Tipo='Esecutivo'
-                    ))
-                    
-        if gantt_data:
-            df_plot = pd.DataFrame(gantt_data)
+            df_esec = df_gantt.dropna(subset=['Inizio_Effettivo']).copy()
+            if not df_esec.empty:
+                durata_effettiva_ms = (df_esec['Fine_Effettiva'] - df_esec['Inizio_Effettivo'] + pd.Timedelta(days=1)).dt.total_seconds() * 1000
+                
+                fig.add_trace(go.Bar(
+                    x=durata_effettiva_ms,
+                    y=df_esec['ID_WBS'].astype(str) + " - " + df_esec['Attività'],
+                    base=df_esec['Inizio_Effettivo'],
+                    orientation='h',
+                    name='Esecutivo',
+                    width=0.2, 
+                    marker=dict(color='red')
+                ))
             
-            fig = px.timeline(
-                df_plot, 
-                x_start="Start", 
-                x_end="Finish", 
-                y="Task", 
-                color="Tipo",
-                color_discrete_map={'Baseline': 'rgba(0, 0, 255, 0.5)', 'Esecutivo': 'red'}
-            )
-            
-            fig.update_layout(barmode='overlay')
-            fig.update_yaxes(autorange="reversed")
-            fig.update_layout(height=600, xaxis_title="Linea Temporale", yaxis_title="Lavorazioni (WBS)")
-            
-            st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.info("⚠️ Non ci sono date valide per generare il grafico.")
+        fig.update_layout(
+            barmode='overlay', 
+            height=600, 
+            bargap=0.3, 
+            xaxis_title="Linea Temporale", 
+            yaxis_title="Lavorazioni (WBS)", 
+            yaxis={'autorange': 'reversed'},
+            xaxis_type='date' 
+        )
+        st.plotly_chart(fig, use_container_width=True)
     else:
         st.info("⚠️ Il cronoprogramma è vuoto. **Assicurati di aver inserito le date di Inizio e Fine nelle righe di lavoro** all'interno dei capitoli (nel Tab 1).")
         
