@@ -776,33 +776,22 @@ with tab2:
         
 # --- TAB 3: MATRICE E GRAFO A NODI ---
 with tab3:
-    st.header("Incrocio Logico - Work Packages e Percorso Critico -")
+    st.header("Incrocio Logico (Work Packages e Percorso Critico)")
     
     cpm_data = calcola_cpm(st.session_state.wbs_data)
     mostra_relazioni = st.toggle("👁️ Mostra Relazioni tra WP (Interferenze)", value=True)
     
     graph = graphviz.Digraph(engine='dot')
-    graph.attr(rankdir='LR', ranksep='1.5', nodesep='0.8', splines='spline')
+    graph.attr(rankdir='LR', ranksep='1.0', nodesep='0.5', splines='ortho')
     graph.attr('node', fontname='Helvetica', fontsize='10', margin='0.2')
     
+    # Nodi OBS
     for _, row in st.session_state.obs_data.iterrows():
-        label_html = f"<<TABLE BORDER='0' CELLBORDER='0' CELLSPACING='2'>"
-        label_html += f"<TR><TD><B>{row['Ruolo']}</B></TD></TR>"
-        label_html += f"<TR><TD>({row['Risorsa']})</TD></TR>"
-        
-        colonne_base = ['ID_OBS', 'Ruolo', 'Risorsa', 'Tipo_Contratto', 'Note']
-        colonne_custom = [col for col in st.session_state.obs_data.columns if col not in colonne_base]
-        
-        for col in colonne_custom:
-            valore = row[col]
-            if pd.notna(valore) and str(valore).strip() != "":
-                label_html += f"<TR><TD><FONT POINT-SIZE='9' COLOR='gray30'>{col}: {valore}</FONT></TD></TR>"
-        label_html += "</TABLE>>"
-        
+        label_text = f"OBS: {row['Ruolo']}\n({row['Risorsa']})"
         graph.node(
             f"OBS_{row['ID_OBS']}",  
-            label=label_html, 
-            shape='rect', 
+            label=label_text, 
+            shape='box', 
             style='rounded,filled', 
             fillcolor='#E1F5FE', 
             color='#0288D1',     
@@ -812,6 +801,7 @@ with tab3:
     df_wp_reali = get_foglie(st.session_state.wbs_data)
     valid_wbs_ids = set(df_wp_reali['ID_WBS'].astype(str))
     
+    # Nodi WBS (Formattazione testo sicura anti-crash)
     for _, row in df_wp_reali.iterrows():
         attivita = str(row['Attività'])
         budget = float(row['BAC_Budget'])
@@ -822,143 +812,54 @@ with tab3:
         margine = wp_cpm.get('slack', 0)
         is_critical = wp_cpm.get('is_critical', False)
         
-        inizio_str = row['Inizio_Previsto'].strftime('%d/%m/%Y') if pd.notna(row['Inizio_Previsto']) else "N/D"
-        fine_str = row['Fine_Prevista'].strftime('%d/%m/%Y') if pd.notna(row['Fine_Prevista']) else "N/D"
+        inizio_str = pd.to_datetime(row['Inizio_Previsto']).strftime('%d/%m/%Y') if pd.notna(row['Inizio_Previsto']) else "N/D"
+        fine_str = pd.to_datetime(row['Fine_Prevista']).strftime('%d/%m/%Y') if pd.notna(row['Fine_Prevista']) else "N/D"
         
-        testo_margine = f"<FONT COLOR='#D32F2F'><B>Margine: {margine} gg</B></FONT>" if is_critical else f"<FONT COLOR='#388E3C'>Margine: {margine} gg</FONT>"
+        margine_str = "CRITICO (0 gg)" if is_critical else f"{margine} gg"
         
-        wp_html = f"<<TABLE BORDER='0' CELLBORDER='0' CELLSPACING='4'>"
-        wp_html += f"<TR><TD COLSPAN='2'><B>{row['ID_WBS']} - {attivita}</B></TD></TR>"
-        wp_html += f"<TR><TD ALIGN='LEFT'>Inizio: {inizio_str}</TD><TD ALIGN='RIGHT'>Fine: {fine_str}</TD></TR>"
-        wp_html += f"<TR><TD ALIGN='LEFT'>Budget: &euro; {budget:,.2f}</TD><TD ALIGN='RIGHT'>AC: &euro; {costo_reale:,.2f}</TD></TR>"
-        wp_html += f"<TR><TD ALIGN='LEFT'>Avanzamento: {completamento:.1f}%</TD><TD ALIGN='RIGHT'>{testo_margine}</TD></TR>"
-        wp_html += "</TABLE>>"
+        label_text = f"WBS {row['ID_WBS']} - {attivita}\n"
+        label_text += f"Inizio: {inizio_str} | Fine: {fine_str}\n"
+        label_text += f"Budget: € {budget:,.0f} | AC: € {costo_reale:,.0f}\n"
+        label_text += f"Progresso: {completamento:.1f}% | Margine: {margine_str}"
         
-        if completamento >= 100:
-            stile = 'rounded,filled'
-            colore_sfondo = '#C8E6C9' 
-        elif completamento <= 0:
-            stile = 'rounded,filled'
-            colore_sfondo = 'white'   
-        else:
-            stile = 'rounded,striped'
-            quota_verde = completamento / 100.0
-            colore_sfondo = f"#C8E6C9;{quota_verde}:white"
-            
         bordo_colore = '#D32F2F' if is_critical else '#388E3C'  
         spessore_bordo = '3.0' if is_critical else '1.5'        
         
         graph.node(
             f"WBS_{row['ID_WBS']}", 
-            label=wp_html, 
-            shape='rect', 
-            style=stile, 
-            fillcolor=colore_sfondo, 
+            label=label_text, 
+            shape='box', 
+            style='rounded,filled', 
+            fillcolor='#F1F8E9' if not is_critical else '#FFEBEE', 
             color=bordo_colore,     
             penwidth=spessore_bordo
         )
         
-        if pd.notna(row['ID_OBS_Assegnato']):
+        if pd.notna(row['ID_OBS_Assegnato']) and str(row['ID_OBS_Assegnato']).strip() != "":
             obs_ids = str(row['ID_OBS_Assegnato']).split(',')
             for o_id in obs_ids:
                 if o_id.strip():
-                    graph.edge(f"OBS_{o_id.strip()}", f"WBS_{row['ID_WBS']}", color='#757575', penwidth='1.5', arrowsize='0.8')
+                    graph.edge(f"OBS_{o_id.strip()}", f"WBS_{row['ID_WBS']}", color='#757575', style='dotted', penwidth='1.5')
                     
-        if mostra_relazioni and 'Predecessori' in row and pd.notna(row['Predecessori']):
+        if mostra_relazioni and 'Predecessori' in row and pd.notna(row['Predecessori']) and str(row['Predecessori']).strip() != "":
             preds = str(row['Predecessori']).split(',')
             for p_id in preds:
                 p_id = p_id.strip()
                 if p_id in valid_wbs_ids:
                     pred_is_critical = cpm_data.get(p_id, {}).get('is_critical', False)
-                    
                     if is_critical and pred_is_critical:
-                        colore_cavo = '#D32F2F' 
-                        stile_cavo = 'solid'
-                        spessore_cavo = '2.5'
-                        freccia = '1.0'
+                        graph.edge(f"WBS_{p_id}", f"WBS_{row['ID_WBS']}", color='#D32F2F', style='solid', penwidth='2.5')
                     else:
-                        colore_cavo = '#FF9800' 
-                        stile_cavo = 'dashed'
-                        spessore_cavo = '1.0'
-                        freccia = '0.6'
-                        
-                    graph.edge(
-                        f"WBS_{p_id}", 
-                        f"WBS_{row['ID_WBS']}", 
-                        color=colore_cavo,  
-                        style=stile_cavo,   
-                        penwidth=spessore_cavo,   
-                        arrowsize=freccia
-                    )
+                        graph.edge(f"WBS_{p_id}", f"WBS_{row['ID_WBS']}", color='#FF9800', style='dashed', penwidth='1.5')
 
     try:
-        raw_svg = graph.pipe(format='svg').decode('utf-8')
-        svg_data = raw_svg[raw_svg.find('<svg'):]
-        
-        html_code = f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <script src="https://cdn.jsdelivr.net/npm/svg-pan-zoom@3.6.1/dist/svg-pan-zoom.min.js"></script>
-            <style>
-                body {{ margin: 0; padding: 0; overflow: hidden; background-color: #fafafa; }}
-                #svg-container {{ width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center; }}
-                svg {{ width: 100% !important; height: 100% !important; }}
-            </style>
-        </head>
-        <body>
-            <div id="svg-container">
-                {svg_data}
-            </div>
-            <script>
-                window.onload = function() {{
-                    var svgElement = document.querySelector('svg');
-                    if (svgElement) {{
-                        svgElement.setAttribute('id', 'grafo-interattivo');
-                        svgElement.removeAttribute('width');
-                        svgElement.removeAttribute('height');
-                        var panZoom = svgPanZoom('#grafo-interattivo', {{
-                            zoomEnabled: true,
-                            controlIconsEnabled: true,
-                            fit: true,
-                            center: true,
-                            minZoom: 0.1,
-                            maxZoom: 10,
-                            mouseWheelZoomEnabled: true
-                        }});
-                    }} else {{
-                        document.getElementById('svg-container').innerHTML = "Errore grafico SVG.";
-                    }}
-                }};
-            </script>
-        </body>
-        </html>
-        """
-        components.html(html_code, height=600)
+        st.graphviz_chart(graph, use_container_width=True)
     except Exception as e:
-        st.error(f"Errore nella generazione del grafo: {e}")
-        st.graphviz_chart(graph)
+        st.error(f"Errore caricamento libreria Graphviz: {e}")
 
     st.divider()
-    st.subheader("📖 Legenda del Grafo")
-    
-    col_leg1, col_leg2 = st.columns(2)
-    
-    with col_leg1:
-        st.markdown("""
-        **NODI E FIGURE**
-        * 🟦 **Riquadro Azzurro:** Risorsa/Ruolo (OBS) assegnato al cantiere.
-        * 🟩 **Riquadro Verde:** Work Package (WBS). Il riempimento interno funge da barra di caricamento e indica la **% di avanzamento** reale.
-        * 🟥 **Bordo Rosso Spesso:** Attività sul **Percorso Critico** (Margine = 0 gg). Attenzione: un ritardo in questo blocco ritarderà la fine dell'intero progetto!
-        """)
-        
-    with col_leg2:
-        st.markdown("""
-        **CAVI E COLLEGAMENTI**
-        * 🔗 **Freccia Grigia Continua:** Indica quale Risorsa (OBS) è incaricata di eseguire quale Lavorazione (WBS).
-        * 🔀 **Freccia Arancione Tratteggiata:** Relazione logica standard (es. *L'attività B inizia dopo l'attività A*).
-        * 🚨 **Freccia Rossa Spessa:** Il flusso del **Percorso Critico**. Segue esattamente la catena logica di attività che determina la durata totale del cantiere.
-        """)
+    st.markdown("📖 **LEGENDA:** Nodi <span style='color:red;'>**ROSSI**</span> indicano il **Percorso Critico** (non possono ritardare). Nodi <span style='color:green;'>**VERDI**</span> hanno margine di ritardo ammissibile.", unsafe_allow_html=True)
+
 
 # --- TAB 4: CRONOPROGRAMMA (GANTT) ---
 with tab4:
@@ -966,26 +867,28 @@ with tab4:
     
     c1, c2 = st.columns([1, 2])
     vista = c1.selectbox("Seleziona Vista", ["Progetto (Baseline)", "Esecuzione (Esecutivo)", "Comparativa"])
+    data_status_gantt = c2.date_input("📅 Data di Rilevamento (Simulazione avanzamento cantiere)", value=pd.Timestamp.today().date())
     
-    data_status_gantt = c2.date_input("📅 Data di Rilevamento (Simulazione avanzamento cantiere)", value=date(2026, 10, 15))
+    df_gantt = get_foglie(st.session_state.wbs_data).copy()
     
-    df_gantt = get_foglie(st.session_state.wbs_data)
+    # FIX: Eliminiamo dal grafico le righe in cui non sono state ancora inserite le date
+    df_gantt = df_gantt.dropna(subset=['Inizio_Previsto', 'Fine_Prevista'])
     
     if not df_gantt.empty:
         df_gantt['Inizio_Previsto'] = pd.to_datetime(df_gantt['Inizio_Previsto'])
         df_gantt['Fine_Prevista'] = pd.to_datetime(df_gantt['Fine_Prevista'])
         df_gantt['Inizio_Effettivo'] = pd.to_datetime(df_gantt['Inizio_Effettivo'])
-        
         df_gantt['Fine_Effettiva'] = pd.to_datetime(df_gantt['Fine_Effettiva']).fillna(pd.to_datetime(data_status_gantt))
         
         fig = go.Figure()
         
         if vista in ["Progetto (Baseline)", "Comparativa"]:
+            # FIX ERRORE ANNO 2000: Riallineamento in millisecondi per l'asse temporale
             durata_prevista_ms = (df_gantt['Fine_Prevista'] - df_gantt['Inizio_Previsto']).dt.total_seconds() * 1000
             
             fig.add_trace(go.Bar(
                 x=durata_prevista_ms,
-                y=df_gantt['Attività'],
+                y=df_gantt['ID_WBS'].astype(str) + " - " + df_gantt['Attività'],
                 base=df_gantt['Inizio_Previsto'],
                 orientation='h',
                 name='Baseline',
@@ -995,30 +898,31 @@ with tab4:
             
         if vista in ["Esecuzione (Esecutivo)", "Comparativa"]:
             df_esec = df_gantt.dropna(subset=['Inizio_Effettivo']).copy()
-            durata_effettiva_ms = (df_esec['Fine_Effettiva'] - df_esec['Inizio_Effettivo']).dt.total_seconds() * 1000
-            
-            fig.add_trace(go.Bar(
-                x=durata_effettiva_ms,
-                y=df_esec['Attività'],
-                base=df_esec['Inizio_Effettivo'],
-                orientation='h',
-                name='Esecutivo',
-                width=0.2, 
-                marker=dict(color='red')
-            ))
+            if not df_esec.empty:
+                durata_effettiva_ms = (df_esec['Fine_Effettiva'] - df_esec['Inizio_Effettivo']).dt.total_seconds() * 1000
+                
+                fig.add_trace(go.Bar(
+                    x=durata_effettiva_ms,
+                    y=df_esec['ID_WBS'].astype(str) + " - " + df_esec['Attività'],
+                    base=df_esec['Inizio_Effettivo'],
+                    orientation='h',
+                    name='Esecutivo',
+                    width=0.2, 
+                    marker=dict(color='red')
+                ))
             
         fig.update_layout(
             barmode='overlay', 
             height=600, 
             bargap=0.3, 
             xaxis_title="Linea Temporale", 
-            yaxis_title="WBS", 
+            yaxis_title="Lavorazioni (WBS)", 
             yaxis={'autorange': 'reversed'},
             xaxis_type='date' 
         )
         st.plotly_chart(fig, use_container_width=True)
     else:
-        st.info("Nessuna attività operativa presente nel cronoprogramma.")
+        st.info("⚠️ Il cronoprogramma è vuoto. **Assicurati di aver inserito le date di Inizio e Fine nelle righe di lavoro** all'interno dei capitoli (nel Tab 1).")
 
 # --- TAB 5: EVM E CASH FLOW ---
 with tab5:
