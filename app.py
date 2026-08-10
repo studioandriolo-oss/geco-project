@@ -14,7 +14,7 @@ import base64
 # --- CONFIGURAZIONE PAGINA ---
 st.set_page_config(page_title="WBS/OBS Manager & EVM", layout="wide")
 
-col_logo, col_title = st.columns([1, 8])
+col_logo, col_title = st.columns([1, 9], vertical_alignment="center")
 
 with col_logo:
     try:
