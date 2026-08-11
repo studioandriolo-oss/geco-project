@@ -10,7 +10,6 @@ from io import BytesIO
 from docx import Document
 import html
 import base64
-import streamlit as st
 
 # --- CONFIGURAZIONE PAGINA ---
 st.set_page_config(page_title="WBS/OBS Manager & EVM", layout="wide")
@@ -45,7 +44,6 @@ except KeyError:
     st.error("⚠️ Errore di sistema: Credenziali non trovate. Configura i 'Secrets' di Streamlit.")
     st.stop()
 
-# Legge l'URL per vedere se avevamo già fatto l'accesso (Sopravvive al tasto F5)
 if st.query_params.get("auth") == "valid":
     st.session_state.logged_in = True
 elif 'logged_in' not in st.session_state:
@@ -63,7 +61,7 @@ if not st.session_state.logged_in:
             if submit:
                 if user_input == USER_ID and pass_input == PASSWORD:
                     st.session_state.logged_in = True
-                    st.query_params["auth"] = "valid" # Scrive la 'chiave' nell'URL
+                    st.query_params["auth"] = "valid" 
                     st.rerun() 
                 else:
                     st.error("Credenziali errate. Riprova.")                
@@ -102,15 +100,12 @@ if 'nome_progetto_attivo' not in st.session_state:
 
 
 # --- 2. MOTORI MATEMATICI (Albero Gerarchico e Analisi) ---
-
 def aggiorna_gerarchia(df):
     df_calc = df.copy()
     df_calc['BAC_Budget'] = pd.to_numeric(df_calc['BAC_Budget'], errors='coerce').fillna(0.0)
     df_calc['AC_Costo_Reale'] = pd.to_numeric(df_calc['AC_Costo_Reale'], errors='coerce').fillna(0.0)
     df_calc['%_Completamento'] = pd.to_numeric(df_calc['%_Completamento'], errors='coerce').fillna(0.0)
     
-    # FIX TYPERROR: Forziamo le colonne delle date a "object" in modo che Pandas
-    # accetti tranquillamente oggetti datetime.date e celle vuote (None/NaN) mischiati.
     for col in ['Inizio_Previsto', 'Fine_Prevista', 'Inizio_Effettivo', 'Fine_Effettiva']:
         if col in df_calc.columns:
             df_calc[col] = df_calc[col].astype(object)
@@ -230,7 +225,6 @@ def modifica_struttura(id_target, azione):
     old_ids = df['ID_WBS'].astype(str).tolist()
     mapping = dict(zip(old_ids, nuovi_id))
     
-    # FIX BUG 1: Aggiornamento intelligente della stringa del menù a tendina (Predecessori)
     def aggiorna_preds(val):
         if not val or pd.isna(val) or str(val).strip() in ['', 'None', 'nan']: 
             return val
@@ -239,14 +233,9 @@ def modifica_struttura(id_target, azione):
         new_preds = []
         
         for p in preds:
-            # Dividiamo la stringa "1.1 - Attività" in ["1.1", "Attività"]
             parts = p.split(' - ', 1)
             vecchio_id = parts[0].strip()
-            
-            # Troviamo il nuovo ID mappato
             nuovo_id = mapping.get(vecchio_id, vecchio_id)
-            
-            # Ricomponiamo la stringa esattamente com'era (o manteniamo solo il numero se era vecchio stile)
             if len(parts) > 1:
                 new_preds.append(f"{nuovo_id} - {parts[1]}")
             else:
@@ -260,7 +249,7 @@ def modifica_struttura(id_target, azione):
         
     df = df.drop(columns=['Livello', 'sort_key'])
     
-    st.session_state.wbs_data = df
+    st.session_state.wbs_data = df.copy()
     st.session_state.wbs_data = aggiorna_gerarchia(st.session_state.wbs_data)
     st.rerun()
     
@@ -311,7 +300,7 @@ def calcola_evm(df, data_status):
     df['PV'] = df.apply(calcola_pv, axis=1)
     df['EV'] = df['BAC_Budget'] * (df['%_Completamento'] / 100.0)
     df['CV'] = df['EV'] - df['AC_Costo_Reale'] 
-    df['SV'] = df['EV'] - df['PV']             
+    df['SV'] = df['EV'] - df['PV']               
     
     df['SPI'] = df.apply(lambda x: (x['EV'] / x['PV']) if x['PV'] > 0 else (1.0 if x['EV']==0 else 1.1), axis=1)
     df['CPI'] = df.apply(lambda x: (x['EV'] / x['AC_Costo_Reale']) if x['AC_Costo_Reale'] > 0 else (1.0 if x['EV']==0 else 1.1), axis=1)
@@ -393,12 +382,11 @@ def calcola_cpm(df_wbs):
         
         durata = max((fine - inizio).days + 1, 1) if pd.notna(inizio) and pd.notna(fine) else 1
         
-        # Estrazione intelligente dal menù a tendina (Prende "1.1" da "1.1 - Nome Attività")
         pred_val = str(row.get('Predecessori', '')).strip()
         preds = []
         if pred_val and pred_val.lower() not in ['none', 'nan', 'null']:
             for p in pred_val.split(','):
-                p_id = p.split(' - ')[0].strip() # Estrae solo l'ID
+                p_id = p.split(' - ')[0].strip()
                 if p_id.endswith('.0'): p_id = p_id[:-2]
                 if p_id: preds.append(p_id)
         
@@ -454,126 +442,6 @@ aggiorna_costi_reali()
 st.session_state.wbs_data = aggiorna_gerarchia(st.session_state.wbs_data)
 st.session_state.wbs_data = calcola_evm(st.session_state.wbs_data, pd.Timestamp.today().date())
 
-# --- SIDEBAR: GESTIONE PROGETTI A SCOMPARSA ---
-with st.sidebar:
-    st.header("📂 Gestione Progetti")
-    
-    st.session_state.nome_progetto_attivo = st.text_input("Nome Progetto Attuale", value=st.session_state.nome_progetto_attivo)
-    
-    c_save, c_dup = st.columns(2)
-    if c_save.button("💾 Salva", use_container_width=True):
-        st.session_state.archivio_progetti[st.session_state.nome_progetto_attivo] = {
-            "wbs": st.session_state.wbs_data.copy(),
-            "obs": st.session_state.obs_data.copy(),
-            "registro": st.session_state.registro_data.copy(),
-            "capa": st.session_state.capa_data.copy()
-        }
-        st.success("Progetto salvato!")
-        
-    if c_dup.button("📑 Duplica", use_container_width=True):
-        nuovo_nome = f"{st.session_state.nome_progetto_attivo}_Copia"
-        st.session_state.archivio_progetti[nuovo_nome] = {
-            "wbs": st.session_state.wbs_data.copy(),
-            "obs": st.session_state.obs_data.copy(),
-            "registro": st.session_state.registro_data.copy(),
-            "capa": st.session_state.capa_data.copy()
-        }
-        st.session_state.nome_progetto_attivo = nuovo_nome
-        st.success("Progetto duplicato!")
-        st.rerun()
-
-    if st.session_state.archivio_progetti:
-        st.divider()
-        st.write("🔄 **Progetti in memoria (Sessione attuale)**")
-        prog_selezionato = st.selectbox("Seleziona da caricare", options=list(st.session_state.archivio_progetti.keys()), label_visibility="collapsed")
-        if st.button("📂 Apri Progetto", use_container_width=True):
-            st.session_state.wbs_data = st.session_state.archivio_progetti[prog_selezionato]["wbs"].copy()
-            st.session_state.obs_data = st.session_state.archivio_progetti[prog_selezionato]["obs"].copy()
-            st.session_state.registro_data = st.session_state.archivio_progetti[prog_selezionato]["registro"].copy()
-            st.session_state.capa_data = st.session_state.archivio_progetti[prog_selezionato]["capa"].copy()
-            st.session_state.nome_progetto_attivo = prog_selezionato
-            st.rerun()
-
-    st.divider()
-    
-    if st.button("📄 Nuovo Progetto (Reset Dati)", use_container_width=True):
-        for key in ['wbs_data', 'obs_data', 'registro_data', 'capa_data']:
-            if key in st.session_state:
-                del st.session_state[key]
-        st.session_state.nome_progetto_attivo = "Nuovo_Progetto"
-        st.rerun()
-        
-    st.divider()
-    
-    st.write("💾 **Archiviazione su PC**")
-    try:
-        progetto_export = {
-            "wbs": json.loads(st.session_state.wbs_data.to_json(orient="records", date_format="iso")),
-            "obs": json.loads(st.session_state.obs_data.to_json(orient="records")),
-            "registro": json.loads(st.session_state.registro_data.to_json(orient="records", date_format="iso")),
-            "capa": json.loads(st.session_state.capa_data.to_json(orient="records", date_format="iso"))
-        }
-        json_string = json.dumps(progetto_export, indent=4)
-        
-        st.download_button(
-            label="⬇️ Scarica (.json)",
-            data=json_string,
-            file_name=f"{st.session_state.nome_progetto_attivo}.json",
-            mime="application/json",
-            use_container_width=True
-        )
-    except Exception as e:
-        st.error(f"Errore esportazione: {e}")
-    
-    # --- BLOCCO UPLOADER DA SOSTITUIRE ---
-    uploaded_file = st.file_uploader("📤 Carica da PC", type=['json'], label_visibility="collapsed")
-    
-    if uploaded_file is not None:
-        if 'ultimo_file_caricato' not in st.session_state or st.session_state.ultimo_file_caricato != uploaded_file.file_id:
-            try:
-                dati_caricati = json.load(uploaded_file)
-                st.session_state.wbs_data = pd.DataFrame(dati_caricati['wbs'])
-                st.session_state.obs_data = pd.DataFrame(dati_caricati['obs'])
-                
-                if 'registro' in dati_caricati:
-                    st.session_state.registro_data = pd.DataFrame(dati_caricati['registro'])
-                if 'capa' in dati_caricati:
-                    st.session_state.capa_data = pd.DataFrame(dati_caricati['capa'])
-                
-                colonne_date_wbs = ['Inizio_Previsto', 'Fine_Prevista', 'Inizio_Effettivo', 'Fine_Effettiva']
-                for col in colonne_date_wbs:
-                    if col in st.session_state.wbs_data.columns:
-                        st.session_state.wbs_data[col] = pd.to_datetime(st.session_state.wbs_data[col]).dt.date
-                        
-                if 'registro_data' in st.session_state and 'Data' in st.session_state.registro_data.columns:
-                    st.session_state.registro_data['Data'] = pd.to_datetime(st.session_state.registro_data['Data']).dt.date
-                    
-                if 'capa_data' in st.session_state and 'Data_Apertura' in st.session_state.capa_data.columns:
-                    st.session_state.capa_data['Data_Apertura'] = pd.to_datetime(st.session_state.capa_data['Data_Apertura']).dt.date
-                
-                st.session_state.wbs_data = aggiorna_gerarchia(st.session_state.wbs_data)
-                st.session_state.nome_progetto_attivo = uploaded_file.name.replace(".json", "")
-                st.session_state.ultimo_file_caricato = uploaded_file.file_id
-                
-                # --- PULIZIA TOTALE CACHE AL CARICAMENTO ---
-                for k in ["memoria_obs", "memoria_reg", "memoria_capa"]:
-                    if k in st.session_state:
-                        del st.session_state[k]
-                
-                st.success("Dati ripristinati!")
-                st.rerun() 
-                
-            except Exception as e:
-                st.error(f"File JSON non valido. {e}")
-            
-    st.divider()
-    
-    if st.button("🚪 Esci (Logout)", type="primary", use_container_width=True):
-        st.session_state.logged_in = False
-        if "auth" in st.query_params:
-            del st.query_params["auth"]
-        st.rerun()
-
 
 # --- CREAZIONE TAB ---
 tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
@@ -591,12 +459,10 @@ with tab1:
     st.header("WBS - Work Breakdown Structure")
     st.markdown('*I numeri ID sono **completamente bloccati per garantire l\'integrità del database logico**. Usa i pulsanti sotto ogni capitolo per spostare e rientrare le voci in automatico.*')
     
-    # --- ORGANIZZATORE CAPITOLI (SOLO PADRI) ---
     st.subheader("🔀 Organizzatore Capitoli")
     c_sel, c_btn1, c_btn2, c_btn3 = st.columns([3, 1, 1, 1])
     
-    # Filtriamo il dataframe per prendere SOLO le voci senza punto nell'ID (i Capitoli/Padri)
-    df_padri = st.session_state.wbs_data[~st.session_state.wbs_data['ID_WBS'].astype(str).str.contains('\.')]
+    df_padri = st.session_state.wbs_data[~st.session_state.wbs_data['ID_WBS'].astype(str).str.contains(r'\.')]
     lista_capitoli = df_padri['ID_WBS'].astype(str) + " - " + df_padri['Attività'].astype(str)
     
     nodo_scelto = c_sel.selectbox("Seleziona una voce", options=lista_capitoli, label_visibility="collapsed")
@@ -612,7 +478,6 @@ with tab1:
             
     st.divider()
     
-    # --- PREPARAZIONE DATI E TABELLE ---
     df = st.session_state.wbs_data.copy()
     
     colonne_date = ['Inizio_Previsto', 'Fine_Prevista', 'Inizio_Effettivo', 'Fine_Effettiva']
@@ -622,12 +487,11 @@ with tab1:
             
     df['Durata_Prevista (gg)'] = (pd.to_datetime(df['Fine_Prevista']) - pd.to_datetime(df['Inizio_Previsto'])).dt.days + 1
     
-    is_root = ~df['ID_WBS'].astype(str).str.contains('\.')
+    is_root = ~df['ID_WBS'].astype(str).str.contains(r'\.')
     radici = df[is_root]
     
     df_aggiornato = pd.DataFrame()
     
-    # Creiamo le liste vuote per i menù a tendina (OBS e Predecessori)
     lista_obs_dropdown = [""] + [f"{row['ID_OBS']} - {row['Risorsa']}" for _, row in st.session_state.obs_data.iterrows() if pd.notna(row['ID_OBS'])]
     lista_wbs_dropdown = [""] + [f"{row['ID_WBS']} - {row['Attività']}" for _, row in df.iterrows() if pd.notna(row['ID_WBS'])]
     
@@ -692,7 +556,7 @@ with tab1:
         nuova_att = c1.text_input("Nome", placeholder="Es. Impianti Elettrici")
         if c2.form_submit_button("➕ Aggiungi Capitolo"):
             if nuova_att:
-                is_root_calc = ~st.session_state.wbs_data['ID_WBS'].astype(str).str.contains('\.')
+                is_root_calc = ~st.session_state.wbs_data['ID_WBS'].astype(str).str.contains(r'\.')
                 nuovo_id = str(len(st.session_state.wbs_data[is_root_calc]) + 1)
                 
                 nuova_riga = pd.DataFrame([{
@@ -714,7 +578,7 @@ with tab1:
     st.divider()
     st.warning("⚠️ **Hai aggiunto nuove lavorazioni nelle tabelle?** Clicca il tasto qui sotto per far assegnare al sistema la numerazione definitiva e riallineare l'albero WBS.")
     if st.button("💾 SALVA INSERIMENTI E RICALCOLA ALBERO", type="primary", use_container_width=True):
-        st.session_state.wbs_data = df_aggiornato
+        st.session_state.wbs_data = df_aggiornato.copy() # CLONAZIONE SICURA
         modifica_struttura('1', 'rinumera')
         
 # --- TAB 2: SETUP OBS (Solo Risorse) ---
@@ -741,6 +605,7 @@ with tab2:
                 st.session_state.obs_data.rename(columns={col_da_modificare: nuovo_nome}, inplace=True)
                 st.rerun()
                 
+    # FIX: Ripristino delle intestazioni se perse
     colonne_obs_base = ['ID_OBS', 'Ruolo', 'Risorsa', 'Tipo_Contratto', 'Note']
     if st.session_state.obs_data.empty and len(st.session_state.obs_data.columns) == 0:
         st.session_state.obs_data = pd.DataFrame(columns=colonne_obs_base)
@@ -763,8 +628,7 @@ with tab2:
     st.divider()
     st.warning("⚠️ **Hai aggiunto o modificato le risorse?** Clicca il tasto qui sotto per confermare i dati prima di salvare il progetto.")
     if st.button("💾 SALVA ANAGRAFICA RISORSE (OBS)", type="primary", use_container_width=True):
-        st.session_state.obs_data = edited_obs
-        # DISTRUTTORE DI CACHE: Resetta il lucchetto per evitare conflitti
+        st.session_state.obs_data = edited_obs.copy() # CLONAZIONE SICURA
         if "memoria_obs" in st.session_state:
             del st.session_state["memoria_obs"]
         st.rerun()
@@ -773,18 +637,14 @@ with tab2:
 with tab3:
     st.header("Incrocio Logico (Work Packages e Percorso Critico)")
     
-    # Attiviamo l'algoritmo CPM in background
     cpm_data = calcola_cpm(st.session_state.wbs_data)
-    
     mostra_relazioni = st.toggle("👁️ Mostra Relazioni tra WP (Interferenze)", value=True)
     
     graph = graphviz.Digraph(engine='dot')
     graph.attr(rankdir='LR', ranksep='1.5', nodesep='0.8', splines='spline')
     graph.attr('node', fontname='Helvetica', fontsize='10', margin='0.2')
     
-    # --- NODI OBS ---
     for _, row in st.session_state.obs_data.iterrows():
-        # Filtro antiblocco: rimuove caratteri speciali che fanno esplodere Graphviz
         ruolo_safe = str(row.get('Ruolo', '')).replace('<', '').replace('>', '').replace('&', 'e')
         risorsa_safe = str(row.get('Risorsa', '')).replace('<', '').replace('>', '').replace('&', 'e')
         
@@ -816,7 +676,6 @@ with tab3:
                 penwidth='1.5'
             )
         
-    # --- NODI WBS E PERCORSO CRITICO ---
     df_wp_reali = get_foglie(st.session_state.wbs_data)
     valid_wbs_ids = set(df_wp_reali['ID_WBS'].astype(str))
     
@@ -824,13 +683,11 @@ with tab3:
         wbs_id = str(row.get('ID_WBS', '')).strip()
         if not wbs_id: continue
         
-        # Filtro antiblocco per l'attività
         attivita = str(row.get('Attività', '')).replace('<', '').replace('>', '').replace('&', 'e')
         budget = float(row['BAC_Budget'])
         costo_reale = float(row['AC_Costo_Reale'])
         completamento = float(row['%_Completamento'])
         
-        # Recuperiamo i dati CPM per questo nodo specifico
         wp_cpm = cpm_data.get(wbs_id, {})
         margine = wp_cpm.get('slack', 0)
         is_critical = wp_cpm.get('is_critical', False)
@@ -843,7 +700,6 @@ with tab3:
         
         testo_margine = f"<FONT COLOR='#D32F2F'><B>Margine: {margine} gg</B></FONT>" if is_critical else f"<FONT COLOR='#388E3C'>Margine: {margine} gg</FONT>"
         
-        # ECCO IL BUG RISOLTO: Uso del simbolo € testuale al posto del distruttivo '&euro;'
         wp_html = f"<<TABLE BORDER='0' CELLBORDER='0' CELLSPACING='4'>"
         wp_html += f"<TR><TD COLSPAN='2'><B>{wbs_id} - {attivita}</B></TD></TR>"
         wp_html += f"<TR><TD ALIGN='LEFT'>Inizio: {inizio_str}</TD><TD ALIGN='RIGHT'>Fine: {fine_str}</TD></TR>"
@@ -851,7 +707,6 @@ with tab3:
         wp_html += f"<TR><TD ALIGN='LEFT'>Avanzamento: {completamento:.1f}%</TD><TD ALIGN='RIGHT'>{testo_margine}</TD></TR>"
         wp_html += "</TABLE>>"
         
-        # Gestione Stile (Barra di progresso)
         if completamento >= 100:
             stile = 'rounded,filled'
             colore_sfondo = '#C8E6C9' 
@@ -876,7 +731,6 @@ with tab3:
             penwidth=spessore_bordo
         )
         
-        # Assegnazioni OBS
         obs_val = str(row.get('ID_OBS_Assegnato', '')).strip()
         if obs_val and obs_val.lower() not in ['none', 'nan', 'null']:
             obs_ids = [o.strip() for o in obs_val.split(',')]
@@ -886,7 +740,6 @@ with tab3:
                 if o_id:
                     graph.edge(f"OBS_{o_id}", f"WBS_{wbs_id}", color='#757575', penwidth='1.5', arrowsize='0.8')
                     
-        # Connessioni WP (Percorso Logico)
         pred_val = str(row.get('Predecessori', '')).strip()
         if mostra_relazioni and pred_val and pred_val.lower() not in ['none', 'nan', 'null']:
             preds = [p.strip() for p in pred_val.split(',')]
@@ -917,7 +770,6 @@ with tab3:
                         arrowsize=freccia
                     )
 
-    # Rendering interattivo HTML
     try:
         raw_svg = graph.pipe(format='svg').decode('utf-8')
         if '<svg' in raw_svg:
@@ -1000,7 +852,6 @@ with tab4:
     
     df_gantt = get_foglie(st.session_state.wbs_data).copy()
     
-    # Rimuoviamo in sicurezza le attività che non possiedono ancora una data di inizio/fine
     df_gantt = df_gantt.dropna(subset=['Inizio_Previsto', 'Fine_Prevista'])
     
     if not df_gantt.empty:
@@ -1012,7 +863,6 @@ with tab4:
         fig = go.Figure()
         
         if vista in ["Progetto (Baseline)", "Comparativa"]:
-            # + pd.Timedelta(days=1) risolve il bug dell'asse anno 2000 per attività che durano "in giornata"
             durata_prevista_ms = (df_gantt['Fine_Prevista'] - df_gantt['Inizio_Previsto'] + pd.Timedelta(days=1)).dt.total_seconds() * 1000
             
             fig.add_trace(go.Bar(
@@ -1076,7 +926,6 @@ with tab5:
     perc_completamento = (tot_ev / tot_bac * 100) if tot_bac > 0 else 0.0
     perc_pianificata = (tot_pv / tot_bac * 100) if tot_bac > 0 else 0.0
     
-    # --- CRUSCOTTO DIREZIONALE A SCHEDE (CARDS) ---
     col_box1, col_box2 = st.columns(2)
 
     with col_box1:
@@ -1111,7 +960,6 @@ with tab5:
             
     st.divider()
 
-    # --- GRAFICO EVM: CURVA AD S (S-CURVE) ---
     st.subheader("📈 Curva ad S (Andamento Temporale di Progetto)")
     
     df_scurve = genera_dati_scurve(df_evm, st.session_state.registro_data, data_status_evm)
@@ -1182,7 +1030,6 @@ with tab5:
     
     st.divider()
     
-    # --- GRAFICO A BARRE ---
     st.subheader("Raffronto Costi per Attività")
     if not df_evm.empty:
         fig_evm = go.Figure(data=[
@@ -1195,7 +1042,6 @@ with tab5:
     else:
         st.info("Nessuna attività inserita per il raffronto costi.")
         
-    # --- TABELLA E LEGENDA ---
     col_KPI, col_LEGENDA = st.columns([7, 3]) 
     with col_KPI:
         st.subheader("Indicatori di Performance (KPI)")
@@ -1220,7 +1066,6 @@ with tab5:
         
     st.divider()
     
-    # --- MOTORE AI ANALIZZATORE DIREZIONALE ---
     st.subheader("🤖 Analizzatore Direzionale (AI-Assist)")
     
     soglia_allerta = 0.95
@@ -1262,9 +1107,13 @@ with tab6:
     leaf_wbs = get_foglie(st.session_state.wbs_data)
     wbs_options = [f"{row['ID_WBS']} - {row['Attività']}" for _, row in leaf_wbs.iterrows()]
     
-    # --- CREAZIONE LISTA FORNITORI DAL TAB OBS ---
     obs_options = [""] + [f"{row['ID_OBS']} - {row['Risorsa']}" for _, row in st.session_state.obs_data.iterrows() if pd.notna(row['ID_OBS'])]
     
+    # FIX: Ripristino delle intestazioni se perse
+    colonne_reg_base = ['Data', 'N_Doc', 'Fornitore', 'Voce_WBS', 'Importo_Netto', 'Descrizione']
+    if st.session_state.registro_data.empty and len(st.session_state.registro_data.columns) == 0:
+        st.session_state.registro_data = pd.DataFrame(columns=colonne_reg_base)
+        
     edited_registro = st.data_editor(
         st.session_state.registro_data,
         key="memoria_reg",
@@ -1297,8 +1146,7 @@ with tab6:
     st.divider()
     st.warning("⚠️ **Hai inserito nuove fatture o SAL?** Clicca il tasto qui sotto per inviare i costi alla WBS e ricalcolare l'EVM.")
     if st.button("💾 SALVA REGISTRO E AGGIORNA COSTI", type="primary", use_container_width=True):
-        st.session_state.registro_data = edited_registro
-        # DISTRUTTORE DI CACHE: Resetta il lucchetto
+        st.session_state.registro_data = edited_registro.copy() # CLONAZIONE SICURA
         if "memoria_reg" in st.session_state:
             del st.session_state["memoria_reg"]
         st.rerun()
@@ -1313,12 +1161,9 @@ with tab7:
     df_obs_capa = st.session_state.obs_data
     obs_options_capa = [f"{row['ID_OBS']} - {row['Risorsa']}" for _, row in df_obs_capa.iterrows()]
     
-    # ---------------------------------------------------------
-    # SEZIONE 1: REGISTRO DEGLI INTERVENTI (ACTION LOG)
-    # ---------------------------------------------------------
     st.subheader("1. Registro Azioni Correttive e Preventive (CAPA)")
     
-    # FIX: Ripristino delle intestazioni di colonna se perse durante il caricamento di un JSON vuoto
+    # FIX: Ripristino delle intestazioni di colonna se perse
     colonne_capa_base = ['Data_Apertura', 'ID_WBS_Rif', 'Tipo_Azione', 'Descrizione', 'Responsabile_OBS', 'Stato']
     if st.session_state.capa_data.empty and len(st.session_state.capa_data.columns) == 0:
         st.session_state.capa_data = pd.DataFrame(columns=colonne_capa_base)
@@ -1341,14 +1186,11 @@ with tab7:
     st.divider()
     st.warning("⚠️ **Hai modificato il registro interventi?** Clicca per confermare i dati.")
     if st.button("💾 SALVA REGISTRO CAPA", type="primary", use_container_width=True):
-        st.session_state.capa_data = edited_capa
+        st.session_state.capa_data = edited_capa.copy() # CLONAZIONE SICURA
         if "memoria_capa" in st.session_state:
             del st.session_state["memoria_capa"]
         st.rerun()
     
-    # ---------------------------------------------------------
-    # SEZIONE 2: SIMULATORE WHAT-IF (PROJECT CRASHING)
-    # ---------------------------------------------------------
     with st.expander("🔬 2. Ambiente di Simulazione (Compromesso Costi / Tempi)"):
         st.markdown("Simula l'impatto di un'azione correttiva. **Opzione Crashing:** inietta liquidità extra per accelerare i lavori e valuta lo spostamento della data di fine cantiere.")
         
@@ -1446,9 +1288,6 @@ with tab7:
                 )
                 st.plotly_chart(fig_sim, use_container_width=True)
 
-    # ---------------------------------------------------------
-    # SEZIONE 3: EXPORT REPORT DIREZIONALE IN WORD (.DOCX)
-    # ---------------------------------------------------------
     st.subheader("3. Stampa Verbale di Direzione Lavori")
     
     col_f1, col_f2 = st.columns([1, 2])
@@ -1523,3 +1362,137 @@ with tab7:
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             type="secondary"
         )
+
+# --- SIDEBAR: GESTIONE PROGETTI A SCOMPARSA (Spostata alla fine per garantire esportazione dati aggiornata!) ---
+with st.sidebar:
+    st.header("📂 Gestione Progetti")
+    
+    st.session_state.nome_progetto_attivo = st.text_input("Nome Progetto Attuale", value=st.session_state.nome_progetto_attivo)
+    
+    c_save, c_dup = st.columns(2)
+    if c_save.button("💾 Salva", use_container_width=True):
+        st.session_state.archivio_progetti[st.session_state.nome_progetto_attivo] = {
+            "wbs": st.session_state.wbs_data.copy(),
+            "obs": st.session_state.obs_data.copy(),
+            "registro": st.session_state.registro_data.copy(),
+            "capa": st.session_state.capa_data.copy()
+        }
+        st.success("Progetto salvato in memoria temporanea!")
+        
+    if c_dup.button("📑 Duplica", use_container_width=True):
+        nuovo_nome = f"{st.session_state.nome_progetto_attivo}_Copia"
+        st.session_state.archivio_progetti[nuovo_nome] = {
+            "wbs": st.session_state.wbs_data.copy(),
+            "obs": st.session_state.obs_data.copy(),
+            "registro": st.session_state.registro_data.copy(),
+            "capa": st.session_state.capa_data.copy()
+        }
+        st.session_state.nome_progetto_attivo = nuovo_nome
+        st.success("Progetto duplicato!")
+        st.rerun()
+
+    if st.session_state.archivio_progetti:
+        st.divider()
+        st.write("🔄 **Progetti in memoria (Sessione attuale)**")
+        prog_selezionato = st.selectbox("Seleziona da caricare", options=list(st.session_state.archivio_progetti.keys()), label_visibility="collapsed")
+        if st.button("📂 Apri Progetto", use_container_width=True):
+            st.session_state.wbs_data = st.session_state.archivio_progetti[prog_selezionato]["wbs"].copy()
+            st.session_state.obs_data = st.session_state.archivio_progetti[prog_selezionato]["obs"].copy()
+            st.session_state.registro_data = st.session_state.archivio_progetti[prog_selezionato]["registro"].copy()
+            st.session_state.capa_data = st.session_state.archivio_progetti[prog_selezionato]["capa"].copy()
+            st.session_state.nome_progetto_attivo = prog_selezionato
+            st.rerun()
+
+    st.divider()
+    
+    if st.button("📄 Nuovo Progetto (Reset Dati)", use_container_width=True):
+        for key in ['wbs_data', 'obs_data', 'registro_data', 'capa_data']:
+            if key in st.session_state:
+                del st.session_state[key]
+        st.session_state.nome_progetto_attivo = "Nuovo_Progetto"
+        st.rerun()
+        
+    st.divider()
+    
+    st.write("💾 **Archiviazione su PC**")
+    try:
+        progetto_export = {
+            "wbs": json.loads(st.session_state.wbs_data.to_json(orient="records", date_format="iso")),
+            "obs": json.loads(st.session_state.obs_data.to_json(orient="records")),
+            "registro": json.loads(st.session_state.registro_data.to_json(orient="records", date_format="iso")),
+            "capa": json.loads(st.session_state.capa_data.to_json(orient="records", date_format="iso"))
+        }
+        json_string = json.dumps(progetto_export, indent=4)
+        
+        st.download_button(
+            label="⬇️ Scarica (.json)",
+            data=json_string,
+            file_name=f"{st.session_state.nome_progetto_attivo}.json",
+            mime="application/json",
+            use_container_width=True
+        )
+    except Exception as e:
+        st.error(f"Errore esportazione: {e}")
+    
+    uploaded_file = st.file_uploader("📤 Carica da PC", type=['json'], label_visibility="collapsed")
+    
+    if uploaded_file is not None:
+        if 'ultimo_file_caricato' not in st.session_state or st.session_state.ultimo_file_caricato != uploaded_file.file_id:
+            try:
+                dati_caricati = json.load(uploaded_file)
+                
+                # Ripristino ultra-sicuro per JSON danneggiati o precedentemente salvati a vuoto
+                df_wbs = pd.DataFrame(dati_caricati.get('wbs', []))
+                if df_wbs.empty:
+                    df_wbs = pd.DataFrame([{'ID_WBS': '1', 'Attività': 'Progetto Principale', 'BAC_Budget': 0.0, '%_Completamento': 0.0, 'AC_Costo_Reale': 0.0, 'ID_OBS_Assegnato': None, 'Predecessori': ''}])
+                st.session_state.wbs_data = df_wbs
+                
+                df_obs = pd.DataFrame(dati_caricati.get('obs', []))
+                if df_obs.empty:
+                    df_obs = pd.DataFrame(columns=['ID_OBS', 'Ruolo', 'Risorsa', 'Tipo_Contratto', 'Note'])
+                st.session_state.obs_data = df_obs
+                
+                df_reg = pd.DataFrame(dati_caricati.get('registro', []))
+                if df_reg.empty:
+                    df_reg = pd.DataFrame(columns=['Data', 'N_Doc', 'Fornitore', 'Voce_WBS', 'Importo_Netto', 'Descrizione'])
+                st.session_state.registro_data = df_reg
+                
+                df_capa = pd.DataFrame(dati_caricati.get('capa', []))
+                if df_capa.empty:
+                    df_capa = pd.DataFrame(columns=['Data_Apertura', 'ID_WBS_Rif', 'Tipo_Azione', 'Descrizione', 'Responsabile_OBS', 'Stato'])
+                st.session_state.capa_data = df_capa
+                
+                # Conversione Date blindata
+                colonne_date_wbs = ['Inizio_Previsto', 'Fine_Prevista', 'Inizio_Effettivo', 'Fine_Effettiva']
+                for col in colonne_date_wbs:
+                    if col in st.session_state.wbs_data.columns:
+                        st.session_state.wbs_data[col] = pd.to_datetime(st.session_state.wbs_data[col], errors='coerce').dt.date
+                        
+                if 'Data' in st.session_state.registro_data.columns:
+                    st.session_state.registro_data['Data'] = pd.to_datetime(st.session_state.registro_data['Data'], errors='coerce').dt.date
+                    
+                if 'Data_Apertura' in st.session_state.capa_data.columns:
+                    st.session_state.capa_data['Data_Apertura'] = pd.to_datetime(st.session_state.capa_data['Data_Apertura'], errors='coerce').dt.date
+                
+                st.session_state.wbs_data = aggiorna_gerarchia(st.session_state.wbs_data)
+                st.session_state.nome_progetto_attivo = uploaded_file.name.replace(".json", "")
+                st.session_state.ultimo_file_caricato = uploaded_file.file_id
+                
+                # Disinnesco cache tabelle precedenti
+                for k in ["memoria_obs", "memoria_reg", "memoria_capa"]:
+                    if k in st.session_state:
+                        del st.session_state[k]
+                
+                st.success("Dati ripristinati in modo sicuro!")
+                st.rerun() 
+                
+            except Exception as e:
+                st.error(f"Errore critico durante la lettura del File JSON: {e}")
+            
+    st.divider()
+    
+    if st.button("🚪 Esci (Logout)", type="primary", use_container_width=True):
+        st.session_state.logged_in = False
+        if "auth" in st.query_params:
+            del st.query_params["auth"]
+        st.rerun()
