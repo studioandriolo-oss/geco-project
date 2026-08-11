@@ -507,6 +507,7 @@ with tab1:
             colonne_bloccate = ["ID_WBS", "Durata_Prevista (gg)", "AC_Costo_Reale", "PV", "EV", "CV", "SV", "SPI", "CPI", "EAC", "ETC", "VAC"]
             colonne_bloccate = [col for col in colonne_bloccate if col in discendenti.columns]
             
+            # BOZZA WBS
             discendenti_modificati = st.data_editor(
                 discendenti,
                 key=f"editor_wbs_idx_{idx_riga}_id_{id_radice}",
@@ -577,8 +578,14 @@ with tab1:
 
     st.divider()
     st.warning("⚠️ **Hai aggiunto nuove lavorazioni nelle tabelle?** Clicca il tasto qui sotto per far assegnare al sistema la numerazione definitiva e riallineare l'albero WBS.")
+    
+    # SALVATAGGIO REALE WBS
     if st.button("💾 SALVA INSERIMENTI E RICALCOLA ALBERO", type="primary", use_container_width=True):
         st.session_state.wbs_data = df_aggiornato.copy() 
+        # Pulizia delle bozze
+        for k in list(st.session_state.keys()):
+            if k.startswith("editor_wbs_"):
+                del st.session_state[k]
         modifica_struttura('1', 'rinumera')
         
 # --- TAB 2: SETUP OBS (Solo Risorse) ---
@@ -609,10 +616,10 @@ with tab2:
     if st.session_state.obs_data.empty and len(st.session_state.obs_data.columns) == 0:
         st.session_state.obs_data = pd.DataFrame(columns=colonne_obs_base)
         
-    # SALVATAGGIO IN TEMPO REALE: I dati vengono scritti in memoria a ogni keystroke!
-    st.session_state.obs_data = st.data_editor(
+    # BOZZA OBS
+    edited_obs = st.data_editor(
         st.session_state.obs_data, 
-        key="editor_obs_table",
+        key="widget_obs_table",
         column_config={
             "Tipo_Contratto": st.column_config.SelectboxColumn(
                 "Tipo Contratto",
@@ -626,9 +633,15 @@ with tab2:
     )
     
     st.divider()
-    st.warning("⚠️ **Hai aggiunto o modificato le risorse?** I dati vengono salvati automaticamente. Clicca qui sotto per aggiornare i calcoli.")
-    if st.button("💾 CONFERMA E AGGIORNA DATI (OBS)", type="primary", use_container_width=True):
-        st.success("Dati anagrafici sincronizzati!")
+    st.warning("⚠️ Clicca qui sotto per salvare le modifiche nel database prima di esportare il progetto.")
+    
+    # SALVATAGGIO REALE OBS
+    if st.button("💾 CONFERMA E SALVA (OBS)", type="primary", use_container_width=True):
+        st.session_state.obs_data = edited_obs.copy()
+        # Pulizia della bozza
+        if "widget_obs_table" in st.session_state:
+            del st.session_state["widget_obs_table"]
+        st.success("Dati anagrafici salvati correttamente!")
         st.rerun()
         
 # --- TAB 3: MATRICE E GRAFO A NODI ---
@@ -1111,10 +1124,10 @@ with tab6:
     if st.session_state.registro_data.empty and len(st.session_state.registro_data.columns) == 0:
         st.session_state.registro_data = pd.DataFrame(columns=colonne_reg_base)
         
-    # SALVATAGGIO IN TEMPO REALE
-    st.session_state.registro_data = st.data_editor(
+    # BOZZA REGISTRO
+    edited_registro = st.data_editor(
         st.session_state.registro_data,
-        key="editor_reg_table",
+        key="widget_reg_table",
         num_rows="dynamic",
         use_container_width=True,
         hide_index=True,
@@ -1142,9 +1155,15 @@ with tab6:
     )
     
     st.divider()
-    st.warning("⚠️ **Hai inserito nuove fatture o SAL?** I dati sono salvati automaticamente. Clicca qui sotto per ricalcolare Costi Reali ed EVM.")
-    if st.button("💾 RICALCOLA COSTI E AGGIORNA (EVM)", type="primary", use_container_width=True):
-        st.success("Registro sincronizzato e costi ricalcolati!")
+    st.warning("⚠️ Clicca qui sotto per salvare le fatture nel database prima di esportare il progetto.")
+    
+    # SALVATAGGIO REALE REGISTRO
+    if st.button("💾 SALVA REGISTRO E AGGIORNA COSTI", type="primary", use_container_width=True):
+        st.session_state.registro_data = edited_registro.copy() 
+        # Pulizia della bozza
+        if "widget_reg_table" in st.session_state:
+            del st.session_state["widget_reg_table"]
+        st.success("Fatture salvate e costi ricalcolati!")
         st.rerun()
         
 # --- TAB 7: DIREZIONE LAVORI, CAPA & REPORTISTICA ---
@@ -1163,10 +1182,10 @@ with tab7:
     if st.session_state.capa_data.empty and len(st.session_state.capa_data.columns) == 0:
         st.session_state.capa_data = pd.DataFrame(columns=colonne_capa_base)
     
-    # SALVATAGGIO IN TEMPO REALE
-    st.session_state.capa_data = st.data_editor(
+    # BOZZA CAPA
+    edited_capa = st.data_editor(
         st.session_state.capa_data,
-        key="editor_capa_table",
+        key="widget_capa_table",
         num_rows="dynamic",
         use_container_width=True,
         hide_index=True,
@@ -1180,9 +1199,15 @@ with tab7:
         }
     )
     st.divider()
-    st.warning("⚠️ I dati del registro interventi vengono salvati in tempo reale.")
-    if st.button("💾 SINCRONIZZA REGISTRO CAPA", type="primary", use_container_width=True):
-        st.success("Interventi sincronizzati con successo!")
+    st.warning("⚠️ Clicca qui sotto per salvare gli interventi nel database prima di esportare il progetto.")
+    
+    # SALVATAGGIO REALE CAPA
+    if st.button("💾 SALVA REGISTRO CAPA", type="primary", use_container_width=True):
+        st.session_state.capa_data = edited_capa.copy() 
+        # Pulizia della bozza
+        if "widget_capa_table" in st.session_state:
+            del st.session_state["widget_capa_table"]
+        st.success("Interventi salvati correttamente!")
         st.rerun()
     
     with st.expander("🔬 2. Ambiente di Simulazione (Compromesso Costi / Tempi)"):
@@ -1396,8 +1421,10 @@ with st.sidebar:
             st.session_state.capa_data = st.session_state.archivio_progetti[prog_selezionato]["capa"].copy()
             st.session_state.nome_progetto_attivo = prog_selezionato
             
-            for k in ["editor_obs_table", "editor_reg_table", "editor_capa_table"]:
-                if k in st.session_state:
+            # --- PULIZIA NUCLEARE WIDGET (Risolve la memoria ostinata) ---
+            chiavi_di_sistema = ['wbs_data', 'obs_data', 'registro_data', 'capa_data', 'archivio_progetti', 'nome_progetto_attivo', 'logged_in', 'ultimo_file_caricato']
+            for k in list(st.session_state.keys()):
+                if k not in chiavi_di_sistema:
                     del st.session_state[k]
             st.rerun()
 
@@ -1405,12 +1432,11 @@ with st.sidebar:
     
     if st.button("📄 Nuovo Progetto (Reset Dati)", use_container_width=True):
         st.session_state.nome_progetto_attivo = "Nuovo_Progetto"
-        for key in ['wbs_data', 'obs_data', 'registro_data', 'capa_data']:
-            if key in st.session_state:
-                del st.session_state[key]
-                
-        for k in ["editor_obs_table", "editor_reg_table", "editor_capa_table"]:
-            if k in st.session_state:
+        
+        # --- RESET TOTALE DATI E WIDGET ---
+        chiavi_salvate = ['archivio_progetti', 'nome_progetto_attivo', 'logged_in', 'ultimo_file_caricato']
+        for k in list(st.session_state.keys()):
+            if k not in chiavi_salvate:
                 del st.session_state[k]
         st.rerun()
         
@@ -1443,6 +1469,7 @@ with st.sidebar:
             try:
                 dati_caricati = json.load(uploaded_file)
                 
+                # Ripristino ultra-sicuro per JSON danneggiati o precedentemente salvati a vuoto
                 df_wbs = pd.DataFrame(dati_caricati.get('wbs', []))
                 if df_wbs.empty:
                     df_wbs = pd.DataFrame([{'ID_WBS': '1', 'Attività': 'Progetto Principale', 'BAC_Budget': 0.0, '%_Completamento': 0.0, 'AC_Costo_Reale': 0.0, 'ID_OBS_Assegnato': None, 'Predecessori': ''}])
@@ -1463,6 +1490,7 @@ with st.sidebar:
                     df_capa = pd.DataFrame(columns=['Data_Apertura', 'ID_WBS_Rif', 'Tipo_Azione', 'Descrizione', 'Responsabile_OBS', 'Stato'])
                 st.session_state.capa_data = df_capa
                 
+                # Conversione Date blindata
                 colonne_date_wbs = ['Inizio_Previsto', 'Fine_Prevista', 'Inizio_Effettivo', 'Fine_Effettiva']
                 for col in colonne_date_wbs:
                     if col in st.session_state.wbs_data.columns:
@@ -1478,9 +1506,10 @@ with st.sidebar:
                 st.session_state.nome_progetto_attivo = uploaded_file.name.replace(".json", "")
                 st.session_state.ultimo_file_caricato = uploaded_file.file_id
                 
-                # --- PULIZIA NUCLEARE WIDGET ---
-                for k in ["editor_obs_table", "editor_reg_table", "editor_capa_table"]:
-                    if k in st.session_state:
+                # --- PULIZIA NUCLEARE WIDGET AL CARICAMENTO ---
+                chiavi_di_sistema = ['wbs_data', 'obs_data', 'registro_data', 'capa_data', 'archivio_progetti', 'nome_progetto_attivo', 'logged_in', 'ultimo_file_caricato']
+                for k in list(st.session_state.keys()):
+                    if k not in chiavi_di_sistema:
                         del st.session_state[k]
                 
                 st.success("Dati ripristinati in modo sicuro!")
