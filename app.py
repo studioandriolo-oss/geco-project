@@ -67,7 +67,7 @@ if not st.session_state.logged_in:
                     st.error("Credenziali errate. Riprova.")                
     st.stop()
 
-# --- 1. INIZIALIZZAZIONE DATI (AUTOSAVE LIVE) ---
+# --- 1. INIZIALIZZAZIONE DATI (AUTOSAVE) ---
 if 'wbs_data' not in st.session_state:
     st.session_state.wbs_data = pd.DataFrame([{
         'ID_WBS': '1', 
@@ -77,24 +77,21 @@ if 'wbs_data' not in st.session_state:
         'BAC_Budget': 0.0, '%_Completamento': 0.0, 
         'AC_Costo_Reale': 0.0, 'ID_OBS_Assegnato': None, 'Predecessori': ''
     }])
-
-# OBS Baseline & Live State
+    
 if 'obs_data' not in st.session_state:
-    st.session_state.obs_data = pd.DataFrame(columns=['ID_OBS', 'Ruolo', 'Risorsa', 'Tipo_Contratto', 'Note'])
-if 'current_obs_data' not in st.session_state:
-    st.session_state.current_obs_data = st.session_state.obs_data.copy()
-
-# REGISTRO Baseline & Live State
+    st.session_state.obs_data = pd.DataFrame(columns=[
+        'ID_OBS', 'Ruolo', 'Risorsa', 'Tipo_Contratto', 'Note'
+    ])
+    
 if 'registro_data' not in st.session_state:
-    st.session_state.registro_data = pd.DataFrame(columns=['Data', 'N_Doc', 'Fornitore', 'Voce_WBS', 'Importo_Netto', 'Descrizione'])
-if 'current_reg_data' not in st.session_state:
-    st.session_state.current_reg_data = st.session_state.registro_data.copy()
+    st.session_state.registro_data = pd.DataFrame(columns=[
+        'Data', 'N_Doc', 'Fornitore', 'Voce_WBS', 'Importo_Netto', 'Descrizione'
+    ])
 
-# CAPA Baseline & Live State
 if 'capa_data' not in st.session_state:
-    st.session_state.capa_data = pd.DataFrame(columns=['Data_Apertura', 'ID_WBS_Rif', 'Tipo_Azione', 'Descrizione', 'Responsabile_OBS', 'Stato'])
-if 'current_capa_data' not in st.session_state:
-    st.session_state.current_capa_data = st.session_state.capa_data.copy()
+    st.session_state.capa_data = pd.DataFrame(columns=[
+        'Data_Apertura', 'ID_WBS_Rif', 'Tipo_Azione', 'Descrizione', 'Responsabile_OBS', 'Stato'
+    ])
 
 if 'archivio_progetti' not in st.session_state:
     st.session_state.archivio_progetti = {}
@@ -262,7 +259,7 @@ def get_foglie(df):
     return df[df['ID_WBS'].astype(str).isin(foglie)].copy()
 
 def aggiorna_costi_reali():
-    df_reg = st.session_state.current_reg_data.copy()
+    df_reg = st.session_state.registro_data.copy()
     wbs = st.session_state.wbs_data
     if not df_reg.empty:
         df_reg['ID_WBS_calc'] = df_reg['Voce_WBS'].astype(str).apply(
@@ -462,7 +459,7 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
 # --- TAB 1: SETUP WBS (Struttura Gerarchica) ---
 with tab1:
     st.header("WBS - Work Breakdown Structure")
-    st.markdown('*I numeri ID sono **completamente bloccati per garantire l\'integrità del database logico**. Usa i pulsanti sotto ogni capitolo per spostare e rientrare le voci in automatico.*')
+    st.markdown('*I numeri ID sono bloccati per garantire l\'integrità. Usa i pulsanti sotto ogni capitolo per spostare e rientrare le voci in automatico.*')
     
     st.subheader("🔀 Organizzatore Capitoli")
     c_sel, c_btn1, c_btn2, c_btn3 = st.columns([3, 1, 1, 1])
@@ -494,7 +491,7 @@ with tab1:
     
     df_aggiornato = pd.DataFrame()
     
-    lista_obs_dropdown = [""] + [f"{row['ID_OBS']} - {row['Risorsa']}" for _, row in st.session_state.current_obs_data.iterrows() if pd.notna(row['ID_OBS'])]
+    lista_obs_dropdown = [""] + [f"{row['ID_OBS']} - {row['Risorsa']}" for _, row in st.session_state.obs_data.iterrows() if pd.notna(row['ID_OBS'])]
     lista_wbs_dropdown = [""] + [f"{row['ID_WBS']} - {row['Attività']}" for _, row in df.iterrows() if pd.notna(row['ID_WBS'])]
     
     for idx_riga, radice in radici.iterrows():
@@ -503,7 +500,7 @@ with tab1:
         tot_budget = radice['BAC_Budget']
         
         with st.expander(f"📁 {id_radice} - {radice['Attività']} (Budget Totale Raggruppato: € {tot_budget:,.2f})", expanded=True):
-            st.caption("Per aggiungere nuove lavorazioni in questo capitolo, clicca l'ultima riga grigia in fondo.")
+            st.caption("Per aggiungere nuove lavorazioni, clicca l'ultima riga grigia in fondo.")
             colonne_bloccate = ["ID_WBS", "Durata_Prevista (gg)", "AC_Costo_Reale", "PV", "EV", "CV", "SV", "SPI", "CPI", "EAC", "ETC", "VAC"]
             colonne_bloccate = [col for col in colonne_bloccate if col in discendenti.columns]
             
@@ -557,7 +554,8 @@ with tab1:
                 modifica_struttura('1', 'rinumera') 
 
     st.divider()
-    if st.button("💾 AGGIORNA E RICALCOLA STRUTTURA WBS", type="primary", use_container_width=True):
+    st.info("💡 I dati inseriti nelle tabelle si auto-salvano. Usa il pulsante qui sotto esclusivamente per riallineare la numerazione gerarchica dell'albero WBS.")
+    if st.button("🔄 RICALCOLA ALBERO E NUMERAZIONE WBS", type="primary", use_container_width=True):
         st.session_state.wbs_data = df_aggiornato.copy() 
         for k in list(st.session_state.keys()):
             if k.startswith("editor_wbs_"):
@@ -567,22 +565,21 @@ with tab1:
 # --- TAB 2: SETUP OBS (Solo Risorse) ---
 with tab2:
     st.header("OBS - Organization Breakdown Structure")
-    st.info("✅ Questa tabella si **salva in tempo reale**. Digita le risorse e verranno incise immediatamente nel file, senza bisogno di premere alcun tasto.")
+    st.info("✅ **Autosave Attivo:** Tutte le voci digitate o modificate in questa tabella vengono registrate istantaneamente nel progetto senza bisogno di premere alcun tasto. Se cambi tab o scarichi il file, i dati sono già al sicuro.")
     
     with st.expander("⚙️ Gestione Colonne Aggiuntive", expanded=False):
         c1, c2 = st.columns([3, 1])
         nuova_col = c1.text_input("Nome nuova colonna")
         if c2.button("➕ Crea") and nuova_col:
-            if nuova_col not in st.session_state.current_obs_data.columns:
-                nuovo_df = st.session_state.current_obs_data.copy()
+            if nuova_col not in st.session_state.obs_data.columns:
+                nuovo_df = st.session_state.obs_data.copy()
                 nuovo_df[nuova_col] = "" 
                 st.session_state.obs_data = nuovo_df
-                st.session_state.current_obs_data = nuovo_df
                 if "widget_obs" in st.session_state: del st.session_state["widget_obs"]
                 st.rerun()
         
         colonne_base = ['ID_OBS', 'Ruolo', 'Risorsa', 'Tipo_Contratto', 'Note']
-        colonne_custom = [c for c in st.session_state.current_obs_data.columns if c not in colonne_base]
+        colonne_custom = [c for c in st.session_state.obs_data.columns if c not in colonne_base]
         
         if colonne_custom:
             st.divider()
@@ -590,15 +587,14 @@ with tab2:
             col_da_modificare = c3.selectbox("Colonna da rinominare", options=colonne_custom)
             nuovo_nome = c4.text_input("Nuovo nome intestazione")
             if c5.button("✏️ Modifica") and nuovo_nome:
-                nuovo_df = st.session_state.current_obs_data.copy()
+                nuovo_df = st.session_state.obs_data.copy()
                 nuovo_df.rename(columns={col_da_modificare: nuovo_nome}, inplace=True)
                 st.session_state.obs_data = nuovo_df
-                st.session_state.current_obs_data = nuovo_df
                 if "widget_obs" in st.session_state: del st.session_state["widget_obs"]
                 st.rerun()
                 
-    # AUTOSAVE LIVE!
-    st.session_state.current_obs_data = st.data_editor(
+    # --- AUTOSAVE SILENZIOSO OBS ---
+    edited_obs = st.data_editor(
         st.session_state.obs_data, 
         key="widget_obs",
         column_config={
@@ -612,6 +608,10 @@ with tab2:
         use_container_width=True, 
         hide_index=True
     )
+    
+    if not edited_obs.equals(st.session_state.obs_data):
+        st.session_state.obs_data = edited_obs
+        st.rerun()
         
 # --- TAB 3: MATRICE E GRAFO A NODI ---
 with tab3:
@@ -624,7 +624,7 @@ with tab3:
     graph.attr(rankdir='LR', ranksep='1.5', nodesep='0.8', splines='spline')
     graph.attr('node', fontname='Helvetica', fontsize='10', margin='0.2')
     
-    for _, row in st.session_state.current_obs_data.iterrows():
+    for _, row in st.session_state.obs_data.iterrows():
         ruolo_safe = str(row.get('Ruolo', '')).replace('<', '').replace('>', '').replace('&', 'e')
         risorsa_safe = str(row.get('Risorsa', '')).replace('<', '').replace('>', '').replace('&', 'e')
         
@@ -633,7 +633,7 @@ with tab3:
         label_html += f"<TR><TD>({risorsa_safe})</TD></TR>"
         
         colonne_base = ['ID_OBS', 'Ruolo', 'Risorsa', 'Tipo_Contratto', 'Note']
-        colonne_custom = [col for col in st.session_state.current_obs_data.columns if col not in colonne_base]
+        colonne_custom = [col for col in st.session_state.obs_data.columns if col not in colonne_base]
         
         for col in colonne_custom:
             valore = str(row.get(col, '')).replace('<', '').replace('>', '').replace('&', 'e')
@@ -867,7 +867,7 @@ with tab5:
     st.divider()
     st.subheader("📈 Curva ad S (Andamento Temporale di Progetto)")
     
-    df_scurve = genera_dati_scurve(df_evm, st.session_state.current_reg_data, data_status_evm)
+    df_scurve = genera_dati_scurve(df_evm, st.session_state.registro_data, data_status_evm)
     if df_scurve is not None and not df_scurve.empty:
         fig_scurve = px.line(
             df_scurve, x='Data', y=['PV (Valore Pianificato)', 'EV (Valore Guadagnato)', 'AC (Costo Reale)'],
@@ -945,14 +945,14 @@ with tab5:
 # --- TAB 6: REGISTRO CONTABILE ---
 with tab6:
     st.header("Registro Contabile")
-    st.info("✅ Questa tabella si **salva in tempo reale**. Inserisci fatture o SAL, e i costi EVM verranno aggiornati in automatico alla successiva scrittura.")
+    st.info("✅ **Autosave Attivo:** Inserisci le tue fatture o SAL. I costi EVM verranno ricalcolati automaticamente appena digiti un numero senza cliccare nulla.")
     
     leaf_wbs = get_foglie(st.session_state.wbs_data)
     wbs_options = [f"{row['ID_WBS']} - {row['Attività']}" for _, row in leaf_wbs.iterrows()]
-    obs_options = [""] + [f"{row['ID_OBS']} - {row['Risorsa']}" for _, row in st.session_state.current_obs_data.iterrows() if pd.notna(row['ID_OBS'])]
+    obs_options = [""] + [f"{row['ID_OBS']} - {row['Risorsa']}" for _, row in st.session_state.obs_data.iterrows() if pd.notna(row['ID_OBS'])]
     
-    # AUTOSAVE LIVE!
-    st.session_state.current_reg_data = st.data_editor(
+    # --- AUTOSAVE SILENZIOSO REGISTRO ---
+    edited_reg = st.data_editor(
         st.session_state.registro_data,
         key="widget_reg",
         num_rows="dynamic",
@@ -967,6 +967,10 @@ with tab6:
             "Voce_WBS": st.column_config.SelectboxColumn("Attività WBS (Destinazione) ▾", options=wbs_options, required=True)
         }
     )
+    
+    if not edited_reg.equals(st.session_state.registro_data):
+        st.session_state.registro_data = edited_reg
+        st.rerun()
         
 # --- TAB 7: DIREZIONE LAVORI, CAPA & REPORTISTICA ---
 with tab7:
@@ -974,14 +978,14 @@ with tab7:
     
     leaf_wbs_capa = get_foglie(st.session_state.wbs_data)
     wbs_options_capa = [f"{row['ID_WBS']} - {row['Attività']}" for _, row in leaf_wbs_capa.iterrows()]
-    df_obs_capa = st.session_state.current_obs_data
+    df_obs_capa = st.session_state.obs_data
     obs_options_capa = [f"{row['ID_OBS']} - {row['Risorsa']}" for _, row in df_obs_capa.iterrows()]
     
     st.subheader("1. Registro Azioni Correttive e Preventive (CAPA)")
-    st.info("✅ Anche il Registro Interventi è in modalità **Autosave**.")
+    st.info("✅ **Autosave Attivo:** Le azioni e gli interventi vengono salvati in tempo reale.")
     
-    # AUTOSAVE LIVE!
-    st.session_state.current_capa_data = st.data_editor(
+    # --- AUTOSAVE SILENZIOSO CAPA ---
+    edited_capa = st.data_editor(
         st.session_state.capa_data,
         key="widget_capa",
         num_rows="dynamic",
@@ -996,6 +1000,10 @@ with tab7:
             "Stato": st.column_config.SelectboxColumn("Stato", options=["Aperto ▾", "In Lavorazione ▾", "Chiuso ▾"], required=True)
         }
     )
+    
+    if not edited_capa.equals(st.session_state.capa_data):
+        st.session_state.capa_data = edited_capa
+        st.rerun()
     
     with st.expander("🔬 2. Ambiente di Simulazione (Compromesso Costi / Tempi)"):
         c_sim1, c_sim2, c_sim3 = st.columns([2, 1.5, 1.5])
@@ -1058,7 +1066,7 @@ with tab7:
     col_f1, col_f2 = st.columns([1, 2])
     filtro_stampa = col_f1.radio("Quali interventi includere nel verbale?", ["Tutti i registrati", "Solo l'ultimo inserito", "Intervallo di date"])
     
-    df_stampa = st.session_state.current_capa_data.copy()
+    df_stampa = st.session_state.capa_data.copy()
     if not df_stampa.empty:
         df_stampa['Data_Apertura'] = pd.to_datetime(df_stampa['Data_Apertura']).dt.date
         if filtro_stampa == "Solo l'ultimo inserito":
@@ -1068,6 +1076,7 @@ with tab7:
             d_end = col_f2.date_input("A data:", value=pd.Timestamp.today().date())
             df_stampa = df_stampa[(df_stampa['Data_Apertura'] >= d_start) & (df_stampa['Data_Apertura'] <= d_end)]
 
+    # Questo pulsante genera solo il Word, non interviene con la logica di memoria JSON
     if st.button("📄 Genera Verbale WORD (.docx)", use_container_width=True, type="primary"):
         df_evm_rep = calcola_evm(get_foglie(st.session_state.wbs_data), pd.Timestamp.today().date())
         tot_ev_rep, tot_ac_rep, tot_pv_rep = df_evm_rep['EV'].sum(), df_evm_rep['AC_Costo_Reale'].sum(), df_evm_rep['PV'].sum()
@@ -1110,12 +1119,12 @@ with st.sidebar:
     st.session_state.nome_progetto_attivo = st.text_input("Nome Progetto Attuale", value=st.session_state.nome_progetto_attivo)
     
     c_save, c_dup = st.columns(2)
-    if c_save.button("💾 Salva in Memoria", use_container_width=True):
+    if c_save.button("💾 Salva Snapshot in Memoria", use_container_width=True):
         st.session_state.archivio_progetti[st.session_state.nome_progetto_attivo] = {
             "wbs": st.session_state.wbs_data.copy(),
-            "obs": st.session_state.current_obs_data.copy(),
-            "registro": st.session_state.current_reg_data.copy(),
-            "capa": st.session_state.current_capa_data.copy()
+            "obs": st.session_state.obs_data.copy(),
+            "registro": st.session_state.registro_data.copy(),
+            "capa": st.session_state.capa_data.copy()
         }
         st.success("Progetto salvato in memoria temporanea!")
         
@@ -1123,9 +1132,9 @@ with st.sidebar:
         nuovo_nome = f"{st.session_state.nome_progetto_attivo}_Copia"
         st.session_state.archivio_progetti[nuovo_nome] = {
             "wbs": st.session_state.wbs_data.copy(),
-            "obs": st.session_state.current_obs_data.copy(),
-            "registro": st.session_state.current_reg_data.copy(),
-            "capa": st.session_state.current_capa_data.copy()
+            "obs": st.session_state.obs_data.copy(),
+            "registro": st.session_state.registro_data.copy(),
+            "capa": st.session_state.capa_data.copy()
         }
         st.session_state.nome_progetto_attivo = nuovo_nome
         st.success("Progetto duplicato!")
@@ -1137,30 +1146,29 @@ with st.sidebar:
         prog_selezionato = st.selectbox("Seleziona da caricare", options=list(st.session_state.archivio_progetti.keys()), label_visibility="collapsed")
         if st.button("📂 Apri Progetto", use_container_width=True):
             st.session_state.wbs_data = st.session_state.archivio_progetti[prog_selezionato]["wbs"].copy()
-            
             st.session_state.obs_data = st.session_state.archivio_progetti[prog_selezionato]["obs"].copy()
-            st.session_state.current_obs_data = st.session_state.obs_data.copy()
-            
             st.session_state.registro_data = st.session_state.archivio_progetti[prog_selezionato]["registro"].copy()
-            st.session_state.current_reg_data = st.session_state.registro_data.copy()
-            
             st.session_state.capa_data = st.session_state.archivio_progetti[prog_selezionato]["capa"].copy()
-            st.session_state.current_capa_data = st.session_state.capa_data.copy()
-            
             st.session_state.nome_progetto_attivo = prog_selezionato
             
             for k in ["widget_obs", "widget_reg", "widget_capa"]:
                 if k in st.session_state: del st.session_state[k]
+            for k in list(st.session_state.keys()):
+                if k.startswith("editor_wbs_") or k.startswith("sel_move_"):
+                    del st.session_state[k]
             st.rerun()
 
     st.divider()
     
     if st.button("📄 Nuovo Progetto (Reset Dati)", use_container_width=True):
         st.session_state.nome_progetto_attivo = "Nuovo_Progetto"
-        for key in ['wbs_data', 'obs_data', 'current_obs_data', 'registro_data', 'current_reg_data', 'capa_data', 'current_capa_data']:
+        for key in ['wbs_data', 'obs_data', 'registro_data', 'capa_data']:
             if key in st.session_state: del st.session_state[key]
         for k in ["widget_obs", "widget_reg", "widget_capa"]:
             if k in st.session_state: del st.session_state[k]
+        for k in list(st.session_state.keys()):
+            if k.startswith("editor_wbs_") or k.startswith("sel_move_"):
+                del st.session_state[k]
         st.rerun()
         
     st.divider()
@@ -1169,9 +1177,9 @@ with st.sidebar:
     try:
         progetto_export = {
             "wbs": json.loads(st.session_state.wbs_data.to_json(orient="records", date_format="iso")),
-            "obs": json.loads(st.session_state.current_obs_data.to_json(orient="records")),
-            "registro": json.loads(st.session_state.current_reg_data.to_json(orient="records", date_format="iso")),
-            "capa": json.loads(st.session_state.current_capa_data.to_json(orient="records", date_format="iso"))
+            "obs": json.loads(st.session_state.obs_data.to_json(orient="records")),
+            "registro": json.loads(st.session_state.registro_data.to_json(orient="records", date_format="iso")),
+            "capa": json.loads(st.session_state.capa_data.to_json(orient="records", date_format="iso"))
         }
         json_string = json.dumps(progetto_export, indent=4)
         
@@ -1203,21 +1211,18 @@ with st.sidebar:
                 if df_obs.empty:
                     df_obs = pd.DataFrame(columns=['ID_OBS', 'Ruolo', 'Risorsa', 'Tipo_Contratto', 'Note'])
                 st.session_state.obs_data = df_obs
-                st.session_state.current_obs_data = df_obs.copy()
                 
                 df_reg = pd.DataFrame(dati_caricati.get('registro', []))
                 if df_reg.empty:
                     df_reg = pd.DataFrame(columns=['Data', 'N_Doc', 'Fornitore', 'Voce_WBS', 'Importo_Netto', 'Descrizione'])
                 if 'Data' in df_reg.columns: df_reg['Data'] = pd.to_datetime(df_reg['Data'], errors='coerce').dt.date
                 st.session_state.registro_data = df_reg
-                st.session_state.current_reg_data = df_reg.copy()
                 
                 df_capa = pd.DataFrame(dati_caricati.get('capa', []))
                 if df_capa.empty:
                     df_capa = pd.DataFrame(columns=['Data_Apertura', 'ID_WBS_Rif', 'Tipo_Azione', 'Descrizione', 'Responsabile_OBS', 'Stato'])
                 if 'Data_Apertura' in df_capa.columns: df_capa['Data_Apertura'] = pd.to_datetime(df_capa['Data_Apertura'], errors='coerce').dt.date
                 st.session_state.capa_data = df_capa
-                st.session_state.current_capa_data = df_capa.copy()
                 
                 st.session_state.wbs_data = aggiorna_gerarchia(st.session_state.wbs_data)
                 st.session_state.nome_progetto_attivo = uploaded_file.name.replace(".json", "")
@@ -1225,9 +1230,20 @@ with st.sidebar:
                 
                 for k in ["widget_obs", "widget_reg", "widget_capa"]:
                     if k in st.session_state: del st.session_state[k]
+                for k in list(st.session_state.keys()):
+                    if k.startswith("editor_wbs_") or k.startswith("sel_move_"):
+                        del st.session_state[k]
                 
                 st.success("Dati ripristinati in modo sicuro!")
                 st.rerun() 
                 
             except Exception as e:
                 st.error(f"Errore critico durante la lettura del File JSON: {e}")
+            
+    st.divider()
+    
+    if st.button("🚪 Esci (Logout)", type="primary", use_container_width=True):
+        st.session_state.logged_in = False
+        if "auth" in st.query_params:
+            del st.query_params["auth"]
+        st.rerun()
