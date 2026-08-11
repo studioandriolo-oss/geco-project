@@ -1370,7 +1370,7 @@ with st.sidebar:
     st.session_state.nome_progetto_attivo = st.text_input("Nome Progetto Attuale", value=st.session_state.nome_progetto_attivo)
     
     c_save, c_dup = st.columns(2)
-    if c_save.button("💾 Salva", use_container_width=True):
+    if c_save.button("💾 Salva in Memoria", use_container_width=True):
         st.session_state.archivio_progetti[st.session_state.nome_progetto_attivo] = {
             "wbs": st.session_state.wbs_data.copy(),
             "obs": st.session_state.obs_data.copy(),
@@ -1401,15 +1401,24 @@ with st.sidebar:
             st.session_state.registro_data = st.session_state.archivio_progetti[prog_selezionato]["registro"].copy()
             st.session_state.capa_data = st.session_state.archivio_progetti[prog_selezionato]["capa"].copy()
             st.session_state.nome_progetto_attivo = prog_selezionato
+            
+            # --- PULIZIA NUCLEARE WIDGET (Risolve la memoria ostinata) ---
+            chiavi_di_sistema = ['wbs_data', 'obs_data', 'registro_data', 'capa_data', 'archivio_progetti', 'nome_progetto_attivo', 'logged_in', 'ultimo_file_caricato']
+            for k in list(st.session_state.keys()):
+                if k not in chiavi_di_sistema:
+                    del st.session_state[k]
             st.rerun()
 
     st.divider()
     
     if st.button("📄 Nuovo Progetto (Reset Dati)", use_container_width=True):
-        for key in ['wbs_data', 'obs_data', 'registro_data', 'capa_data']:
-            if key in st.session_state:
-                del st.session_state[key]
         st.session_state.nome_progetto_attivo = "Nuovo_Progetto"
+        
+        # --- RESET TOTALE DATI E WIDGET ---
+        chiavi_salvate = ['archivio_progetti', 'nome_progetto_attivo', 'logged_in', 'ultimo_file_caricato']
+        for k in list(st.session_state.keys()):
+            if k not in chiavi_salvate:
+                del st.session_state[k]
         st.rerun()
         
     st.divider()
@@ -1441,7 +1450,6 @@ with st.sidebar:
             try:
                 dati_caricati = json.load(uploaded_file)
                 
-                # Ripristino ultra-sicuro per JSON danneggiati o precedentemente salvati a vuoto
                 df_wbs = pd.DataFrame(dati_caricati.get('wbs', []))
                 if df_wbs.empty:
                     df_wbs = pd.DataFrame([{'ID_WBS': '1', 'Attività': 'Progetto Principale', 'BAC_Budget': 0.0, '%_Completamento': 0.0, 'AC_Costo_Reale': 0.0, 'ID_OBS_Assegnato': None, 'Predecessori': ''}])
@@ -1462,7 +1470,6 @@ with st.sidebar:
                     df_capa = pd.DataFrame(columns=['Data_Apertura', 'ID_WBS_Rif', 'Tipo_Azione', 'Descrizione', 'Responsabile_OBS', 'Stato'])
                 st.session_state.capa_data = df_capa
                 
-                # Conversione Date blindata
                 colonne_date_wbs = ['Inizio_Previsto', 'Fine_Prevista', 'Inizio_Effettivo', 'Fine_Effettiva']
                 for col in colonne_date_wbs:
                     if col in st.session_state.wbs_data.columns:
@@ -1478,9 +1485,10 @@ with st.sidebar:
                 st.session_state.nome_progetto_attivo = uploaded_file.name.replace(".json", "")
                 st.session_state.ultimo_file_caricato = uploaded_file.file_id
                 
-                # Disinnesco cache tabelle precedenti
-                for k in ["memoria_obs", "memoria_reg", "memoria_capa"]:
-                    if k in st.session_state:
+                # --- PULIZIA NUCLEARE WIDGET (Il VERO FIX) ---
+                chiavi_di_sistema = ['wbs_data', 'obs_data', 'registro_data', 'capa_data', 'archivio_progetti', 'nome_progetto_attivo', 'logged_in', 'ultimo_file_caricato']
+                for k in list(st.session_state.keys()):
+                    if k not in chiavi_di_sistema:
                         del st.session_state[k]
                 
                 st.success("Dati ripristinati in modo sicuro!")
