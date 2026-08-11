@@ -9,7 +9,7 @@ import json
 from io import BytesIO
 from docx import Document
 import html
-import base64edited_obs = st.data_editor(
+import base64
 import streamlit as st
 
 # --- CONFIGURAZIONE PAGINA ---
