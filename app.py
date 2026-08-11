@@ -529,7 +529,6 @@ with st.sidebar:
     uploaded_file = st.file_uploader("📤 Carica da PC", type=['json'], label_visibility="collapsed")
     
     if uploaded_file is not None:
-        # Il "Lucchetto" per impedire a Streamlit di ricaricare il file all'infinito bloccando i nuovi salvataggi
         if 'ultimo_file_caricato' not in st.session_state or st.session_state.ultimo_file_caricato != uploaded_file.file_id:
             try:
                 dati_caricati = json.load(uploaded_file)
@@ -554,12 +553,15 @@ with st.sidebar:
                 
                 st.session_state.wbs_data = aggiorna_gerarchia(st.session_state.wbs_data)
                 st.session_state.nome_progetto_attivo = uploaded_file.name.replace(".json", "")
-                
-                # Segniamo il file come 'già elaborato'
                 st.session_state.ultimo_file_caricato = uploaded_file.file_id
                 
+                # --- PULIZIA TOTALE CACHE AL CARICAMENTO ---
+                for k in ["memoria_obs", "memoria_reg", "memoria_capa"]:
+                    if k in st.session_state:
+                        del st.session_state[k]
+                
                 st.success("Dati ripristinati!")
-                st.rerun() # Aggiorna la pagina immediatamente
+                st.rerun() 
                 
             except Exception as e:
                 st.error(f"File JSON non valido. {e}")
@@ -762,6 +764,9 @@ with tab2:
     st.warning("⚠️ **Hai aggiunto o modificato le risorse?** Clicca il tasto qui sotto per confermare i dati prima di salvare il progetto.")
     if st.button("💾 SALVA ANAGRAFICA RISORSE (OBS)", type="primary", use_container_width=True):
         st.session_state.obs_data = edited_obs
+        # DISTRUTTORE DI CACHE: Resetta il lucchetto per evitare conflitti
+        if "memoria_obs" in st.session_state:
+            del st.session_state["memoria_obs"]
         st.rerun()
         
 # --- TAB 3: MATRICE E GRAFO A NODI ---
@@ -1293,6 +1298,9 @@ with tab6:
     st.warning("⚠️ **Hai inserito nuove fatture o SAL?** Clicca il tasto qui sotto per inviare i costi alla WBS e ricalcolare l'EVM.")
     if st.button("💾 SALVA REGISTRO E AGGIORNA COSTI", type="primary", use_container_width=True):
         st.session_state.registro_data = edited_registro
+        # DISTRUTTORE DI CACHE: Resetta il lucchetto
+        if "memoria_reg" in st.session_state:
+            del st.session_state["memoria_reg"]
         st.rerun()
         
 # --- TAB 7: DIREZIONE LAVORI, CAPA & REPORTISTICA ---
@@ -1317,7 +1325,7 @@ with tab7:
     
     edited_capa = st.data_editor(
         st.session_state.capa_data,
-        key="memoria_memoria_capa",
+        key="memoria_capa",
         num_rows="dynamic",
         use_container_width=True,
         hide_index=True,
@@ -1334,6 +1342,8 @@ with tab7:
     st.warning("⚠️ **Hai modificato il registro interventi?** Clicca per confermare i dati.")
     if st.button("💾 SALVA REGISTRO CAPA", type="primary", use_container_width=True):
         st.session_state.capa_data = edited_capa
+        if "memoria_capa" in st.session_state:
+            del st.session_state["memoria_capa"]
         st.rerun()
     
     # ---------------------------------------------------------
