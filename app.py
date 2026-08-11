@@ -67,12 +67,7 @@ if not st.session_state.logged_in:
                     st.error("Credenziali errate. Riprova.")                
     st.stop()
 
-# --- 1. INIZIALIZZAZIONE DATI E MOTORE LUCCHETTI DINAMICI ---
-# (Questi contatori impediscono il bug dello svuotamento tabelle)
-if 'obs_key_counter' not in st.session_state: st.session_state.obs_key_counter = 0
-if 'reg_key_counter' not in st.session_state: st.session_state.reg_key_counter = 0
-if 'capa_key_counter' not in st.session_state: st.session_state.capa_key_counter = 0
-
+# --- 1. INIZIALIZZAZIONE DATI (MODELLO OPERATIVO PULITO) ---
 if 'wbs_data' not in st.session_state:
     st.session_state.wbs_data = pd.DataFrame([{
         'ID_WBS': '1', 
@@ -614,10 +609,10 @@ with tab2:
     if st.session_state.obs_data.empty and len(st.session_state.obs_data.columns) == 0:
         st.session_state.obs_data = pd.DataFrame(columns=colonne_obs_base)
         
-    # LUCCHETTO DINAMICO: Risolve il bug dell'eliminazione cache di Streamlit
-    edited_obs = st.data_editor(
+    # SALVATAGGIO IN TEMPO REALE: I dati vengono scritti in memoria a ogni keystroke!
+    st.session_state.obs_data = st.data_editor(
         st.session_state.obs_data, 
-        key=f"memoria_obs_{st.session_state.obs_key_counter}",
+        key="editor_obs_table",
         column_config={
             "Tipo_Contratto": st.column_config.SelectboxColumn(
                 "Tipo Contratto",
@@ -631,11 +626,9 @@ with tab2:
     )
     
     st.divider()
-    st.warning("⚠️ **Hai aggiunto o modificato le risorse?** Clicca il tasto qui sotto per confermare i dati prima di salvare il progetto.")
-    if st.button("💾 SALVA ANAGRAFICA RISORSE (OBS)", type="primary", use_container_width=True):
-        st.session_state.obs_data = edited_obs.copy() 
-        # INVECE DI CANCELLARE, CAMBIAMO IL LUCCHETTO!
-        st.session_state.obs_key_counter += 1
+    st.warning("⚠️ **Hai aggiunto o modificato le risorse?** I dati vengono salvati automaticamente. Clicca qui sotto per aggiornare i calcoli.")
+    if st.button("💾 CONFERMA E AGGIORNA DATI (OBS)", type="primary", use_container_width=True):
+        st.success("Dati anagrafici sincronizzati!")
         st.rerun()
         
 # --- TAB 3: MATRICE E GRAFO A NODI ---
@@ -1118,10 +1111,10 @@ with tab6:
     if st.session_state.registro_data.empty and len(st.session_state.registro_data.columns) == 0:
         st.session_state.registro_data = pd.DataFrame(columns=colonne_reg_base)
         
-    # LUCCHETTO DINAMICO
-    edited_registro = st.data_editor(
+    # SALVATAGGIO IN TEMPO REALE
+    st.session_state.registro_data = st.data_editor(
         st.session_state.registro_data,
-        key=f"memoria_reg_{st.session_state.reg_key_counter}",
+        key="editor_reg_table",
         num_rows="dynamic",
         use_container_width=True,
         hide_index=True,
@@ -1149,11 +1142,9 @@ with tab6:
     )
     
     st.divider()
-    st.warning("⚠️ **Hai inserito nuove fatture o SAL?** Clicca il tasto qui sotto per inviare i costi alla WBS e ricalcolare l'EVM.")
-    if st.button("💾 SALVA REGISTRO E AGGIORNA COSTI", type="primary", use_container_width=True):
-        st.session_state.registro_data = edited_registro.copy() 
-        # INVECE DI CANCELLARE, CAMBIAMO IL LUCCHETTO
-        st.session_state.reg_key_counter += 1
+    st.warning("⚠️ **Hai inserito nuove fatture o SAL?** I dati sono salvati automaticamente. Clicca qui sotto per ricalcolare Costi Reali ed EVM.")
+    if st.button("💾 RICALCOLA COSTI E AGGIORNA (EVM)", type="primary", use_container_width=True):
+        st.success("Registro sincronizzato e costi ricalcolati!")
         st.rerun()
         
 # --- TAB 7: DIREZIONE LAVORI, CAPA & REPORTISTICA ---
@@ -1172,10 +1163,10 @@ with tab7:
     if st.session_state.capa_data.empty and len(st.session_state.capa_data.columns) == 0:
         st.session_state.capa_data = pd.DataFrame(columns=colonne_capa_base)
     
-    # LUCCHETTO DINAMICO
-    edited_capa = st.data_editor(
+    # SALVATAGGIO IN TEMPO REALE
+    st.session_state.capa_data = st.data_editor(
         st.session_state.capa_data,
-        key=f"memoria_capa_{st.session_state.capa_key_counter}",
+        key="editor_capa_table",
         num_rows="dynamic",
         use_container_width=True,
         hide_index=True,
@@ -1189,11 +1180,9 @@ with tab7:
         }
     )
     st.divider()
-    st.warning("⚠️ **Hai modificato il registro interventi?** Clicca per confermare i dati.")
-    if st.button("💾 SALVA REGISTRO CAPA", type="primary", use_container_width=True):
-        st.session_state.capa_data = edited_capa.copy() 
-        # INVECE DI CANCELLARE, CAMBIAMO IL LUCCHETTO
-        st.session_state.capa_key_counter += 1
+    st.warning("⚠️ I dati del registro interventi vengono salvati in tempo reale.")
+    if st.button("💾 SINCRONIZZA REGISTRO CAPA", type="primary", use_container_width=True):
+        st.success("Interventi sincronizzati con successo!")
         st.rerun()
     
     with st.expander("🔬 2. Ambiente di Simulazione (Compromesso Costi / Tempi)"):
@@ -1407,10 +1396,9 @@ with st.sidebar:
             st.session_state.capa_data = st.session_state.archivio_progetti[prog_selezionato]["capa"].copy()
             st.session_state.nome_progetto_attivo = prog_selezionato
             
-            # --- FORCE REFRESH DEI LUCCHETTI ---
-            st.session_state.obs_key_counter += 1
-            st.session_state.reg_key_counter += 1
-            st.session_state.capa_key_counter += 1
+            for k in ["editor_obs_table", "editor_reg_table", "editor_capa_table"]:
+                if k in st.session_state:
+                    del st.session_state[k]
             st.rerun()
 
     st.divider()
@@ -1421,10 +1409,9 @@ with st.sidebar:
             if key in st.session_state:
                 del st.session_state[key]
                 
-        # --- FORCE REFRESH DEI LUCCHETTI ---
-        st.session_state.obs_key_counter += 1
-        st.session_state.reg_key_counter += 1
-        st.session_state.capa_key_counter += 1
+        for k in ["editor_obs_table", "editor_reg_table", "editor_capa_table"]:
+            if k in st.session_state:
+                del st.session_state[k]
         st.rerun()
         
     st.divider()
@@ -1491,10 +1478,10 @@ with st.sidebar:
                 st.session_state.nome_progetto_attivo = uploaded_file.name.replace(".json", "")
                 st.session_state.ultimo_file_caricato = uploaded_file.file_id
                 
-                # --- FORCE REFRESH DEI LUCCHETTI ---
-                st.session_state.obs_key_counter += 1
-                st.session_state.reg_key_counter += 1
-                st.session_state.capa_key_counter += 1
+                # --- PULIZIA NUCLEARE WIDGET ---
+                for k in ["editor_obs_table", "editor_reg_table", "editor_capa_table"]:
+                    if k in st.session_state:
+                        del st.session_state[k]
                 
                 st.success("Dati ripristinati in modo sicuro!")
                 st.rerun() 
