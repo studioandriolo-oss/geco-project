@@ -9,7 +9,7 @@ import json
 from io import BytesIO
 from docx import Document
 import html
-import base64
+import base64edited_obs = st.data_editor(
 import streamlit as st
 
 # --- CONFIGURAZIONE PAGINA ---
@@ -525,36 +525,44 @@ with st.sidebar:
     except Exception as e:
         st.error(f"Errore esportazione: {e}")
     
+    # --- BLOCCO UPLOADER DA SOSTITUIRE ---
     uploaded_file = st.file_uploader("📤 Carica da PC", type=['json'], label_visibility="collapsed")
     
     if uploaded_file is not None:
-        try:
-            dati_caricati = json.load(uploaded_file)
-            st.session_state.wbs_data = pd.DataFrame(dati_caricati['wbs'])
-            st.session_state.obs_data = pd.DataFrame(dati_caricati['obs'])
-            
-            if 'registro' in dati_caricati:
-                st.session_state.registro_data = pd.DataFrame(dati_caricati['registro'])
-            if 'capa' in dati_caricati:
-                st.session_state.capa_data = pd.DataFrame(dati_caricati['capa'])
-            
-            colonne_date_wbs = ['Inizio_Previsto', 'Fine_Prevista', 'Inizio_Effettivo', 'Fine_Effettiva']
-            for col in colonne_date_wbs:
-                if col in st.session_state.wbs_data.columns:
-                    st.session_state.wbs_data[col] = pd.to_datetime(st.session_state.wbs_data[col]).dt.date
-                    
-            if 'registro_data' in st.session_state and 'Data' in st.session_state.registro_data.columns:
-                st.session_state.registro_data['Data'] = pd.to_datetime(st.session_state.registro_data['Data']).dt.date
+        # Il "Lucchetto" per impedire a Streamlit di ricaricare il file all'infinito bloccando i nuovi salvataggi
+        if 'ultimo_file_caricato' not in st.session_state or st.session_state.ultimo_file_caricato != uploaded_file.file_id:
+            try:
+                dati_caricati = json.load(uploaded_file)
+                st.session_state.wbs_data = pd.DataFrame(dati_caricati['wbs'])
+                st.session_state.obs_data = pd.DataFrame(dati_caricati['obs'])
                 
-            if 'capa_data' in st.session_state and 'Data_Apertura' in st.session_state.capa_data.columns:
-                st.session_state.capa_data['Data_Apertura'] = pd.to_datetime(st.session_state.capa_data['Data_Apertura']).dt.date
-            
-            st.session_state.wbs_data = aggiorna_gerarchia(st.session_state.wbs_data)
-            st.session_state.nome_progetto_attivo = uploaded_file.name.replace(".json", "")
-            st.success("Dati ripristinati!")
-            
-        except Exception as e:
-            st.error(f"File JSON non valido. {e}")
+                if 'registro' in dati_caricati:
+                    st.session_state.registro_data = pd.DataFrame(dati_caricati['registro'])
+                if 'capa' in dati_caricati:
+                    st.session_state.capa_data = pd.DataFrame(dati_caricati['capa'])
+                
+                colonne_date_wbs = ['Inizio_Previsto', 'Fine_Prevista', 'Inizio_Effettivo', 'Fine_Effettiva']
+                for col in colonne_date_wbs:
+                    if col in st.session_state.wbs_data.columns:
+                        st.session_state.wbs_data[col] = pd.to_datetime(st.session_state.wbs_data[col]).dt.date
+                        
+                if 'registro_data' in st.session_state and 'Data' in st.session_state.registro_data.columns:
+                    st.session_state.registro_data['Data'] = pd.to_datetime(st.session_state.registro_data['Data']).dt.date
+                    
+                if 'capa_data' in st.session_state and 'Data_Apertura' in st.session_state.capa_data.columns:
+                    st.session_state.capa_data['Data_Apertura'] = pd.to_datetime(st.session_state.capa_data['Data_Apertura']).dt.date
+                
+                st.session_state.wbs_data = aggiorna_gerarchia(st.session_state.wbs_data)
+                st.session_state.nome_progetto_attivo = uploaded_file.name.replace(".json", "")
+                
+                # Segniamo il file come 'già elaborato'
+                st.session_state.ultimo_file_caricato = uploaded_file.file_id
+                
+                st.success("Dati ripristinati!")
+                st.rerun() # Aggiorna la pagina immediatamente
+                
+            except Exception as e:
+                st.error(f"File JSON non valido. {e}")
             
     st.divider()
     
@@ -730,7 +738,11 @@ with tab2:
             if c5.button("✏️ Modifica") and nuovo_nome:
                 st.session_state.obs_data.rename(columns={col_da_modificare: nuovo_nome}, inplace=True)
                 st.rerun()
-
+                
+    colonne_obs_base = ['ID_OBS', 'Ruolo', 'Risorsa', 'Tipo_Contratto', 'Note']
+    if st.session_state.obs_data.empty and len(st.session_state.obs_data.columns) == 0:
+        st.session_state.obs_data = pd.DataFrame(columns=colonne_obs_base)
+        
     edited_obs = st.data_editor(
         st.session_state.obs_data, 
         key="memoria_obs",
