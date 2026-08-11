@@ -67,7 +67,12 @@ if not st.session_state.logged_in:
                     st.error("Credenziali errate. Riprova.")                
     st.stop()
 
-# --- 1. INIZIALIZZAZIONE DATI (MODELLO OPERATIVO PULITO) ---
+# --- 1. INIZIALIZZAZIONE DATI E MOTORE LUCCHETTI DINAMICI ---
+# (Questi contatori impediscono il bug dello svuotamento tabelle)
+if 'obs_key_counter' not in st.session_state: st.session_state.obs_key_counter = 0
+if 'reg_key_counter' not in st.session_state: st.session_state.reg_key_counter = 0
+if 'capa_key_counter' not in st.session_state: st.session_state.capa_key_counter = 0
+
 if 'wbs_data' not in st.session_state:
     st.session_state.wbs_data = pd.DataFrame([{
         'ID_WBS': '1', 
@@ -578,7 +583,7 @@ with tab1:
     st.divider()
     st.warning("⚠️ **Hai aggiunto nuove lavorazioni nelle tabelle?** Clicca il tasto qui sotto per far assegnare al sistema la numerazione definitiva e riallineare l'albero WBS.")
     if st.button("💾 SALVA INSERIMENTI E RICALCOLA ALBERO", type="primary", use_container_width=True):
-        st.session_state.wbs_data = df_aggiornato.copy() # CLONAZIONE SICURA
+        st.session_state.wbs_data = df_aggiornato.copy() 
         modifica_struttura('1', 'rinumera')
         
 # --- TAB 2: SETUP OBS (Solo Risorse) ---
@@ -605,14 +610,14 @@ with tab2:
                 st.session_state.obs_data.rename(columns={col_da_modificare: nuovo_nome}, inplace=True)
                 st.rerun()
                 
-    # FIX: Ripristino delle intestazioni se perse
     colonne_obs_base = ['ID_OBS', 'Ruolo', 'Risorsa', 'Tipo_Contratto', 'Note']
     if st.session_state.obs_data.empty and len(st.session_state.obs_data.columns) == 0:
         st.session_state.obs_data = pd.DataFrame(columns=colonne_obs_base)
         
+    # LUCCHETTO DINAMICO: Risolve il bug dell'eliminazione cache di Streamlit
     edited_obs = st.data_editor(
         st.session_state.obs_data, 
-        key="memoria_obs",
+        key=f"memoria_obs_{st.session_state.obs_key_counter}",
         column_config={
             "Tipo_Contratto": st.column_config.SelectboxColumn(
                 "Tipo Contratto",
@@ -628,9 +633,9 @@ with tab2:
     st.divider()
     st.warning("⚠️ **Hai aggiunto o modificato le risorse?** Clicca il tasto qui sotto per confermare i dati prima di salvare il progetto.")
     if st.button("💾 SALVA ANAGRAFICA RISORSE (OBS)", type="primary", use_container_width=True):
-        st.session_state.obs_data = edited_obs.copy() # CLONAZIONE SICURA
-        if "memoria_obs" in st.session_state:
-            del st.session_state["memoria_obs"]
+        st.session_state.obs_data = edited_obs.copy() 
+        # INVECE DI CANCELLARE, CAMBIAMO IL LUCCHETTO!
+        st.session_state.obs_key_counter += 1
         st.rerun()
         
 # --- TAB 3: MATRICE E GRAFO A NODI ---
@@ -1109,14 +1114,14 @@ with tab6:
     
     obs_options = [""] + [f"{row['ID_OBS']} - {row['Risorsa']}" for _, row in st.session_state.obs_data.iterrows() if pd.notna(row['ID_OBS'])]
     
-    # FIX: Ripristino delle intestazioni se perse
     colonne_reg_base = ['Data', 'N_Doc', 'Fornitore', 'Voce_WBS', 'Importo_Netto', 'Descrizione']
     if st.session_state.registro_data.empty and len(st.session_state.registro_data.columns) == 0:
         st.session_state.registro_data = pd.DataFrame(columns=colonne_reg_base)
         
+    # LUCCHETTO DINAMICO
     edited_registro = st.data_editor(
         st.session_state.registro_data,
-        key="memoria_reg",
+        key=f"memoria_reg_{st.session_state.reg_key_counter}",
         num_rows="dynamic",
         use_container_width=True,
         hide_index=True,
@@ -1146,9 +1151,9 @@ with tab6:
     st.divider()
     st.warning("⚠️ **Hai inserito nuove fatture o SAL?** Clicca il tasto qui sotto per inviare i costi alla WBS e ricalcolare l'EVM.")
     if st.button("💾 SALVA REGISTRO E AGGIORNA COSTI", type="primary", use_container_width=True):
-        st.session_state.registro_data = edited_registro.copy() # CLONAZIONE SICURA
-        if "memoria_reg" in st.session_state:
-            del st.session_state["memoria_reg"]
+        st.session_state.registro_data = edited_registro.copy() 
+        # INVECE DI CANCELLARE, CAMBIAMO IL LUCCHETTO
+        st.session_state.reg_key_counter += 1
         st.rerun()
         
 # --- TAB 7: DIREZIONE LAVORI, CAPA & REPORTISTICA ---
@@ -1163,14 +1168,14 @@ with tab7:
     
     st.subheader("1. Registro Azioni Correttive e Preventive (CAPA)")
     
-    # FIX: Ripristino delle intestazioni di colonna se perse
     colonne_capa_base = ['Data_Apertura', 'ID_WBS_Rif', 'Tipo_Azione', 'Descrizione', 'Responsabile_OBS', 'Stato']
     if st.session_state.capa_data.empty and len(st.session_state.capa_data.columns) == 0:
         st.session_state.capa_data = pd.DataFrame(columns=colonne_capa_base)
     
+    # LUCCHETTO DINAMICO
     edited_capa = st.data_editor(
         st.session_state.capa_data,
-        key="memoria_capa",
+        key=f"memoria_capa_{st.session_state.capa_key_counter}",
         num_rows="dynamic",
         use_container_width=True,
         hide_index=True,
@@ -1186,9 +1191,9 @@ with tab7:
     st.divider()
     st.warning("⚠️ **Hai modificato il registro interventi?** Clicca per confermare i dati.")
     if st.button("💾 SALVA REGISTRO CAPA", type="primary", use_container_width=True):
-        st.session_state.capa_data = edited_capa.copy() # CLONAZIONE SICURA
-        if "memoria_capa" in st.session_state:
-            del st.session_state["memoria_capa"]
+        st.session_state.capa_data = edited_capa.copy() 
+        # INVECE DI CANCELLARE, CAMBIAMO IL LUCCHETTO
+        st.session_state.capa_key_counter += 1
         st.rerun()
     
     with st.expander("🔬 2. Ambiente di Simulazione (Compromesso Costi / Tempi)"):
@@ -1363,7 +1368,7 @@ with tab7:
             type="secondary"
         )
 
-# --- SIDEBAR: GESTIONE PROGETTI A SCOMPARSA (Spostata alla fine per garantire esportazione dati aggiornata!) ---
+# --- SIDEBAR: GESTIONE PROGETTI A SCOMPARSA (Spostata alla fine) ---
 with st.sidebar:
     st.header("📂 Gestione Progetti")
     
@@ -1402,23 +1407,24 @@ with st.sidebar:
             st.session_state.capa_data = st.session_state.archivio_progetti[prog_selezionato]["capa"].copy()
             st.session_state.nome_progetto_attivo = prog_selezionato
             
-            # --- PULIZIA NUCLEARE WIDGET (Risolve la memoria ostinata) ---
-            chiavi_di_sistema = ['wbs_data', 'obs_data', 'registro_data', 'capa_data', 'archivio_progetti', 'nome_progetto_attivo', 'logged_in', 'ultimo_file_caricato']
-            for k in list(st.session_state.keys()):
-                if k not in chiavi_di_sistema:
-                    del st.session_state[k]
+            # --- FORCE REFRESH DEI LUCCHETTI ---
+            st.session_state.obs_key_counter += 1
+            st.session_state.reg_key_counter += 1
+            st.session_state.capa_key_counter += 1
             st.rerun()
 
     st.divider()
     
     if st.button("📄 Nuovo Progetto (Reset Dati)", use_container_width=True):
         st.session_state.nome_progetto_attivo = "Nuovo_Progetto"
-        
-        # --- RESET TOTALE DATI E WIDGET ---
-        chiavi_salvate = ['archivio_progetti', 'nome_progetto_attivo', 'logged_in', 'ultimo_file_caricato']
-        for k in list(st.session_state.keys()):
-            if k not in chiavi_salvate:
-                del st.session_state[k]
+        for key in ['wbs_data', 'obs_data', 'registro_data', 'capa_data']:
+            if key in st.session_state:
+                del st.session_state[key]
+                
+        # --- FORCE REFRESH DEI LUCCHETTI ---
+        st.session_state.obs_key_counter += 1
+        st.session_state.reg_key_counter += 1
+        st.session_state.capa_key_counter += 1
         st.rerun()
         
     st.divider()
@@ -1485,11 +1491,10 @@ with st.sidebar:
                 st.session_state.nome_progetto_attivo = uploaded_file.name.replace(".json", "")
                 st.session_state.ultimo_file_caricato = uploaded_file.file_id
                 
-                # --- PULIZIA NUCLEARE WIDGET (Il VERO FIX) ---
-                chiavi_di_sistema = ['wbs_data', 'obs_data', 'registro_data', 'capa_data', 'archivio_progetti', 'nome_progetto_attivo', 'logged_in', 'ultimo_file_caricato']
-                for k in list(st.session_state.keys()):
-                    if k not in chiavi_di_sistema:
-                        del st.session_state[k]
+                # --- FORCE REFRESH DEI LUCCHETTI ---
+                st.session_state.obs_key_counter += 1
+                st.session_state.reg_key_counter += 1
+                st.session_state.capa_key_counter += 1
                 
                 st.success("Dati ripristinati in modo sicuro!")
                 st.rerun() 
