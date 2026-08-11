@@ -731,7 +731,7 @@ with tab2:
                 st.session_state.obs_data.rename(columns={col_da_modificare: nuovo_nome}, inplace=True)
                 st.rerun()
 
-    st.session_state.obs_data = st.data_editor(
+    edited_obs = st.data_editor(
         st.session_state.obs_data, 
         column_config={
             "Tipo_Contratto": st.column_config.SelectboxColumn(
@@ -744,6 +744,12 @@ with tab2:
         use_container_width=True, 
         hide_index=True
     )
+    
+    st.divider()
+    st.warning("⚠️ **Hai aggiunto o modificato le risorse?** Clicca il tasto qui sotto per confermare i dati prima di salvare il progetto.")
+    if st.button("💾 SALVA ANAGRAFICA RISORSE (OBS)", type="primary", use_container_width=True):
+        st.session_state.obs_data = edited_obs
+        st.rerun()
         
 # --- TAB 3: MATRICE E GRAFO A NODI ---
 with tab3:
@@ -1269,7 +1275,9 @@ with tab6:
         }
     )
     
-    if not edited_registro.equals(st.session_state.registro_data):
+    st.divider()
+    st.warning("⚠️ **Hai inserito nuove fatture o SAL?** Clicca il tasto qui sotto per inviare i costi alla WBS e ricalcolare l'EVM.")
+    if st.button("💾 SALVA REGISTRO E AGGIORNA COSTI", type="primary", use_container_width=True):
         st.session_state.registro_data = edited_registro
         st.rerun()
         
@@ -1307,7 +1315,9 @@ with tab7:
             "Stato": st.column_config.SelectboxColumn("Stato", options=["Aperto ▾", "In Lavorazione ▾", "Chiuso ▾"], required=True)
         }
     )
-    if not edited_capa.equals(st.session_state.capa_data):
+    st.divider()
+    st.warning("⚠️ **Hai modificato il registro interventi?** Clicca per confermare i dati.")
+    if st.button("💾 SALVA REGISTRO CAPA", type="primary", use_container_width=True):
         st.session_state.capa_data = edited_capa
         st.rerun()
     
