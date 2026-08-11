@@ -733,6 +733,7 @@ with tab2:
 
     edited_obs = st.data_editor(
         st.session_state.obs_data, 
+        key="memoria_obs",
         column_config={
             "Tipo_Contratto": st.column_config.SelectboxColumn(
                 "Tipo Contratto",
@@ -1249,6 +1250,7 @@ with tab6:
     
     edited_registro = st.data_editor(
         st.session_state.registro_data,
+        key="memoria_reg",
         num_rows="dynamic",
         use_container_width=True,
         hide_index=True,
@@ -1303,6 +1305,7 @@ with tab7:
     
     edited_capa = st.data_editor(
         st.session_state.capa_data,
+        key="memoria_memoria_capa",
         num_rows="dynamic",
         use_container_width=True,
         hide_index=True,
