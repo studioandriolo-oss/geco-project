@@ -558,11 +558,18 @@ with tab1:
     if st.button("💾 SALVA INSERIMENTI E RICALCOLA ALBERO", type="primary", use_container_width=True):
         st.session_state.wbs_data = df_aggiornato
         
-        # --- LA TUA INTUIZIONE: SVUOTIAMO LA CACHE VISIVA QUI ---
-        # Cancella la memoria di tutte le tabelle espandibili per forzare il refresh
+        # Svuotiamo brutalmente la memoria dei widget prima di riavviare la pagina.
         for k in list(st.session_state.keys()):
             if k.startswith("editor_wbs_"):
                 del st.session_state[k]
+                
+        # --- FIX MEMORIA TENDINA: RICORDA L'ULTIMA VOCE MOSSA ---
+        if azione != 'elimina':
+            st.session_state['ultimo_nodo_mosso'] = mapping.get(id_target, id_target)
+        else:
+            st.session_state['ultimo_nodo_mosso'] = None
+                
+        st.rerun()
         # --------------------------------------------------------
         
         modifica_struttura('1', 'rinumera')
