@@ -157,7 +157,9 @@ def modifica_struttura(id_target, azione):
     
     if azione == 'elimina':
         mask = (df['ID_WBS'].astype(str) == id_target) | (df['ID_WBS'].astype(str).str.startswith(f"{id_target}."))
-        df = df[~mask]
+        # IL FIX È QUI: Compattiamo l'indice dopo l'eliminazione delle righe!
+        df = df[~mask].reset_index(drop=True) 
+        
         if df.empty:
             df = pd.DataFrame([{'ID_WBS': '1', 'Attività': 'Progetto Principale', 'BAC_Budget': 0.0, '%_Completamento': 0.0, 'AC_Costo_Reale': 0.0, 'Livello': 1}])
             st.session_state.wbs_data = df.drop(columns=['Livello'])
@@ -251,11 +253,6 @@ def modifica_struttura(id_target, azione):
     
     st.session_state.wbs_data = df.copy()
     st.session_state.wbs_data = aggiorna_gerarchia(st.session_state.wbs_data)
-    
-    # Pulizia di sicurezza delle chiavi WBS per ricaricare la grafica
-    for k in list(st.session_state.keys()):
-        if k.startswith("editor_wbs_"):
-            del st.session_state[k]
     st.rerun()
     
 def get_foglie(df):
