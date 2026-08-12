@@ -664,9 +664,16 @@ with tab3:
         if not wbs_id: continue
         
         attivita = str(row.get('Attività', '')).replace('<', '').replace('>', '').replace('&', 'e')
-        budget = float(row['BAC_Budget'])
-        costo_reale = float(row['AC_Costo_Reale'])
-        completamento = float(row['%_Completamento'])
+        
+        # --- FIX: SCUDO ANTI-CRASH PER VALORI VUOTI (NaN / None) ---
+        budget = pd.to_numeric(row.get('BAC_Budget', 0.0), errors='coerce')
+        costo_reale = pd.to_numeric(row.get('AC_Costo_Reale', 0.0), errors='coerce')
+        completamento = pd.to_numeric(row.get('%_Completamento', 0.0), errors='coerce')
+        
+        if pd.isna(budget): budget = 0.0
+        if pd.isna(costo_reale): costo_reale = 0.0
+        if pd.isna(completamento): completamento = 0.0
+        # ---------------------------------------------------------
         
         wp_cpm = cpm_data.get(wbs_id, {})
         margine = wp_cpm.get('slack', 0)
@@ -687,6 +694,7 @@ with tab3:
         wp_html += f"<TR><TD ALIGN='LEFT'>Avanzamento: {completamento:.1f}%</TD><TD ALIGN='RIGHT'>{testo_margine}</TD></TR>"
         wp_html += "</TABLE>>"
         
+        # Generazione sicura del gradiente
         if completamento >= 100:
             stile = 'rounded,filled'
             colore_sfondo = '#C8E6C9' 
@@ -696,7 +704,7 @@ with tab3:
         else:
             stile = 'rounded,striped'
             quota_verde = completamento / 100.0
-            colore_sfondo = f"#C8E6C9;{quota_verde}:white"
+            colore_sfondo = f"#C8E6C9;{quota_verde:.3f}:white"
             
         bordo_colore = '#D32F2F' if is_critical else '#388E3C'  
         spessore_bordo = '3.0' if is_critical else '1.5'        
