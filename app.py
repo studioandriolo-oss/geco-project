@@ -157,7 +157,6 @@ def modifica_struttura(id_target, azione):
     
     if azione == 'elimina':
         mask = (df['ID_WBS'].astype(str) == id_target) | (df['ID_WBS'].astype(str).str.startswith(f"{id_target}."))
-        # IL FIX È QUI: Compattiamo l'indice dopo l'eliminazione delle righe!
         df = df[~mask].reset_index(drop=True) 
         
         if df.empty:
@@ -253,6 +252,11 @@ def modifica_struttura(id_target, azione):
     
     st.session_state.wbs_data = df.copy()
     st.session_state.wbs_data = aggiorna_gerarchia(st.session_state.wbs_data)
+    
+    # Svuotiamo la cache visiva della tabella per far apparire i ricalcoli
+    for k in list(st.session_state.keys()):
+        if k.startswith("editor_wbs_"):
+            del st.session_state[k]
     st.rerun()
     
 def get_foglie(df):
@@ -455,10 +459,10 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
     "🛠️ Direzione & CAPA"
 ])
 
-# --- TAB 1: SETUP WBS (Struttura Gerarchica) ---
+# --- TAB 1: SETUP WBS ---
 with tab1:
     st.header("WBS - Work Breakdown Structure")
-    st.markdown('*I numeri ID sono **completamente bloccati per garantire l\'integrità del database logico**. Usa i pulsanti sotto ogni capitolo per spostare e rientrare le voci in automatico.*')
+    st.markdown('*I numeri ID sono bloccati per garantire l\'integrità. Usa i pulsanti sotto ogni capitolo per spostare e rientrare le voci.*')
     
     st.subheader("🔀 Organizzatore Capitoli")
     c_sel, c_btn1, c_btn2, c_btn3 = st.columns([3, 1, 1, 1])
@@ -470,9 +474,12 @@ with tab1:
     
     if nodo_scelto:
         id_scelto = nodo_scelto.split(' - ')[0]
-        if c_btn1.button("⬆️ Su", use_container_width=True): modifica_struttura(id_scelto, 'su')
-        if c_btn2.button("⬇️ Giù", use_container_width=True): modifica_struttura(id_scelto, 'giu')
-        if c_btn3.button("🗑️ Elimina", use_container_width=True): modifica_struttura(id_scelto, 'elimina')
+        if c_btn1.button("⬆️ Su", use_container_width=True):
+            modifica_struttura(id_scelto, 'su')
+        if c_btn2.button("⬇️ Giù", use_container_width=True):
+            modifica_struttura(id_scelto, 'giu')
+        if c_btn3.button("🗑️ Elimina", use_container_width=True):
+            modifica_struttura(id_scelto, 'elimina')
             
     st.divider()
     
@@ -500,8 +507,6 @@ with tab1:
         
         with st.expander(f"📁 {id_radice} - {radice['Attività']} (Budget Totale Raggruppato: € {tot_budget:,.2f})", expanded=True):
             
-            st.caption("Per aggiungere nuove lavorazioni in questo capitolo, clicca l'ultima riga grigia in fondo. L'ID definitivo verrà assegnato in automatico al salvataggio.")
-            
             colonne_bloccate = ["ID_WBS", "Durata_Prevista (gg)", "AC_Costo_Reale", "PV", "EV", "CV", "SV", "SPI", "CPI", "EAC", "ETC", "VAC"]
             colonne_bloccate = [col for col in colonne_bloccate if col in discendenti.columns]
             
@@ -513,9 +518,9 @@ with tab1:
                 hide_index=True,
                 disabled=colonne_bloccate, 
                 column_config={
-                    "ID_WBS": st.column_config.TextColumn("ID WBS (Auto)", help="Numerazione automatica protetta dal sistema"),
-                    "Predecessori": st.column_config.SelectboxColumn("Predecessore ▾", options=lista_wbs_dropdown, help="Scegli dal menù a tendina"),
-                    "ID_OBS_Assegnato": st.column_config.SelectboxColumn("Risorsa Assegnata ▾", options=lista_obs_dropdown, help="Scegli l'impresa o il tecnico"),
+                    "ID_WBS": st.column_config.TextColumn("ID WBS (Auto)"),
+                    "Predecessori": st.column_config.SelectboxColumn("Predecessore ▾", options=lista_wbs_dropdown),
+                    "ID_OBS_Assegnato": st.column_config.SelectboxColumn("Risorsa Assegnata ▾", options=lista_obs_dropdown),
                     "Inizio_Previsto": st.column_config.DateColumn("Inizio Previsto"),
                     "Fine_Prevista": st.column_config.DateColumn("Fine Prevista"),
                     "Inizio_Effettivo": st.column_config.DateColumn("Inizio Effettivo"),
@@ -539,10 +544,14 @@ with tab1:
                 
                 if nodo_locale:
                     id_loc = nodo_locale.split(' - ')[0]
-                    if c1.button("⬅️ Rendi Padre (Estrai)", key=f"l_{id_radice}", use_container_width=True): modifica_struttura(id_loc, 'sinistra')
-                    if c2.button("➡️ Rendi Figlio (Rientra)", key=f"r_{id_radice}", use_container_width=True): modifica_struttura(id_loc, 'destra')
-                    if c3.button("⬆️ Su", key=f"u_{id_radice}", use_container_width=True): modifica_struttura(id_loc, 'su')
-                    if c4.button("⬇️ Giù", key=f"d_{id_radice}", use_container_width=True): modifica_struttura(id_loc, 'giu')
+                    if c1.button("⬅️ Rendi Padre (Estrai)", key=f"l_{id_radice}", use_container_width=True): 
+                        modifica_struttura(id_loc, 'sinistra')
+                    if c2.button("➡️ Rendi Figlio (Rientra)", key=f"r_{id_radice}", use_container_width=True): 
+                        modifica_struttura(id_loc, 'destra')
+                    if c3.button("⬆️ Su", key=f"u_{id_radice}", use_container_width=True): 
+                        modifica_struttura(id_loc, 'su')
+                    if c4.button("⬇️ Giù", key=f"d_{id_radice}", use_container_width=True): 
+                        modifica_struttura(id_loc, 'giu')
 
     with st.form("aggiungi_padre"):
         st.write("Aggiungi un nuovo Capitolo Principale in fondo alla lista")
@@ -554,10 +563,17 @@ with tab1:
                 nuovo_id = str(len(st.session_state.wbs_data[is_root_calc]) + 1)
                 
                 nuova_riga = pd.DataFrame([{
-                    'ID_WBS': nuovo_id, 'Attività': nuova_att, 
-                    'Inizio_Previsto': None, 'Fine_Prevista': None, 'Inizio_Effettivo': None, 'Fine_Effettiva': None,
-                    'BAC_Budget': 0.0, '%_Completamento': 0.0, 'AC_Costo_Reale': 0.0,
-                    'Predecessori': None, 'ID_OBS_Assegnato': None
+                    'ID_WBS': nuovo_id, 
+                    'Attività': nuova_att, 
+                    'Inizio_Previsto': None,
+                    'Fine_Prevista': None,
+                    'Inizio_Effettivo': None,
+                    'Fine_Effettiva': None,
+                    'BAC_Budget': 0.0, 
+                    '%_Completamento': 0.0, 
+                    'AC_Costo_Reale': 0.0,
+                    'Predecessori': None,
+                    'ID_OBS_Assegnato': None
                 }])
                 st.session_state.wbs_data = pd.concat([st.session_state.wbs_data, nuova_riga], ignore_index=True)
                 modifica_struttura('1', 'rinumera') 
@@ -566,9 +582,13 @@ with tab1:
     st.warning("⚠️ **Hai aggiunto nuove lavorazioni nelle tabelle?** Clicca il tasto qui sotto per far assegnare al sistema la numerazione definitiva e riallineare l'albero WBS.")
     if st.button("💾 SALVA INSERIMENTI E RICALCOLA ALBERO", type="primary", use_container_width=True):
         st.session_state.wbs_data = df_aggiornato
+        # Pulisco le cache visive delle WBS per fargli accettare i ricalcoli AC e EVM!
+        for k in list(st.session_state.keys()):
+            if k.startswith("editor_wbs_"):
+                del st.session_state[k]
         modifica_struttura('1', 'rinumera')
         
-# --- TAB 2: SETUP OBS (Solo Risorse) ---
+# --- TAB 2: SETUP OBS ---
 with tab2:
     st.header("OBS - Organization Breakdown Structure")
     
@@ -592,7 +612,6 @@ with tab2:
                 st.session_state.obs_data.rename(columns={col_da_modificare: nuovo_nome}, inplace=True)
                 st.rerun()
 
-    # VECCHIO STILE PULITO, SENZA required=True
     edited_obs = st.data_editor(
         st.session_state.obs_data, 
         column_config={
@@ -610,7 +629,7 @@ with tab2:
     st.warning("⚠️ **Ricordati di cliccare il tasto blu qui sotto dopo aver inserito i dati per salvarli in memoria!**")
     if st.button("💾 SALVA ANAGRAFICA RISORSE (OBS)", type="primary", use_container_width=True):
         st.session_state.obs_data = edited_obs
-        st.success("✅ Dati anagrafici salvati con successo nel database!")
+        st.success("✅ Dati anagrafici salvati con successo!")
         st.rerun()
         
 # --- TAB 3: MATRICE E GRAFO A NODI ---
@@ -639,6 +658,15 @@ with tab3:
             label_html = f"<<TABLE BORDER='0' CELLBORDER='0' CELLSPACING='2'>"
             label_html += f"<TR><TD><B>{ruolo}</B></TD></TR>"
             label_html += f"<TR><TD>({risorsa})</TD></TR>"
+            
+            colonne_base = ['ID_OBS', 'Ruolo', 'Risorsa', 'Tipo_Contratto', 'Note']
+            colonne_custom = [col for col in st.session_state.obs_data.columns if col not in colonne_base]
+            
+            for col in colonne_custom:
+                valore = pulisci_testo(row.get(col, ''))
+                if pd.notna(row.get(col)) and valore.strip() != "":
+                    col_safe = pulisci_testo(col)
+                    label_html += f"<TR><TD><FONT POINT-SIZE='9' COLOR='gray30'>{col_safe}: {valore}</FONT></TD></TR>"
             label_html += "</TABLE>>"
             
             obs_id = str(row.get('ID_OBS', '')).strip()
@@ -650,9 +678,9 @@ with tab3:
         df_wp_reali = get_foglie(st.session_state.wbs_data)
         valid_wbs_ids = set(df_wp_reali['ID_WBS'].astype(str))
         
-        # Se la WBS è vuota mostriamo un nodo di cortesia invece del vuoto assoluto
+        # Se la WBS è vuota mostriamo un nodo di cortesia
         if df_wp_reali.empty or len(valid_wbs_ids) == 0:
-            graph.node("Vuoto", label="Nessuna lavorazione inserita. Aggiungi righe nel Tab 1.", shape="rect")
+            graph.node("Vuoto", label="Nessuna lavorazione inserita.", shape="rect")
             
         for _, row in df_wp_reali.iterrows():
             wbs_id = str(row.get('ID_WBS', '')).strip()
@@ -660,13 +688,16 @@ with tab3:
             
             attivita = pulisci_testo(row.get('Attività', ''))
             
-            # --- SCUDO ANTI-CRASH ASSOLUTO PER I NUMERI VUOTI ---
+            # --- SCUDO ANTI-CRASH PER I NUMERI VUOTI (NaN / None) ---
             try: budget = float(str(row.get('BAC_Budget', 0)).replace(',', '.'))
             except: budget = 0.0
+            
             try: costo_reale = float(str(row.get('AC_Costo_Reale', 0)).replace(',', '.'))
             except: costo_reale = 0.0
+            
             try: completamento = float(str(row.get('%_Completamento', 0)).replace(',', '.'))
             except: completamento = 0.0
+            # --------------------------------------------------------
             
             wp_cpm = cpm_data.get(wbs_id, {})
             margine = wp_cpm.get('slack', 0)
@@ -685,7 +716,7 @@ with tab3:
                 testo_margine = f"<FONT COLOR='#388E3C'>Margine: {margine} gg</FONT>"
                 bordo_colore, spessore_bordo = '#388E3C', '1.5'
             
-            # Sostituito il simbolo dell'Euro con la parola scritta per evitare conflitti di codifica Unicode su Graphviz
+            # Il simbolo € è stato rimosso per sicurezza, si usa la parola "Euro"
             wp_html = f"<<TABLE BORDER='0' CELLBORDER='0' CELLSPACING='4'>"
             wp_html += f"<TR><TD COLSPAN='2'><B>{wbs_id} - {attivita}</B></TD></TR>"
             wp_html += f"<TR><TD ALIGN='LEFT'>Inizio: {inizio_str}</TD><TD ALIGN='RIGHT'>Fine: {fine_str}</TD></TR>"
@@ -693,6 +724,7 @@ with tab3:
             wp_html += f"<TR><TD ALIGN='LEFT'>Avanzamento: {completamento:.0f}%</TD><TD ALIGN='RIGHT'>{testo_margine}</TD></TR>"
             wp_html += "</TABLE>>"
             
+            # Riempiamo la casella in proporzione senza crashare
             if completamento >= 100:
                 stile = 'rounded,filled'
                 colore_sfondo = '#C8E6C9' 
@@ -742,7 +774,6 @@ with tab3:
             st.warning("Grafo generato ma vuoto.")
             
     except Exception as e:
-        # SE FALLISCE, ORA CI URLA IN FACCIA IL PERCHÉ INVECE DI SPARIRE
         st.error(f"⚠️ ERRORE TECNICO NEL GENERARE IL GRAFO: {e}")
         st.code(str(e))
         
@@ -750,7 +781,7 @@ with tab3:
     st.subheader("📖 Legenda del Grafo")
     col_leg1, col_leg2 = st.columns(2)
     with col_leg1:
-        st.markdown("**NODI E FIGURE**\n* 🟦 **Riquadro Azzurro:** Risorsa/Ruolo (OBS)\n* 🟩 **Riquadro Verde/Giallo:** Work Package (WBS)\n* 🟥 **Bordo Rosso Spesso:** Percorso Critico (Margine = 0 gg)")
+        st.markdown("**NODI E FIGURE**\n* 🟦 **Riquadro Azzurro:** Risorsa/Ruolo (OBS)\n* 🟩 **Riquadro Verde/Giallo:** Work Package (WBS). Mostra il riempimento di completamento.\n* 🟥 **Bordo Rosso Spesso:** Percorso Critico (Margine = 0 gg)")
     with col_leg2:
         st.markdown("**CAVI E COLLEGAMENTI**\n* 🔗 **Freccia Grigia Continua:** Assegnazione Risorsa\n* 🔀 **Freccia Arancione Tratteggiata:** Relazione logica\n* 🚨 **Freccia Rossa Spessa:** Flusso del Percorso Critico")
         
@@ -1057,6 +1088,12 @@ with tab6:
     if st.button("💾 SALVA REGISTRO E AGGIORNA COSTI", type="primary", use_container_width=True):
         st.session_state.registro_data = edited_registro
         aggiorna_costi_reali()
+        
+        # Elimina le "vecchie" visualizzazioni del Tab 1 così i costi nuovi si aggiornano a schermo
+        for k in list(st.session_state.keys()):
+            if k.startswith("editor_wbs_"):
+                del st.session_state[k]
+                
         st.success("✅ Dati contabili salvati e costi aggiornati!")
         st.rerun()
         
@@ -1076,7 +1113,6 @@ with tab7:
     if st.session_state.capa_data.empty and len(st.session_state.capa_data.columns) == 0:
         st.session_state.capa_data = pd.DataFrame(columns=colonne_capa_base)
     
-    # VECCHIO STILE PULITO, SENZA required=True
     edited_capa = st.data_editor(
         st.session_state.capa_data,
         num_rows="dynamic",
