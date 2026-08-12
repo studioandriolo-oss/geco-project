@@ -251,6 +251,29 @@ def modifica_struttura(id_target, azione):
     
     st.session_state.wbs_data = df.copy()
     st.session_state.wbs_data = aggiorna_gerarchia(st.session_state.wbs_data)
+    
+    # --- FIX TENDINA: INSEGUIMENTO DELL'ATTIVITÀ SPOSTATA ---
+    if azione != 'elimina':
+        new_id = mapping.get(id_target, id_target)
+        try:
+            attivita = df.loc[df['ID_WBS'] == new_id, 'Attività'].values[0]
+            nuova_stringa = f"{new_id} - {attivita}"
+            
+            # Diciamo a Streamlit di pre-selezionare questa esatta stringa!
+            if '.' not in str(new_id):
+                st.session_state['sel_move_root'] = nuova_stringa
+            else:
+                radice = str(new_id).split('.')[0]
+                st.session_state[f'sel_move_{radice}'] = nuova_stringa
+        except Exception as e:
+            pass
+    # --------------------------------------------------------
+    
+    # Svuotiamo brutalmente la memoria dei widget prima di riavviare la pagina.
+    for k in list(st.session_state.keys()):
+        if k.startswith("editor_wbs_"):
+            del st.session_state[k]
+            
     st.rerun()
     
 def get_foglie(df):
@@ -469,16 +492,8 @@ with tab1:
     df_padri = st.session_state.wbs_data[~st.session_state.wbs_data['ID_WBS'].astype(str).str.contains(r'\.')]
     lista_capitoli = list(df_padri['ID_WBS'].astype(str) + " - " + df_padri['Attività'].astype(str))
     
-    # --- TROVA INDICE ULTIMO CAPITOLO MOSSO ---
-    idx_padre = 0
-    ultimo_mosso = st.session_state.get('ultimo_nodo_mosso')
-    if ultimo_mosso:
-        for i, opz in enumerate(lista_capitoli):
-            if opz.startswith(f"{ultimo_mosso} - "):
-                idx_padre = i
-                break
-    
-    nodo_scelto = c_sel.selectbox("Seleziona una voce", options=lista_capitoli, index=idx_padre, label_visibility="collapsed")
+    # Usiamo la KEY per far gestire la memoria a Streamlit in automatico
+    nodo_scelto = c_sel.selectbox("Seleziona Capitolo", options=lista_capitoli, key="sel_move_root", label_visibility="collapsed")
     
     if nodo_scelto:
         id_scelto = nodo_scelto.split(' - ')[0]
@@ -543,16 +558,8 @@ with tab1:
                 
                 opzioni_locali = list(discendenti['ID_WBS'].astype(str) + " - " + discendenti['Attività'].astype(str))
                 
-                # --- TROVA INDICE ULTIMA VOCE MOSSA (SOTTO-CAPITOLI) ---
-                idx_locale = 0
-                if ultimo_mosso:
-                    for i, opz in enumerate(opzioni_locali):
-                        if opz.startswith(f"{ultimo_mosso} - "):
-                            idx_locale = i
-                            break
-                # -------------------------------------------------------
-                
-                nodo_locale = c_sel_int.selectbox("Seleziona voce da muovere", options=opzioni_locali, index=idx_locale, key=f"sel_move_{id_radice}", label_visibility="collapsed")
+                # La KEY f"sel_move_{id_radice}" lega questa tendina al motore di caccia
+                nodo_locale = c_sel_int.selectbox("Seleziona voce da muovere", options=opzioni_locali, key=f"sel_move_{id_radice}", label_visibility="collapsed")
                 
                 if nodo_locale:
                     id_loc = nodo_locale.split(' - ')[0]
@@ -572,6 +579,16 @@ with tab1:
                 nuova_riga = pd.DataFrame([{'ID_WBS': nuovo_id, 'Attività': nuova_att, 'BAC_Budget': 0.0, '%_Completamento': 0.0, 'AC_Costo_Reale': 0.0}])
                 st.session_state.wbs_data = pd.concat([st.session_state.wbs_data, nuova_riga], ignore_index=True)
                 modifica_struttura('1', 'rinumera') 
+
+    st.divider()
+    st.warning("⚠️ **Hai aggiunto nuove lavorazioni nelle tabelle?** Clicca il tasto qui sotto per far assegnare al sistema la numerazione definitiva e riallineare l'albero WBS.")
+    if st.button("💾 SALVA INSERIMENTI E RICALCOLA ALBERO", type="primary", use_container_width=True):
+        st.session_state.wbs_data = df_aggiornato
+        # Svuotacache del salvataggio
+        for k in list(st.session_state.keys()):
+            if k.startswith("editor_wbs_"):
+                del st.session_state[k]
+        modifica_struttura('1', 'rinumera') 
 
     st.divider()
     st.warning("⚠️ **Hai aggiunto nuove lavorazioni nelle tabelle?** Clicca il tasto qui sotto per far assegnare al sistema la numerazione definitiva e riallineare l'albero WBS.")
