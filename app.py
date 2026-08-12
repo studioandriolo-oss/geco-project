@@ -693,15 +693,18 @@ with tab3:
             wp_html += f"<TR><TD ALIGN='LEFT'>Avanzamento: {completamento:.0f}%</TD><TD ALIGN='RIGHT'>{testo_margine}</TD></TR>"
             wp_html += "</TABLE>>"
             
-            # COLORI SEMPLIFICATI (Nessun gradiente che manda in tilt alcuni PC)
             if completamento >= 100:
-                colore_sfondo = '#C8E6C9' # Verde (Finito)
-            elif completamento > 0:
-                colore_sfondo = '#FFF9C4' # Giallino (In Lavorazione)
+                stile = 'rounded,filled'
+                colore_sfondo = '#C8E6C9' 
+            elif completamento <= 0:
+                stile = 'rounded,filled'
+                colore_sfondo = 'white'   
             else:
-                colore_sfondo = 'white'   # Bianco (Da iniziare)
+                stile = 'rounded,striped'
+                quota_verde = completamento / 100.0
+                colore_sfondo = f"#C8E6C9;{quota_verde:.3f}:white"
                 
-            graph.node(f"WBS_{wbs_id}", label=wp_html, shape='rect', style='rounded,filled', fillcolor=colore_sfondo, color=bordo_colore, penwidth=spessore_bordo)
+            graph.node(f"WBS_{wbs_id}", label=wp_html, shape='rect', style=stile, fillcolor=colore_sfondo, color=bordo_colore, penwidth=spessore_bordo)
             
             # ARCHI OBS
             obs_val = str(row.get('ID_OBS_Assegnato', '')).strip()
@@ -1022,7 +1025,6 @@ with tab6:
     if st.session_state.registro_data.empty and len(st.session_state.registro_data.columns) == 0:
         st.session_state.registro_data = pd.DataFrame(columns=colonne_reg_base)
         
-    # VECCHIO STILE PULITO, SENZA required=True
     edited_registro = st.data_editor(
         st.session_state.registro_data,
         num_rows="dynamic",
