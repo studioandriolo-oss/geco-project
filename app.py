@@ -1012,15 +1012,80 @@ with tab7:
                 fig_sim.add_trace(go.Scatter(x=[oggi, data_fine_simulata], y=[ac_simulato_tot, eac_simulato], mode='lines+markers+text', name='Simulazione', line=dict(color='blue', dash='solid', width=3)))
                 st.plotly_chart(fig_sim, use_container_width=True)
 
-    st.subheader("3. Stampa Verbale di Direzione Lavori")
-    if st.button("📄 Genera Verbale WORD (.docx)", use_container_width=True, type="primary"):
-        doc = Document()
-        doc.add_heading('VERBALE DI DIREZIONE LAVORI', 0)
-        buffer = BytesIO()
-        doc.save(buffer)
-        buffer.seek(0)
-        st.download_button("⬇️ Scarica il file Word", data=buffer, file_name=f"Verbale_{st.session_state.nome_progetto_attivo}.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", type="secondary")
+   st.subheader("3. Stampa Verbale di Direzione Lavori")
+    
+    # 1. Filtri per scegliere cosa stampare
+    col_f1, col_f2 = st.columns([1, 2])
+    filtro_stampa = col_f1.radio("Quali interventi includere nel verbale?", ["Tutti i registrati", "Solo l'ultimo inserito", "Intervallo di date"])
+    
+    df_stampa = st.session_state.capa_data.copy()
+    if not df_stampa.empty:
+        df_stampa['Data_Apertura'] = pd.to_datetime(df_stampa['Data_Apertura']).dt.date
+        
+        if filtro_stampa == "Solo l'ultimo inserito":
+            df_stampa = df_stampa.tail(1)
+        elif filtro_stampa == "Intervallo di date":
+            d_start = col_f2.date_input("Da data:", value=pd.Timestamp.today().date())
+            d_end = col_f2.date_input("A data:", value=pd.Timestamp.today().date())
+            df_stampa = df_stampa[(df_stampa['Data_Apertura'] >= d_start) & (df_stampa['Data_Apertura'] <= d_end)]
 
+    # 2. Generazione automatica in background del documento WORD
+    df_evm_rep = calcola_evm(get_foglie(st.session_state.wbs_data), pd.Timestamp.today().date())
+    tot_ev_rep = df_evm_rep['EV'].sum()
+    tot_ac_rep = df_evm_rep['AC_Costo_Reale'].sum()
+    tot_pv_rep = df_evm_rep['PV'].sum()
+    cpi_rep = tot_ev_rep / tot_ac_rep if tot_ac_rep > 0 else 1.0
+    spi_rep = tot_ev_rep / tot_pv_rep if tot_pv_rep > 0 else 1.0
+    eac_rep = df_evm_rep['EAC'].sum()
+    
+    doc = Document()
+    doc.add_heading('VERBALE DI DIREZIONE LAVORI', 0)
+    doc.add_paragraph(f"Progetto: {st.session_state.nome_progetto_attivo}")
+    doc.add_paragraph(f"Data emissione verbale: {pd.Timestamp.today().strftime('%d/%m/%Y')}")
+    
+    doc.add_heading('1. Stato Avanzamento Lavori (EVM)', level=1)
+    p = doc.add_paragraph()
+    p.add_run(f"CPI (Efficienza Costi): {cpi_rep:.2f}\n").bold = True
+    p.add_run(f"SPI (Efficienza Tempi): {spi_rep:.2f}\n").bold = True
+    p.add_run(f"Costo Finale Stimato (EAC): {eac_rep:,.2f} Euro").bold = True
+    doc.add_paragraph("Nota: Un indicatore inferiore a 1.00 indica un superamento del budget o un ritardo sui tempi.")
+    
+    doc.add_heading('2. Disposizioni e Azioni (CAPA)', level=1)
+    
+    if not df_stampa.empty:
+        table = doc.add_table(rows=1, cols=5)
+        table.style = 'Table Grid'
+        hdr_cells = table.rows[0].cells
+        hdr_cells[0].text = 'Data'
+        hdr_cells[1].text = 'Attività WBS'
+        hdr_cells[2].text = 'Tipo'
+        hdr_cells[3].text = 'Descrizione Intervento'
+        hdr_cells[4].text = 'Stato'
+        
+        for _, row in df_stampa.iterrows():
+            row_cells = table.add_row().cells
+            row_cells[0].text = str(row['Data_Apertura'])
+            row_cells[1].text = str(row['ID_WBS_Rif'])
+            row_cells[2].text = str(row['Tipo_Azione'])
+            row_cells[3].text = str(row['Descrizione']) + f"\n(Assegnato: {row['Responsabile_OBS']})"
+            row_cells[4].text = str(row['Stato'])
+    else:
+        doc.add_paragraph("Nessun intervento registrato nel periodo selezionato.")
+        
+    doc.add_paragraph("\n\nFirma Direzione Lavori\n_________________________")
+    
+    buffer = BytesIO()
+    doc.save(buffer)
+    buffer.seek(0)
+    
+    # 3. Tasto nativo di download (fuori da altri bottoni!)
+    st.download_button(
+        label="⬇️ Scarica il file Word pronto per la firma",
+        data=buffer,
+        file_name=f"Verbale_{st.session_state.nome_progetto_attivo}_{pd.Timestamp.today().strftime('%Y%m%d')}.docx",
+        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        type="primary"
+    )
 # --- SIDEBAR: GESTIONE PROGETTI A SCOMPARSA ---
 with st.sidebar:
     st.header("📂 Gestione Progetti")
