@@ -972,8 +972,14 @@ with tab7:
         st.session_state.capa_data = edited_capa
         st.success("✅ Interventi salvati con successo nel database!")
         st.rerun() # Forza ricaricamento
+
+    # ------------------------------
+    # SIMULAZIONE
+    # ------------------------------
     
     with st.expander("🔬 2. Ambiente di Simulazione (Compromesso Costi / Tempi)"):
+        st.markdown("Simula l'impatto di un'azione correttiva. **Opzione Crashing:** inietta liquidità extra per accelerare i lavori e valuta lo spostamento della data di fine cantiere.")
+        
         c_sim1, c_sim2, c_sim3 = st.columns([2, 1.5, 1.5])
         wp_scelto = c_sim1.selectbox("Seleziona Work Package da simulare", options=wbs_options_capa)
         extra_costo = c_sim2.number_input("Iniezione Extra Costo (€)", value=0.0, step=500.0)
@@ -981,37 +987,103 @@ with tab7:
         
         if wp_scelto:
             wp_id = wp_scelto.split(' - ')[0]
-            df_simulazione = st.session_state.wbs_data.copy()
-            indice_riga = df_simulazione.index[df_simulazione['ID_WBS'] == wp_id].tolist()
-            if indice_riga: df_simulazione.at[indice_riga[0], 'AC_Costo_Reale'] += extra_costo
-                
+            
+            # --- CALCOLO REALE (BASE) ---
             oggi = pd.Timestamp.today().date()
-            df_sim_calc = calcola_evm(get_foglie(df_simulazione), oggi)
             df_reale_calc = calcola_evm(get_foglie(st.session_state.wbs_data), oggi)
             
-            eac_attuale, eac_simulato = df_reale_calc['EAC'].sum(), df_sim_calc['EAC'].sum()
-            ac_attuale_tot, ac_simulato_tot = df_reale_calc['AC_Costo_Reale'].sum(), df_sim_calc['AC_Costo_Reale'].sum()
-            delta_eac = eac_simulato - eac_attuale
+            eac_attuale = df_reale_calc['EAC'].sum()
+            ac_attuale_tot = df_reale_calc['AC_Costo_Reale'].sum()
             
-            min_date, max_date = pd.to_datetime(df_reale_calc['Inizio_Previsto']).min().date(), pd.to_datetime(df_reale_calc['Fine_Prevista']).max().date()
+            # --- SIMULAZIONE COSTI: Aggiunta secca (una-tantum) ---
+            eac_simulato = eac_attuale + extra_costo
+            ac_simulato_tot = ac_attuale_tot + extra_costo
+            delta_eac = extra_costo
+            
+            # --- SIMULAZIONE TEMPI: Verifica Percorso Critico ---
+            cpm_nodes = calcola_cpm(st.session_state.wbs_data)
+            is_wp_critical = cpm_nodes.get(wp_id, {}).get('is_critical', False)
+            
+            min_date = pd.to_datetime(df_reale_calc['Inizio_Previsto']).min().date()
+            max_date = pd.to_datetime(df_reale_calc['Fine_Prevista']).max().date()
+            
             if pd.notna(min_date) and pd.notna(max_date):
-                spi_attuale = df_reale_calc['EV'].sum() / df_reale_calc['PV'].sum() if df_reale_calc['PV'].sum() > 0 else 1.0
-                data_fine_attuale = min_date + pd.Timedelta(days=min(int((max_date - min_date).days / spi_attuale) if spi_attuale > 0 else (max_date - min_date).days, (max_date - min_date).days * 3))
-                data_fine_simulata = data_fine_attuale - pd.Timedelta(days=giorni_risparmiati)
+                giorni_pianificati = (max_date - min_date).days
+                tot_pv = df_reale_calc['PV'].sum()
+                tot_ev = df_reale_calc['EV'].sum()
+                spi_attuale = tot_ev / tot_pv if tot_pv > 0 else 1.0
+                
+                giorni_stimati_attuali = int(giorni_pianificati / spi_attuale) if spi_attuale > 0 else giorni_pianificati
+                giorni_stimati_attuali = min(giorni_stimati_attuali, giorni_pianificati * 3)
+                
+                data_fine_attuale = min_date + pd.Timedelta(days=giorni_stimati_attuali)
+                
+                # Se è critico scalo i giorni, altrimenti la data NON CAMBIA.
+                if is_wp_critical:
+                    data_fine_simulata = data_fine_attuale - pd.Timedelta(days=giorni_risparmiati)
+                else:
+                    data_fine_simulata = data_fine_attuale
             else:
                 data_fine_attuale = data_fine_simulata = oggi
             
+            # --- MESSAGGI DI ALLERTA INTELLIGENTI ---
+            if giorni_risparmiati > 0 and not is_wp_critical:
+                st.warning(f"⚠️ **Attenzione:** Stai accelerando un'attività NON CRITICA. Pagare {extra_costo}€ per finire prima '{wp_scelto.split(' - ')[1]}' non anticiperà la fine del cantiere!")
+            elif giorni_risparmiati > 0 and is_wp_critical:
+                st.success(f"✅ **Ottima mossa:** L'attività è sul percorso critico. Risparmiare {giorni_risparmiati} giorni qui anticiperà l'intero cantiere.")
+            
             c_res1, c_res2 = st.columns([1, 2])
+            
             with c_res1:
-                st.metric("Nuovo Costo Finale (EAC Simulato)", f"€ {eac_simulato:,.0f}", delta=f"Peggioramento Budget: € {delta_eac:,.0f}" if delta_eac > 0 else ("Miglioramento: €" + str(abs(delta_eac)) if delta_eac < 0 else "Invariato"), delta_color="inverse")
-                st.metric("Nuova Data di Consegna", data_fine_simulata.strftime('%d/%m/%Y') if pd.notna(data_fine_simulata) else "N/D", delta=f"Anticipo tempi: {giorni_risparmiati} gg" if giorni_risparmiati > 0 else "Nessun recupero", delta_color="normal")
+                st.metric(
+                    label="Nuovo Costo Finale (EAC Simulato)", 
+                    value=f"€ {eac_simulato:,.0f}", 
+                    delta=f"Investimento: € {delta_eac:,.0f}", 
+                    delta_color="inverse"
+                )
+                
+                label_delta_giorni = f"Anticipo: {giorni_risparmiati} gg" if is_wp_critical and giorni_risparmiati > 0 else "Nessun recupero totale"
+                st.metric(
+                    label="Nuova Data di Consegna",
+                    value=data_fine_simulata.strftime('%d/%m/%Y') if pd.notna(data_fine_simulata) else "N/D",
+                    delta=label_delta_giorni,
+                    delta_color="normal" if is_wp_critical else "off"
+                )
             
             with c_res2:
                 fig_sim = go.Figure()
-                fig_sim.add_trace(go.Scatter(x=[oggi, data_fine_attuale], y=[ac_attuale_tot, eac_attuale], mode='lines+markers+text', name='Traiettoria Attuale', line=dict(color='red', dash='dash', width=2)))
-                fig_sim.add_trace(go.Scatter(x=[oggi, data_fine_simulata], y=[ac_simulato_tot, eac_simulato], mode='lines+markers+text', name='Simulazione', line=dict(color='blue', dash='solid', width=3)))
+                
+                fig_sim.add_trace(go.Scatter(
+                    x=[oggi, data_fine_attuale],
+                    y=[ac_attuale_tot, eac_attuale],
+                    mode='lines+markers+text',
+                    name='Traiettoria Attuale',
+                    line=dict(color='red', dash='dash', width=2),
+                    text=["", f"€ {eac_attuale:,.0f}"],
+                    textposition="bottom right"
+                ))
+                
+                fig_sim.add_trace(go.Scatter(
+                    x=[oggi, data_fine_simulata],
+                    y=[ac_simulato_tot, eac_simulato],
+                    mode='lines+markers+text',
+                    name='Simulazione Crashing',
+                    line=dict(color='blue', dash='solid', width=3),
+                    text=[f"Iniezione (Oggi): € {ac_simulato_tot:,.0f}", f"€ {eac_simulato:,.0f}"],
+                    textposition="top left"
+                ))
+                
+                fig_sim.update_layout(
+                    title="Impatto Strategico (Spostamento Data vs Costo)",
+                    height=280,
+                    margin=dict(l=10, r=10, t=35, b=10),
+                    yaxis_title="Investimento Totale (€)",
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+                )
                 st.plotly_chart(fig_sim, use_container_width=True)
 
+# ---------------------------------------------------------
+    
     st.subheader("3. Stampa Verbale di Direzione Lavori")
     
     # 1. Filtri per scegliere cosa stampare
