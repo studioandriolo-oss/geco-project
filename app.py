@@ -717,16 +717,37 @@ with tab3:
                         col_cavo, stile_cavo, spes_cavo, freccia = ('#D32F2F', 'solid', '2.5', '1.0') if (is_critical and pred_is_critical) else ('#FF9800', 'dashed', '1.0', '0.6')
                         graph.edge(f"WBS_{p_id}", f"WBS_{wbs_id}", color=col_cavo, style=stile_cavo, penwidth=spes_cavo, arrowsize=freccia)
 
+        # RENDERIZZAZIONE SICURA
         raw_svg = graph.pipe(format='svg').decode('utf-8')
         if '<svg' in raw_svg:
-            components.html(f"""
-            <!DOCTYPE html><html><head><script src="https://cdn.jsdelivr.net/npm/svg-pan-zoom@3.6.1/dist/svg-pan-zoom.min.js"></script>
+            svg_data = raw_svg[raw_svg.find('<svg'):]
+            html_code = f"""
+            <!DOCTYPE html><html><head>
+            <script src="https://cdn.jsdelivr.net/npm/svg-pan-zoom@3.6.1/dist/svg-pan-zoom.min.js"></script>
             <style>body {{ margin: 0; overflow: hidden; background-color: #fafafa; }} #svg-container {{ width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center; }} svg {{ width: 100% !important; height: 100% !important; }}</style>
-            </head><body><div id="svg-container">{raw_svg[raw_svg.find('<svg'):]}</div>
-            <script>window.onload = function() {{ var s = document.querySelector('svg'); if (s) {{ s.setAttribute('id', 'grafo'); s.removeAttribute('width'); s.removeAttribute('height'); svgPanZoom('#grafo', {{ zoomEnabled: true, controlIconsEnabled: true, fit: true, center: true }}); }} }};</script></body></html>
-            """, height=600)
+            </head><body><div id="svg-container">{svg_data}</div>
+            <script>window.onload = function() {{ 
+                var s = document.querySelector('svg'); 
+                if (s) {{ 
+                    s.setAttribute('id', 'grafo'); 
+                    s.removeAttribute('width'); 
+                    s.removeAttribute('height'); 
+                    var panZoom = svgPanZoom('#grafo', {{ 
+                        zoomEnabled: true, 
+                        controlIconsEnabled: true, 
+                        fit: false, 
+                        center: true,
+                        minZoom: 0.1,
+                        maxZoom: 10,
+                        mouseWheelZoomEnabled: true
+                    }}); 
+                }} 
+            }};</script>
+            </body></html>
+            """
+            components.html(html_code, height=900)
         else:
-            st.info("Grafo logico vuoto.")
+            st.warning("Grafo generato ma vuoto.")
             
     except Exception as e:
         st.error(f"⚠️ ERRORE TECNICO DURANTE IL DISEGNO DEL GRAFO: {e}")
@@ -923,9 +944,15 @@ with tab7:
     
     st.subheader("1. Registro Azioni Correttive e Preventive (CAPA)")
     
-    colonne_capa_base = ['Data_Apertura', 'ID_WBS_Rif', 'Tipo_Azione', 'Descrizione', 'Responsabile_OBS', 'Stato']
-    if st.session_state.capa_data.empty and len(st.session_state.capa_data.columns) == 0:
-        st.session_state.capa_data = pd.DataFrame(columns=colonne_capa_base)
+    # --- FIX: SCUDO FORMATO DATE PER LA TABELLA CAPA ---
+    df_capa = st.session_state.capa_data.copy()
+    if not df_capa.empty:
+        df_capa['Data_Apertura'] = pd.to_datetime(df_capa['Data_Apertura'], errors='coerce').dt.date
+    else:
+        # Forza la colonna Date a non diventare un "numero" quando è vuota
+        df_capa['Data_Apertura'] = pd.Series(dtype='object')
+    st.session_state.capa_data = df_capa
+    # ----------------------------------------------------
     
     edited_capa = st.data_editor(
         st.session_state.capa_data, num_rows="dynamic", use_container_width=True, hide_index=True,
