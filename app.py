@@ -568,6 +568,7 @@ with tab1:
                     if c3.button("⬆️ Su", key=f"u_{id_radice}", use_container_width=True): modifica_struttura(id_loc, 'su')
                     if c4.button("⬇️ Giù", key=f"d_{id_radice}", use_container_width=True): modifica_struttura(id_loc, 'giu')
 
+    # === ATTENZIONE: Questo blocco deve essere allineato a sinistra, fuori dal ciclo dei capitoli! ===
     with st.form("aggiungi_padre"):
         st.write("Aggiungi un nuovo Capitolo Principale")
         c1, c2 = st.columns([4, 1])
@@ -582,18 +583,11 @@ with tab1:
 
     st.divider()
     st.warning("⚠️ **Hai aggiunto nuove lavorazioni nelle tabelle?** Clicca il tasto qui sotto per far assegnare al sistema la numerazione definitiva e riallineare l'albero WBS.")
-    if st.button("💾 SALVA INSERIMENTI E RICALCOLA ALBERO", type="primary", use_container_width=True):
+    
+    # --- FIX: AGGIUNTA LA KEY UNIVOCA ("btn_salva_mega_wbs") PER EVITARE I CRASH DA DUPLICATO ---
+    if st.button("💾 SALVA INSERIMENTI E RICALCOLA ALBERO", type="primary", use_container_width=True, key="btn_salva_mega_wbs"):
         st.session_state.wbs_data = df_aggiornato
         # Svuotacache del salvataggio
-        for k in list(st.session_state.keys()):
-            if k.startswith("editor_wbs_"):
-                del st.session_state[k]
-        modifica_struttura('1', 'rinumera') 
-
-    st.divider()
-    st.warning("⚠️ **Hai aggiunto nuove lavorazioni nelle tabelle?** Clicca il tasto qui sotto per far assegnare al sistema la numerazione definitiva e riallineare l'albero WBS.")
-    if st.button("💾 SALVA INSERIMENTI E RICALCOLA ALBERO", type="primary", use_container_width=True):
-        st.session_state.wbs_data = df_aggiornato
         for k in list(st.session_state.keys()):
             if k.startswith("editor_wbs_"):
                 del st.session_state[k]
