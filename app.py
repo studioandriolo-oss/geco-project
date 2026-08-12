@@ -1012,7 +1012,7 @@ with tab7:
                 fig_sim.add_trace(go.Scatter(x=[oggi, data_fine_simulata], y=[ac_simulato_tot, eac_simulato], mode='lines+markers+text', name='Simulazione', line=dict(color='blue', dash='solid', width=3)))
                 st.plotly_chart(fig_sim, use_container_width=True)
 
-   st.subheader("3. Stampa Verbale di Direzione Lavori")
+    st.subheader("3. Stampa Verbale di Direzione Lavori")
     
     # 1. Filtri per scegliere cosa stampare
     col_f1, col_f2 = st.columns([1, 2])
@@ -1086,6 +1086,7 @@ with tab7:
         mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         type="primary"
     )
+
 # --- SIDEBAR: GESTIONE PROGETTI A SCOMPARSA ---
 with st.sidebar:
     st.header("📂 Gestione Progetti")
