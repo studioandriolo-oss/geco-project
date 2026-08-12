@@ -599,11 +599,11 @@ with tab2:
         
 # --- TAB 3: MATRICE E GRAFO A NODI ---
 with tab3:
-    st.header("Incrocio Logico (Work Packages e Percorso Critico)")
+    st.header("Percorso Logico - Work Packages e Percorso Critico")
     
     try:
         cpm_data = calcola_cpm(st.session_state.wbs_data)
-        mostra_relazioni = st.toggle("👁️ Mostra Relazioni tra WP (Interferenze)", value=True)
+        mostra_relazioni = st.toggle("👁️ Mostra Percorso Critico (CPM)", value=True)
         
         graph = graphviz.Digraph(engine='dot')
         graph.attr(rankdir='LR', ranksep='1.5', nodesep='0.8', splines='spline')
@@ -762,7 +762,7 @@ with tab3:
         
 # --- TAB 4: CRONOPROGRAMMA (GANTT) ---
 with tab4:
-    st.header("Cronoprogramma Lavori")
+    st.header("Cronoprogramma")
     
     c1, c2 = st.columns([1, 2])
     vista = c1.selectbox("Seleziona Vista", ["Progetto (Baseline)", "Esecuzione (Esecutivo)", "Comparativa"])
@@ -830,7 +830,7 @@ with tab5:
             c4.metric("CPI (Costi)", f"{cpi_globale:.2f}", delta="Over-budget" if cpi_globale < 1 else "Under-budget", delta_color="inverse")
             
     st.divider()
-    st.subheader("📈 Curva ad S (Andamento Temporale di Progetto)")
+    st.subheader("📈 Andamento di Progetto")
     
     df_scurve = genera_dati_scurve(df_evm, st.session_state.registro_data, data_status_evm)
     if df_scurve is not None and not df_scurve.empty:
