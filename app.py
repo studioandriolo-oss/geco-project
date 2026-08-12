@@ -596,14 +596,14 @@ with tab2:
         st.session_state.obs_data = edited_obs
         st.success("✅ Dati anagrafici salvati con successo!")
         st.rerun()
-        
+
 # --- TAB 3: MATRICE E GRAFO A NODI ---
 with tab3:
-    st.header("Percorso Logico - Work Packages e Percorso Critico")
+    st.header("Incrocio Logico (Work Packages e Percorso Critico)")
     
     try:
         cpm_data = calcola_cpm(st.session_state.wbs_data)
-        mostra_relazioni = st.toggle("👁️ Mostra Percorso Critico (CPM)", value=True)
+        mostra_relazioni = st.toggle("👁️ Mostra Relazioni tra WP (Interferenze)", value=True)
         
         graph = graphviz.Digraph(engine='dot')
         graph.attr(rankdir='LR', ranksep='1.5', nodesep='0.8', splines='spline')
@@ -614,7 +614,7 @@ with tab3:
             if pd.isna(testo) or testo is None: return ""
             t = str(testo)
             t = t.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace('"', '&quot;')
-            t = t.replace('\n', '<BR/>') # Questo impedisce i crash se premi "invio" nelle descrizioni
+            t = t.replace('\n', '<BR/>')
             return t
             
         for _, row in st.session_state.obs_data.iterrows():
@@ -639,7 +639,9 @@ with tab3:
             if obs_id.endswith('.0'): obs_id = obs_id[:-2]
             
             if obs_id:
-                graph.node(f"OBS_{obs_id}", label=label_html, shape='rect', style='rounded,filled', fillcolor='#E1F5FE', color='#0288D1', penwidth='1.5')
+                # FIX GRAPHVIZ: Sostituisco i punti con underscore per l'ID interno
+                safe_obs_id = obs_id.replace('.', '_')
+                graph.node(f"OBS_{safe_obs_id}", label=label_html, shape='rect', style='rounded,filled', fillcolor='#E1F5FE', color='#0288D1', penwidth='1.5')
             
         df_wp_reali = get_foglie(st.session_state.wbs_data)
         valid_wbs_ids = set(df_wp_reali['ID_WBS'].astype(str))
@@ -653,7 +655,7 @@ with tab3:
             
             attivita = pulisci_testo(row.get('Attività', ''))
             
-            # SCUDO ASSOLUTO PER I NUMERI (Converte forzatamente i vuoti in 0.0)
+            # SCUDO ASSOLUTO PER I NUMERI
             try: budget = float(str(row.get('BAC_Budget', 0)).replace(',', '.'))
             except: budget = 0.0
             
@@ -679,7 +681,6 @@ with tab3:
                 testo_margine = f"<FONT COLOR='#388E3C'>Margine: {margine} gg</FONT>"
                 bordo_colore, spessore_bordo = '#388E3C', '1.5'
             
-            # Sostituito il simbolo Euro per evitare crash del motore grafico
             wp_html = f"<<TABLE BORDER='0' CELLBORDER='0' CELLSPACING='4'>"
             wp_html += f"<TR><TD COLSPAN='2'><B>{wbs_id} - {attivita}</B></TD></TR>"
             wp_html += f"<TR><TD ALIGN='LEFT'>Inizio: {inizio_str}</TD><TD ALIGN='RIGHT'>Fine: {fine_str}</TD></TR>"
@@ -687,7 +688,6 @@ with tab3:
             wp_html += f"<TR><TD ALIGN='LEFT'>Avanzamento: {completamento:.0f}%</TD><TD ALIGN='RIGHT'>{testo_margine}</TD></TR>"
             wp_html += "</TABLE>>"
             
-            # BARRA DI PROGRESSIONE CORAZZATA (Neutralizza i conflitti punto/virgola)
             if completamento >= 100:
                 stile, colore_sfondo = 'rounded,filled', '#C8E6C9' 
             elif completamento <= 0:
@@ -695,18 +695,23 @@ with tab3:
             else:
                 stile = 'rounded,striped'
                 quota_verde = max(0.01, min(0.99, completamento / 100.0))
-                # Forzatura manuale del punto decimale per Graphviz
                 colore_sfondo = f"#C8E6C9;{str(round(quota_verde, 3)).replace(',', '.')}:white"
                 
-            graph.node(f"WBS_{wbs_id}", label=wp_html, shape='rect', style=stile, fillcolor=colore_sfondo, color=bordo_colore, penwidth=spessore_bordo)
+            # FIX GRAPHVIZ: Sostituisco i punti con underscore per l'ID interno del Nodo
+            safe_wbs_id = wbs_id.replace('.', '_')
+            graph.node(f"WBS_{safe_wbs_id}", label=wp_html, shape='rect', style=stile, fillcolor=colore_sfondo, color=bordo_colore, penwidth=spessore_bordo)
             
+            # ARCHI OBS
             obs_val = str(row.get('ID_OBS_Assegnato', '')).strip()
             if obs_val and obs_val.lower() not in ['none', 'nan', 'null']:
                 for o in [o.strip() for o in obs_val.split(',')]:
                     o_id = o.split(' - ')[0].strip()
                     if o_id.endswith('.0'): o_id = o_id[:-2]
-                    if o_id: graph.edge(f"OBS_{o_id}", f"WBS_{wbs_id}", color='#757575', penwidth='1.5', arrowsize='0.8')
+                    if o_id: 
+                        safe_obs_id_edge = o_id.replace('.', '_')
+                        graph.edge(f"OBS_{safe_obs_id_edge}", f"WBS_{safe_wbs_id}", color='#757575', penwidth='1.5', arrowsize='0.8')
                         
+            # ARCHI PREDECESSORI
             pred_val = str(row.get('Predecessori', '')).strip()
             if mostra_relazioni and pred_val and pred_val.lower() not in ['none', 'nan', 'null']:
                 for p in [p.strip() for p in pred_val.split(',')]:
@@ -715,17 +720,16 @@ with tab3:
                     if p_id in valid_wbs_ids:
                         pred_is_critical = cpm_data.get(p_id, {}).get('is_critical', False)
                         col_cavo, stile_cavo, spes_cavo, freccia = ('#D32F2F', 'solid', '2.5', '1.0') if (is_critical and pred_is_critical) else ('#FF9800', 'dashed', '1.0', '0.6')
-                        graph.edge(f"WBS_{p_id}", f"WBS_{wbs_id}", color=col_cavo, style=stile_cavo, penwidth=spes_cavo, arrowsize=freccia)
+                        safe_pid_edge = p_id.replace('.', '_')
+                        graph.edge(f"WBS_{safe_pid_edge}", f"WBS_{safe_wbs_id}", color=col_cavo, style=stile_cavo, penwidth=spes_cavo, arrowsize=freccia)
 
-        # RENDERIZZAZIONE SICURA
         raw_svg = graph.pipe(format='svg').decode('utf-8')
         if '<svg' in raw_svg:
-            svg_data = raw_svg[raw_svg.find('<svg'):]
-            html_code = f"""
-            <!DOCTYPE html><html><head>
-            <script src="https://cdn.jsdelivr.net/npm/svg-pan-zoom@3.6.1/dist/svg-pan-zoom.min.js"></script>
+            # Rimosso il fit: true per permettere uno zoom confortevole e ampio
+            components.html(f"""
+            <!DOCTYPE html><html><head><script src="https://cdn.jsdelivr.net/npm/svg-pan-zoom@3.6.1/dist/svg-pan-zoom.min.js"></script>
             <style>body {{ margin: 0; overflow: hidden; background-color: #fafafa; }} #svg-container {{ width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center; }} svg {{ width: 100% !important; height: 100% !important; }}</style>
-            </head><body><div id="svg-container">{svg_data}</div>
+            </head><body><div id="svg-container">{raw_svg[raw_svg.find('<svg'):]}</div>
             <script>window.onload = function() {{ 
                 var s = document.querySelector('svg'); 
                 if (s) {{ 
@@ -736,18 +740,16 @@ with tab3:
                         zoomEnabled: true, 
                         controlIconsEnabled: true, 
                         fit: false, 
-                        center: true,
-                        minZoom: 0.1,
-                        maxZoom: 10,
-                        mouseWheelZoomEnabled: true
+                        center: true, 
+                        minZoom: 0.1, 
+                        maxZoom: 10, 
+                        mouseWheelZoomEnabled: true 
                     }}); 
                 }} 
-            }};</script>
-            </body></html>
-            """
-            components.html(html_code, height=900)
+            }};</script></body></html>
+            """, height=900)
         else:
-            st.warning("Grafo generato ma vuoto.")
+            st.info("Grafo logico vuoto.")
             
     except Exception as e:
         st.error(f"⚠️ ERRORE TECNICO DURANTE IL DISEGNO DEL GRAFO: {e}")
@@ -756,10 +758,10 @@ with tab3:
     st.subheader("📖 Legenda del Grafo")
     col_leg1, col_leg2 = st.columns(2)
     with col_leg1:
-        st.markdown("**NODI E FIGURE**\n* 🟦 **Riquadro Azzurro:** Risorsa/Ruolo (OBS)\n* 🟩 **Riquadro Verde:** Work Package (WBS)\n* 🟥 **Bordo Rosso Spesso:** Percorso Critico (Margine = 0 gg)")
+        st.markdown("**NODI E FIGURE**\n* 🟦 **Riquadro Azzurro:** Risorsa/Ruolo (OBS)\n* 🟩 **Riquadro Verde/Giallo:** Work Package (WBS)\n* 🟥 **Bordo Rosso Spesso:** Percorso Critico (Margine = 0 gg)")
     with col_leg2:
         st.markdown("**CAVI E COLLEGAMENTI**\n* 🔗 **Freccia Grigia Continua:** Assegnazione Risorsa\n* 🔀 **Freccia Arancione Tratteggiata:** Relazione logica\n* 🚨 **Freccia Rossa Spessa:** Flusso del Percorso Critico")
-        
+       
 # --- TAB 4: CRONOPROGRAMMA (GANTT) ---
 with tab4:
     st.header("Cronoprogramma")
@@ -923,7 +925,7 @@ with tab6:
     )
     
     st.divider()
-    st.warning("⚠️ **Ricordati di cliccare il tasto blu qui sotto dopo aver inserito i dati!**")
+    st.warning("⚠️ **Ricordati di cliccare il tasto rosso qui sotto dopo aver inserito i dati!**")
     if st.button("💾 SALVA REGISTRO E AGGIORNA COSTI", type="primary", use_container_width=True):
         st.session_state.registro_data = edited_registro
         aggiorna_costi_reali()
@@ -967,7 +969,7 @@ with tab7:
     )
     
     st.divider()
-    st.warning("⚠️ **Ricordati di cliccare il tasto blu qui sotto dopo aver inserito i dati!**")
+    st.warning("⚠️ **Ricordati di cliccare il tasto rosso qui sotto dopo aver inserito i dati!**")
     if st.button("💾 SALVA REGISTRO CAPA", type="primary", use_container_width=True):
         st.session_state.capa_data = edited_capa
         st.success("✅ Interventi salvati con successo nel database!")
