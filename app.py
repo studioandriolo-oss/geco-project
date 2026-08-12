@@ -157,11 +157,102 @@ def modifica_struttura(id_target, azione):
     
     if azione == 'elimina':
         mask = (df['ID_WBS'].astype(str) == id_target) | (df['ID_WBS'].astype(str).str.startswith(f"{id_target}."))
-        df = df[~mask].reset_index(drop=True)
+        df = df[~mask].reset_index(drop=True) 
+        
         if df.empty:
             df = pd.DataFrame([{'ID_WBS': '1', 'Attività': 'Progetto Principale', 'BAC_Budget': 0.0, '%_Completamento': 0.0, 'AC_Costo_Reale': 0.0, 'Livello': 1}])
             st.session_state.wbs_data = df.drop(columns=['Livello'])
+            st.session_state['tracker_id'] = None
+            for k in list(st.session_state.keys()):
+                if k.startswith("editor_wbs_"): del st.session_state[k]
             st.rerun()
+            
+    elif azione in ['su', 'giu', 'destra', 'sinistra']:
+        ids = df['ID_WBS'].astype(str).tolist()
+        if id_target not in ids: return
+        idx = ids.index(id_target)
+        livello_target = df.at[idx, 'Livello']
+        
+        end_idx = idx + 1
+        while end_idx < len(df) and df.at[end_idx, 'Livello'] > livello_target:
+            end_idx += 1
+        blocco_target = list(range(idx, end_idx))
+        
+        if azione == 'destra':
+            if idx > 0 and df.at[idx - 1, 'Livello'] >= livello_target: df.loc[blocco_target, 'Livello'] += 1
+        elif azione == 'sinistra':
+            if livello_target > 1: df.loc[blocco_target, 'Livello'] -= 1
+        elif azione == 'su':
+            prev_idx = idx - 1
+            while prev_idx >= 0 and df.at[prev_idx, 'Livello'] > livello_target: prev_idx -= 1
+            if prev_idx >= 0 and df.at[prev_idx, 'Livello'] == livello_target:
+                blocco_prev = list(range(prev_idx, idx))
+                new_order = list(range(len(df)))
+                new_order[prev_idx:end_idx] = blocco_target + blocco_prev
+                df = df.iloc[new_order].reset_index(drop=True)
+        elif azione == 'giu':
+            next_idx = end_idx
+            if next_idx < len(df) and df.at[next_idx, 'Livello'] == livello_target:
+                next_end = next_idx + 1
+                while next_end < len(df) and df.at[next_end, 'Livello'] > livello_target: next_end += 1
+                blocco_next = list(range(next_idx, next_end))
+                new_order = list(range(len(df)))
+                new_order[idx:next_end] = blocco_next + blocco_target
+                df = df.iloc[new_order].reset_index(drop=True)
+
+    nuovi_id = []
+    counters = {} 
+    
+    for idx, row in df.iterrows():
+        liv = row['Livello']
+        if idx == 0: liv = 1
+        else:
+            prev_liv = df.at[idx-1, 'Livello']
+            if liv > prev_liv + 1: liv = prev_liv + 1 
+                
+        df.at[idx, 'Livello'] = liv
+        counters[liv] = counters.get(liv, 0) + 1
+        for k in list(counters.keys()):
+            if k > liv: counters[k] = 0 
+                
+        nuovo_id = ".".join([str(counters[i]) for i in range(1, liv + 1)])
+        nuovi_id.append(nuovo_id)
+        
+    old_ids = df['ID_WBS'].astype(str).tolist()
+    mapping = dict(zip(old_ids, nuovi_id))
+    
+    def aggiorna_preds(val):
+        if not val or pd.isna(val) or str(val).strip() in ['', 'None', 'nan']: return val
+        preds = [p.strip() for p in str(val).split(',')]
+        new_preds = []
+        for p in preds:
+            parts = p.split(' - ', 1)
+            vecchio_id = parts[0].strip()
+            nuovo_id = mapping.get(vecchio_id, vecchio_id)
+            if len(parts) > 1: new_preds.append(f"{nuovo_id} - {parts[1]}")
+            else: new_preds.append(nuovo_id)
+        return ', '.join(new_preds)
+        
+    df['ID_WBS'] = nuovi_id
+    if 'Predecessori' in df.columns:
+        df['Predecessori'] = df['Predecessori'].apply(aggiorna_preds)
+        
+    df = df.drop(columns=['Livello', 'sort_key'])
+    
+    st.session_state.wbs_data = df.copy()
+    st.session_state.wbs_data = aggiorna_gerarchia(st.session_state.wbs_data)
+    
+    # --- MEMORIZZATORE ID PURA ---
+    if azione != 'elimina':
+        st.session_state['tracker_id'] = mapping.get(id_target, id_target)
+    else:
+        st.session_state['tracker_id'] = None
+        
+    for k in list(st.session_state.keys()):
+        if k.startswith("editor_wbs_"):
+            del st.session_state[k]
+            
+    st.rerun()
             
     elif azione in ['su', 'giu', 'destra', 'sinistra']:
         ids = df['ID_WBS'].astype(str).tolist()
@@ -492,8 +583,16 @@ with tab1:
     df_padri = st.session_state.wbs_data[~st.session_state.wbs_data['ID_WBS'].astype(str).str.contains(r'\.')]
     lista_capitoli = list(df_padri['ID_WBS'].astype(str) + " - " + df_padri['Attività'].astype(str))
     
-    # Usiamo la KEY per far gestire la memoria a Streamlit in automatico
-    nodo_scelto = c_sel.selectbox("Seleziona Capitolo", options=lista_capitoli, key="sel_move_root", label_visibility="collapsed")
+    # Inseguimento voce Capitolo
+    tracker = st.session_state.get('tracker_id', None)
+    idx_padre = 0
+    if tracker:
+        for i, opz in enumerate(lista_capitoli):
+            if opz.split(' - ')[0] == tracker:
+                idx_padre = i
+                break
+                
+    nodo_scelto = c_sel.selectbox("Seleziona Capitolo", options=lista_capitoli, index=idx_padre, label_visibility="collapsed")
     
     if nodo_scelto:
         id_scelto = nodo_scelto.split(' - ')[0]
@@ -553,13 +652,20 @@ with tab1:
             df_aggiornato = pd.concat([df_aggiornato, pd.DataFrame([radice]), discendenti_modificati], ignore_index=True)
             
             if not discendenti.empty:
-                st.markdown("↕️ **Sposta / Modifica Livello (Outliner):**")
+                st.markdown("↕️ **Sposta / Modifica Livello:**")
                 c_sel_int, c1, c2, c3, c4 = st.columns([3, 1.5, 1.5, 1, 1])
                 
                 opzioni_locali = list(discendenti['ID_WBS'].astype(str) + " - " + discendenti['Attività'].astype(str))
                 
-                # La KEY f"sel_move_{id_radice}" lega questa tendina al motore di caccia
-                nodo_locale = c_sel_int.selectbox("Seleziona voce da muovere", options=opzioni_locali, key=f"sel_move_{id_radice}", label_visibility="collapsed")
+                # Inseguimento voce Sotto-Capitolo
+                idx_locale = 0
+                if tracker:
+                    for i, opz in enumerate(opzioni_locali):
+                        if opz.split(' - ')[0] == tracker:
+                            idx_locale = i
+                            break
+                            
+                nodo_locale = c_sel_int.selectbox("Seleziona voce da muovere", options=opzioni_locali, index=idx_locale, key=f"sel_move_{id_radice}", label_visibility="collapsed")
                 
                 if nodo_locale:
                     id_loc = nodo_locale.split(' - ')[0]
@@ -568,7 +674,6 @@ with tab1:
                     if c3.button("⬆️ Su", key=f"u_{id_radice}", use_container_width=True): modifica_struttura(id_loc, 'su')
                     if c4.button("⬇️ Giù", key=f"d_{id_radice}", use_container_width=True): modifica_struttura(id_loc, 'giu')
 
-    # === ATTENZIONE: Questo blocco deve essere allineato a sinistra, fuori dal ciclo dei capitoli! ===
     with st.form("aggiungi_padre"):
         st.write("Aggiungi un nuovo Capitolo Principale")
         c1, c2 = st.columns([4, 1])
@@ -583,11 +688,8 @@ with tab1:
 
     st.divider()
     st.warning("⚠️ **Hai aggiunto nuove lavorazioni nelle tabelle?** Clicca il tasto qui sotto per far assegnare al sistema la numerazione definitiva e riallineare l'albero WBS.")
-    
-    # --- FIX: AGGIUNTA LA KEY UNIVOCA ("btn_salva_mega_wbs") PER EVITARE I CRASH DA DUPLICATO ---
     if st.button("💾 SALVA INSERIMENTI E RICALCOLA ALBERO", type="primary", use_container_width=True, key="btn_salva_mega_wbs"):
         st.session_state.wbs_data = df_aggiornato
-        # Svuotacache del salvataggio
         for k in list(st.session_state.keys()):
             if k.startswith("editor_wbs_"):
                 del st.session_state[k]
