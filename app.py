@@ -625,24 +625,20 @@ with tab3:
         graph.attr(rankdir='LR', ranksep='1.5', nodesep='0.8', splines='spline')
         graph.attr('node', fontname='Helvetica', fontsize='10', margin='0.2')
         
-        for _, row in st.session_state.obs_data.iterrows():
-            ruolo_safe = str(row.get('Ruolo', '')).replace('<', '').replace('>', '').replace('&', 'e')
-            risorsa_safe = str(row.get('Risorsa', '')).replace('<', '').replace('>', '').replace('&', 'e')
+        # Funzione scudo per pulire i testi da simboli HTML dannosi
+        def pulisci_testo(testo):
+            if pd.isna(testo) or testo is None: return ""
+            return str(testo).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace('"', '&quot;')
             
-            if not ruolo_safe and not risorsa_safe: continue
+        for _, row in st.session_state.obs_data.iterrows():
+            ruolo = pulisci_testo(row.get('Ruolo', ''))
+            risorsa = pulisci_testo(row.get('Risorsa', ''))
+            
+            if not ruolo and not risorsa: continue
             
             label_html = f"<<TABLE BORDER='0' CELLBORDER='0' CELLSPACING='2'>"
-            label_html += f"<TR><TD><B>{ruolo_safe}</B></TD></TR>"
-            label_html += f"<TR><TD>({risorsa_safe})</TD></TR>"
-            
-            colonne_base = ['ID_OBS', 'Ruolo', 'Risorsa', 'Tipo_Contratto', 'Note']
-            colonne_custom = [col for col in st.session_state.obs_data.columns if col not in colonne_base]
-            
-            for col in colonne_custom:
-                valore = str(row.get(col, '')).replace('<', '').replace('>', '').replace('&', 'e')
-                if pd.notna(row.get(col)) and valore.strip() != "":
-                    col_safe = str(col).replace('<', '').replace('>', '').replace('&', 'e')
-                    label_html += f"<TR><TD><FONT POINT-SIZE='9' COLOR='gray30'>{col_safe}: {valore}</FONT></TD></TR>"
+            label_html += f"<TR><TD><B>{ruolo}</B></TD></TR>"
+            label_html += f"<TR><TD>({risorsa})</TD></TR>"
             label_html += "</TABLE>>"
             
             obs_id = str(row.get('ID_OBS', '')).strip()
@@ -654,23 +650,21 @@ with tab3:
         df_wp_reali = get_foglie(st.session_state.wbs_data)
         valid_wbs_ids = set(df_wp_reali['ID_WBS'].astype(str))
         
-        # Fallback anti-sparizione: se il grafico è vuoto (perché non hai salvato il Tab 1), mostra questo
+        # Se la WBS è vuota mostriamo un nodo di cortesia invece del vuoto assoluto
         if df_wp_reali.empty or len(valid_wbs_ids) == 0:
-            graph.node("Vuoto", label="Nessuna lavorazione trovata. Ricordati di cliccare 'SALVA INSERIMENTI' nel Tab 1.", shape="rect", style="rounded,filled", fillcolor="white")
-        
+            graph.node("Vuoto", label="Nessuna lavorazione inserita. Aggiungi righe nel Tab 1.", shape="rect")
+            
         for _, row in df_wp_reali.iterrows():
             wbs_id = str(row.get('ID_WBS', '')).strip()
-            if not wbs_id or wbs_id == 'nan': continue
+            if not wbs_id or wbs_id in ['nan', 'None']: continue
             
-            attivita = str(row.get('Attività', '')).replace('<', '').replace('>', '').replace('&', 'e')
+            attivita = pulisci_testo(row.get('Attività', ''))
             
-            # SCUDO ANTI-CRASH PER I NUMERI VUOTI/None
+            # --- SCUDO ANTI-CRASH ASSOLUTO PER I NUMERI VUOTI ---
             try: budget = float(str(row.get('BAC_Budget', 0)).replace(',', '.'))
             except: budget = 0.0
-            
             try: costo_reale = float(str(row.get('AC_Costo_Reale', 0)).replace(',', '.'))
             except: costo_reale = 0.0
-            
             try: completamento = float(str(row.get('%_Completamento', 0)).replace(',', '.'))
             except: completamento = 0.0
             
@@ -684,27 +678,32 @@ with tab3:
             fine_val = pd.to_datetime(row.get('Fine_Prevista'), errors='coerce')
             fine_str = fine_val.strftime('%d/%m/%Y') if pd.notna(fine_val) else "N/D"
             
-            testo_margine = f"<FONT COLOR='#D32F2F'><B>Margine: {margine} gg</B></FONT>" if is_critical else f"<FONT COLOR='#388E3C'>Margine: {margine} gg</FONT>"
+            if is_critical:
+                testo_margine = f"<FONT COLOR='#D32F2F'><B>Margine: {margine} gg</B></FONT>"
+                bordo_colore, spessore_bordo = '#D32F2F', '3.0'
+            else:
+                testo_margine = f"<FONT COLOR='#388E3C'>Margine: {margine} gg</FONT>"
+                bordo_colore, spessore_bordo = '#388E3C', '1.5'
             
+            # Sostituito il simbolo dell'Euro con la parola scritta per evitare conflitti di codifica Unicode su Graphviz
             wp_html = f"<<TABLE BORDER='0' CELLBORDER='0' CELLSPACING='4'>"
             wp_html += f"<TR><TD COLSPAN='2'><B>{wbs_id} - {attivita}</B></TD></TR>"
             wp_html += f"<TR><TD ALIGN='LEFT'>Inizio: {inizio_str}</TD><TD ALIGN='RIGHT'>Fine: {fine_str}</TD></TR>"
-            wp_html += f"<TR><TD ALIGN='LEFT'>Budget: € {budget:,.2f}</TD><TD ALIGN='RIGHT'>AC: € {costo_reale:,.2f}</TD></TR>"
-            wp_html += f"<TR><TD ALIGN='LEFT'>Avanzamento: {completamento:.1f}%</TD><TD ALIGN='RIGHT'>{testo_margine}</TD></TR>"
+            wp_html += f"<TR><TD ALIGN='LEFT'>Budget: {budget:,.0f} Euro</TD><TD ALIGN='RIGHT'>AC: {costo_reale:,.0f} Euro</TD></TR>"
+            wp_html += f"<TR><TD ALIGN='LEFT'>Avanzamento: {completamento:.0f}%</TD><TD ALIGN='RIGHT'>{testo_margine}</TD></TR>"
             wp_html += "</TABLE>>"
             
-            # Semplificazione totale stile per evitare che le frazioni mandino in tilt Graphviz
+            # COLORI SEMPLIFICATI (Nessun gradiente che manda in tilt alcuni PC)
             if completamento >= 100:
-                stile, colore_sfondo = 'rounded,filled', '#C8E6C9' 
+                colore_sfondo = '#C8E6C9' # Verde (Finito)
             elif completamento > 0:
-                stile, colore_sfondo = 'rounded,filled', '#E8F5E9' # Verde chiarissimo per lavori in corso
+                colore_sfondo = '#FFF9C4' # Giallino (In Lavorazione)
             else:
-                stile, colore_sfondo = 'rounded,filled', 'white'   
+                colore_sfondo = 'white'   # Bianco (Da iniziare)
                 
-            bordo_colore, spessore_bordo = ('#D32F2F', '3.0') if is_critical else ('#388E3C', '1.5')
+            graph.node(f"WBS_{wbs_id}", label=wp_html, shape='rect', style='rounded,filled', fillcolor=colore_sfondo, color=bordo_colore, penwidth=spessore_bordo)
             
-            graph.node(f"WBS_{wbs_id}", label=wp_html, shape='rect', style=stile, fillcolor=colore_sfondo, color=bordo_colore, penwidth=spessore_bordo)
-            
+            # ARCHI OBS
             obs_val = str(row.get('ID_OBS_Assegnato', '')).strip()
             if obs_val and obs_val.lower() not in ['none', 'nan', 'null']:
                 for o in [o.strip() for o in obs_val.split(',')]:
@@ -712,6 +711,7 @@ with tab3:
                     if o_id.endswith('.0'): o_id = o_id[:-2]
                     if o_id: graph.edge(f"OBS_{o_id}", f"WBS_{wbs_id}", color='#757575', penwidth='1.5', arrowsize='0.8')
                         
+            # ARCHI PREDECESSORI
             pred_val = str(row.get('Predecessori', '')).strip()
             if mostra_relazioni and pred_val and pred_val.lower() not in ['none', 'nan', 'null']:
                 for p in [p.strip() for p in pred_val.split(',')]:
@@ -719,51 +719,35 @@ with tab3:
                     if p_id.endswith('.0'): p_id = p_id[:-2]
                     if p_id in valid_wbs_ids:
                         pred_is_critical = cpm_data.get(p_id, {}).get('is_critical', False)
-                        colore_cavo, stile_cavo, spessore_cavo, freccia = ('#D32F2F', 'solid', '2.5', '1.0') if is_critical and pred_is_critical else ('#FF9800', 'dashed', '1.0', '0.6')
-                        graph.edge(f"WBS_{p_id}", f"WBS_{wbs_id}", color=colore_cavo, style=stile_cavo, penwidth=spessore_cavo, arrowsize=freccia)
+                        col_cavo, stile_cavo, spes_cavo, freccia = ('#D32F2F', 'solid', '2.5', '1.0') if (is_critical and pred_is_critical) else ('#FF9800', 'dashed', '1.0', '0.6')
+                        graph.edge(f"WBS_{p_id}", f"WBS_{wbs_id}", color=col_cavo, style=stile_cavo, penwidth=spes_cavo, arrowsize=freccia)
 
+        # RENDERIZZAZIONE SICURA
         raw_svg = graph.pipe(format='svg').decode('utf-8')
         if '<svg' in raw_svg:
             svg_data = raw_svg[raw_svg.find('<svg'):]
             html_code = f"""
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <script src="https://cdn.jsdelivr.net/npm/svg-pan-zoom@3.6.1/dist/svg-pan-zoom.min.js"></script>
-                <style>
-                    body {{ margin: 0; padding: 0; overflow: hidden; background-color: #fafafa; }}
-                    #svg-container {{ width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center; }}
-                    svg {{ width: 100% !important; height: 100% !important; }}
-                </style>
-            </head>
-            <body>
-                <div id="svg-container">{svg_data}</div>
-                <script>
-                    window.onload = function() {{
-                        var svgElement = document.querySelector('svg');
-                        if (svgElement) {{
-                            svgElement.setAttribute('id', 'grafo-interattivo');
-                            svgElement.removeAttribute('width');
-                            svgElement.removeAttribute('height');
-                            svgPanZoom('#grafo-interattivo', {{ zoomEnabled: true, controlIconsEnabled: true, fit: true, center: true, minZoom: 0.1, maxZoom: 10, mouseWheelZoomEnabled: true }});
-                        }}
-                    }};
-                </script>
-            </body>
-            </html>
+            <!DOCTYPE html><html><head>
+            <script src="https://cdn.jsdelivr.net/npm/svg-pan-zoom@3.6.1/dist/svg-pan-zoom.min.js"></script>
+            <style>body {{ margin: 0; overflow: hidden; background-color: #fafafa; }} #svg-container {{ width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center; }} svg {{ width: 100% !important; height: 100% !important; }}</style>
+            </head><body><div id="svg-container">{svg_data}</div>
+            <script>window.onload = function() {{ var s = document.querySelector('svg'); if (s) {{ s.setAttribute('id', 'grafo'); s.removeAttribute('width'); s.removeAttribute('height'); svgPanZoom('#grafo', {{ zoomEnabled: true, controlIconsEnabled: true, fit: true, center: true }}); }} }};</script>
+            </body></html>
             """
             components.html(html_code, height=600)
         else:
-            st.info("Il grafo logico è vuoto. Salva le lavorazioni nel Tab 1.")
+            st.warning("Grafo generato ma vuoto.")
             
     except Exception as e:
-        st.error(f"⚠️ Errore di rendering nel Tab 3. Dettaglio tecnico: {e}")
+        # SE FALLISCE, ORA CI URLA IN FACCIA IL PERCHÉ INVECE DI SPARIRE
+        st.error(f"⚠️ ERRORE TECNICO NEL GENERARE IL GRAFO: {e}")
+        st.code(str(e))
         
     st.divider()
     st.subheader("📖 Legenda del Grafo")
     col_leg1, col_leg2 = st.columns(2)
     with col_leg1:
-        st.markdown("**NODI E FIGURE**\n* 🟦 **Riquadro Azzurro:** Risorsa/Ruolo (OBS)\n* 🟩 **Riquadro Verde:** Work Package (WBS)\n* 🟥 **Bordo Rosso Spesso:** Percorso Critico (Margine = 0 gg)")
+        st.markdown("**NODI E FIGURE**\n* 🟦 **Riquadro Azzurro:** Risorsa/Ruolo (OBS)\n* 🟩 **Riquadro Verde/Giallo:** Work Package (WBS)\n* 🟥 **Bordo Rosso Spesso:** Percorso Critico (Margine = 0 gg)")
     with col_leg2:
         st.markdown("**CAVI E COLLEGAMENTI**\n* 🔗 **Freccia Grigia Continua:** Assegnazione Risorsa\n* 🔀 **Freccia Arancione Tratteggiata:** Relazione logica\n* 🚨 **Freccia Rossa Spessa:** Flusso del Percorso Critico")
         
