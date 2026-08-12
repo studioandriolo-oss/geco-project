@@ -554,12 +554,19 @@ with tab1:
                 modifica_struttura('1', 'rinumera') 
 
     st.divider()
-    if st.button("🔄 SALVA INSERIMENTI E RICALCOLA ALBERO", type="primary", use_container_width=True):
+    st.warning("⚠️ **Hai aggiunto nuove lavorazioni nelle tabelle?** Clicca il tasto qui sotto per far assegnare al sistema la numerazione definitiva e riallineare l'albero WBS.")
+    if st.button("💾 SALVA INSERIMENTI E RICALCOLA ALBERO", type="primary", use_container_width=True):
         st.session_state.wbs_data = df_aggiornato
+        
+        # --- LA TUA INTUIZIONE: SVUOTIAMO LA CACHE VISIVA QUI ---
+        # Cancella la memoria di tutte le tabelle espandibili per forzare il refresh
         for k in list(st.session_state.keys()):
             if k.startswith("editor_wbs_"):
                 del st.session_state[k]
+        # --------------------------------------------------------
+        
         modifica_struttura('1', 'rinumera')
+        # (modifica_struttura ha già il comando st.rerun() al suo interno per riavviare la pagina)
         
 # --- TAB 2: SETUP OBS ---
 with tab2:
