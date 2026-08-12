@@ -769,11 +769,12 @@ with tab3:
 
 # --- TAB 4: CRONOPROGRAMMA (GANTT) ---
 with tab4:
-    st.header("Cronoprogramma")
+    st.header("Cronoprogramma Lavori")
     
-    c1, c2 = st.columns([1, 2])
+    c1, c2, c3 = st.columns([1, 1, 1])
     vista = c1.selectbox("Seleziona Vista", ["Progetto (Baseline)", "Esecuzione (Esecutivo)", "Comparativa"])
-    data_status_gantt = c2.date_input("📅 Data Rilevamento", value=pd.Timestamp.today().date())
+    mostra_frecce = c2.toggle("🔗 Mostra Frecce Dipendenze", value=True)
+    data_status_gantt = c3.date_input("📅 Data Rilevamento", value=pd.Timestamp.today().date())
     
     df_gantt = get_foglie(st.session_state.wbs_data).copy().dropna(subset=['Inizio_Previsto', 'Fine_Prevista'])
     
@@ -783,20 +784,80 @@ with tab4:
         df_gantt['Inizio_Effettivo'] = pd.to_datetime(df_gantt['Inizio_Effettivo'])
         df_gantt['Fine_Effettiva'] = pd.to_datetime(df_gantt['Fine_Effettiva']).fillna(pd.to_datetime(data_status_gantt))
         
+        cpm_data = calcola_cpm(st.session_state.wbs_data)
         fig = go.Figure()
         
         if vista in ["Progetto (Baseline)", "Comparativa"]:
-            fig.add_trace(go.Bar(x=(df_gantt['Fine_Prevista'] - df_gantt['Inizio_Previsto'] + pd.Timedelta(days=1)).dt.total_seconds() * 1000, y=df_gantt['ID_WBS'].astype(str) + " - " + df_gantt['Attività'], base=df_gantt['Inizio_Previsto'], orientation='h', name='Baseline', width=0.4, marker=dict(color='rgba(0, 0, 255, 0.4)' if vista == "Comparativa" else 'blue')))
+            fig.add_trace(go.Bar(
+                x=(df_gantt['Fine_Prevista'] - df_gantt['Inizio_Previsto'] + pd.Timedelta(days=1)).dt.total_seconds() * 1000, 
+                y=df_gantt['ID_WBS'].astype(str) + " - " + df_gantt['Attività'], 
+                base=df_gantt['Inizio_Previsto'], 
+                orientation='h', 
+                name='Baseline', 
+                width=0.4, 
+                marker=dict(color='rgba(0, 0, 255, 0.4)' if vista == "Comparativa" else 'blue')
+            ))
             
         if vista in ["Esecuzione (Esecutivo)", "Comparativa"]:
             df_esec = df_gantt.dropna(subset=['Inizio_Effettivo']).copy()
             if not df_esec.empty:
-                fig.add_trace(go.Bar(x=(df_esec['Fine_Effettiva'] - df_esec['Inizio_Effettivo'] + pd.Timedelta(days=1)).dt.total_seconds() * 1000, y=df_esec['ID_WBS'].astype(str) + " - " + df_esec['Attività'], base=df_esec['Inizio_Effettivo'], orientation='h', name='Esecutivo', width=0.2, marker=dict(color='red')))
-            
-        fig.update_layout(barmode='overlay', height=600, bargap=0.3, xaxis_title="Linea Temporale", yaxis_title="Lavorazioni (WBS)", yaxis={'autorange': 'reversed'}, xaxis_type='date')
+                fig.add_trace(go.Bar(
+                    x=(df_esec['Fine_Effettiva'] - df_esec['Inizio_Effettivo'] + pd.Timedelta(days=1)).dt.total_seconds() * 1000, 
+                    y=df_esec['ID_WBS'].astype(str) + " - " + df_esec['Attività'], 
+                    base=df_esec['Inizio_Effettivo'], 
+                    orientation='h', 
+                    name='Esecutivo', 
+                    width=0.2, 
+                    marker=dict(color='red')
+                ))
+                
+        # --- AGGIUNTA FRECCE DI DIPENDENZA LOGICA (GANTT LINKS) ---
+        if mostra_frecce and vista in ["Progetto (Baseline)", "Comparativa"]:
+            for _, row in df_gantt.iterrows():
+                wbs_id = str(row['ID_WBS']).strip()
+                succ_y = wbs_id + " - " + str(row['Attività'])
+                succ_start = row['Inizio_Previsto']
+                
+                preds = str(row.get('Predecessori', '')).strip()
+                if preds and preds.lower() not in ['none', 'nan', 'null']:
+                    for p in preds.split(','):
+                        p_id = p.split(' - ')[0].strip()
+                        if p_id.endswith('.0'): p_id = p_id[:-2]
+                        
+                        pred_row = df_gantt[df_gantt['ID_WBS'].astype(str) == p_id]
+                        if not pred_row.empty:
+                            pred_y = p_id + " - " + str(pred_row.iloc[0]['Attività'])
+                            pred_end = pred_row.iloc[0]['Fine_Prevista']
+                            
+                            is_critical = cpm_data.get(wbs_id, {}).get('is_critical', False)
+                            pred_is_critical = cpm_data.get(p_id, {}).get('is_critical', False)
+                            
+                            # Freccia rossa se entrambi sono sul percorso critico, altrimenti arancione
+                            arrow_color = '#D32F2F' if (is_critical and pred_is_critical) else '#FF9800'
+                            
+                            fig.add_annotation(
+                                x=succ_start, y=succ_y,      # Punta della freccia (Inizio Successore)
+                                ax=pred_end, ay=pred_y,      # Coda della freccia (Fine Predecessore)
+                                xref='x', yref='y', axref='x', ayref='y',
+                                showarrow=True, arrowhead=2, arrowsize=1, arrowwidth=1.5,
+                                arrowcolor=arrow_color, opacity=0.8
+                            )
+        
+        # Altezza dinamica per evitare che le barre si schiaccino se hai tante lavorazioni
+        altezza_dinamica = max(500, len(df_gantt) * 40)
+        
+        fig.update_layout(
+            barmode='overlay', 
+            height=altezza_dinamica, 
+            bargap=0.3, 
+            xaxis_title="Linea Temporale", 
+            yaxis_title="Lavorazioni (WBS)", 
+            yaxis={'autorange': 'reversed'}, 
+            xaxis_type='date'
+        )
         st.plotly_chart(fig, use_container_width=True)
     else:
-        st.info("⚠️ Il cronoprogramma è vuoto.")
+        st.info("⚠️ Il cronoprogramma è vuoto. Inserisci le date di Inizio e Fine nel Tab 1.")
         
 # --- TAB 5: EVM E CASH FLOW ---
 with tab5:
