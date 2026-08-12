@@ -639,9 +639,7 @@ with tab3:
             if obs_id.endswith('.0'): obs_id = obs_id[:-2]
             
             if obs_id:
-                # FIX GRAPHVIZ: Sostituisco i punti con underscore per l'ID interno
-                safe_obs_id = obs_id.replace('.', '_')
-                graph.node(f"OBS_{safe_obs_id}", label=label_html, shape='rect', style='rounded,filled', fillcolor='#E1F5FE', color='#0288D1', penwidth='1.5')
+                graph.node(f"OBS_{obs_id}", label=label_html, shape='rect', style='rounded,filled', fillcolor='#E1F5FE', color='#0288D1', penwidth='1.5')
             
         df_wp_reali = get_foglie(st.session_state.wbs_data)
         valid_wbs_ids = set(df_wp_reali['ID_WBS'].astype(str))
@@ -693,26 +691,21 @@ with tab3:
             if completamento >= 100:
                 stile, colore_sfondo = 'rounded,filled', '#C8E6C9' 
             elif completamento <= 0:
-                stile, colore_sfondo = 'rounded,filled', 'white'  
+                stile, colore_sfondo = 'rounded,filled', 'white'   
             else:
                 stile = 'rounded,striped'
                 quota_verde = max(0.01, min(0.99, completamento / 100.0))
                 # Forzatura manuale del punto decimale per Graphviz
                 colore_sfondo = f"#C8E6C9;{str(round(quota_verde, 3)).replace(',', '.')}:white"
                 
-            # FIX GRAPHVIZ: Sostituisco i punti con underscore per l'ID interno del Nodo
-            safe_wbs_id = wbs_id.replace('.', '_')
-            graph.node(f"WBS_{safe_wbs_id}", label=wp_html, shape='rect', style=stile, fillcolor=colore_sfondo, color=bordo_colore, penwidth=spessore_bordo)
+            graph.node(f"WBS_{wbs_id}", label=wp_html, shape='rect', style=stile, fillcolor=colore_sfondo, color=bordo_colore, penwidth=spessore_bordo)
             
             obs_val = str(row.get('ID_OBS_Assegnato', '')).strip()
             if obs_val and obs_val.lower() not in ['none', 'nan', 'null']:
                 for o in [o.strip() for o in obs_val.split(',')]:
                     o_id = o.split(' - ')[0].strip()
                     if o_id.endswith('.0'): o_id = o_id[:-2]
-                    if o_id: 
-                        # FIX GRAPHVIZ: Archi OBS protetti
-                        safe_o_id = o_id.replace('.', '_')
-                        graph.edge(f"OBS_{safe_o_id}", f"WBS_{safe_wbs_id}", color='#757575', penwidth='1.5', arrowsize='0.8')
+                    if o_id: graph.edge(f"OBS_{o_id}", f"WBS_{wbs_id}", color='#757575', penwidth='1.5', arrowsize='0.8')
                         
             pred_val = str(row.get('Predecessori', '')).strip()
             if mostra_relazioni and pred_val and pred_val.lower() not in ['none', 'nan', 'null']:
@@ -722,9 +715,7 @@ with tab3:
                     if p_id in valid_wbs_ids:
                         pred_is_critical = cpm_data.get(p_id, {}).get('is_critical', False)
                         col_cavo, stile_cavo, spes_cavo, freccia = ('#D32F2F', 'solid', '2.5', '1.0') if (is_critical and pred_is_critical) else ('#FF9800', 'dashed', '1.0', '0.6')
-                        # FIX GRAPHVIZ: Archi Predecessori protetti
-                        safe_p_id = p_id.replace('.', '_')
-                        graph.edge(f"WBS_{safe_p_id}", f"WBS_{safe_wbs_id}", color=col_cavo, style=stile_cavo, penwidth=spes_cavo, arrowsize=freccia)
+                        graph.edge(f"WBS_{p_id}", f"WBS_{wbs_id}", color=col_cavo, style=stile_cavo, penwidth=spes_cavo, arrowsize=freccia)
 
         # RENDERIZZAZIONE SICURA
         raw_svg = graph.pipe(format='svg').decode('utf-8')
@@ -768,7 +759,7 @@ with tab3:
         st.markdown("**NODI E FIGURE**\n* 🟦 **Riquadro Azzurro:** Risorsa/Ruolo (OBS)\n* 🟩 **Riquadro Verde:** Work Package (WBS)\n* 🟥 **Bordo Rosso Spesso:** Percorso Critico (Margine = 0 gg)")
     with col_leg2:
         st.markdown("**CAVI E COLLEGAMENTI**\n* 🔗 **Freccia Grigia Continua:** Assegnazione Risorsa\n* 🔀 **Freccia Arancione Tratteggiata:** Relazione logica\n* 🚨 **Freccia Rossa Spessa:** Flusso del Percorso Critico")
-        
+
 # --- TAB 4: CRONOPROGRAMMA (GANTT) ---
 with tab4:
     st.header("Cronoprogramma")
