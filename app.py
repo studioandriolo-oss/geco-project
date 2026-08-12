@@ -984,7 +984,7 @@ with tab7:
         wp_scelto = c_sim1.selectbox("Seleziona Work Package da simulare", options=wbs_options_capa)
         extra_costo = c_sim2.number_input("Costo Extra Diretto (€)", value=0.0, step=500.0, help="Costo vivo aggiuntivo (es. premi, straordinari). Intacca il CPI e fa salire l'EAC.")
         var_giorni = c_sim3.number_input("Variazione Tempi (Giorni)", value=0, step=1, help="Usa numeri NEGATIVI per anticipare (es. -5), POSITIVI per ritardare (es. 5).")
-        costo_indiretto_gg = c_sim4.number_input("Costi Indiretti (€/gg)", value=0.0, step=50.0, help="Costi fissi (es. gru, baraccamenti) che si pagano/risparmiano a seconda della data finale.")
+        costo_indiretto_gg = c_sim4.number_input("Costi Indiretti (€/gg)", value=0.0, step=50.0, help="Costi fissi per ogni giorno di ritardo (es. gru, baraccamenti, penali)")
         
         if wp_scelto:
             wp_id = wp_scelto.split(' - ')[0]
@@ -1072,9 +1072,36 @@ with tab7:
 
             with c_res3:
                 fig_sim = go.Figure()
-                fig_sim.add_trace(go.Scatter(x=[oggi, data_fine_attuale], y=[ac_attuale_tot, eac_attuale], mode='lines+markers+text', name='EAC Attuale', line=dict(color='red', dash='dash', width=2), text=["", f"€ {eac_attuale:,.0f}"], textposition="bottom right"))
-                fig_sim.add_trace(go.Scatter(x=[oggi, data_fine_simulata], y=[ac_simulato_tot, costo_totale_effettivo], mode='lines+markers+text', name='EAC + Indiretti', line=dict(color='blue', dash='solid', width=3), text=[f"Iniezione (Oggi): € {ac_simulato_tot:,.0f}", f"€ {costo_totale_effettivo:,.0f}"], textposition="top left"))
-                fig_sim.update_layout(title="Impatto Strategico Globale", height=280, margin=dict(l=10, r=10, t=35, b=10), yaxis_title="Costo (€)", legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
+                
+                # Traiettoria Attuale (Rossa)
+                fig_sim.add_trace(go.Scatter(
+                    x=[oggi, data_fine_attuale], 
+                    y=[ac_attuale_tot, eac_attuale], 
+                    mode='lines+markers+text', 
+                    name='EAC Attuale', 
+                    line=dict(color='red', dash='dash', width=2), 
+                    text=["", f"€ {eac_attuale:,.0f}"], 
+                    textposition="bottom right"
+                ))
+                
+                # Traiettoria Simulata (Blu) - FIX: Ora parte dallo stesso punto di oggi (AC Attuale) e punta dritta al nuovo traguardo!
+                fig_sim.add_trace(go.Scatter(
+                    x=[oggi, data_fine_simulata], 
+                    y=[ac_attuale_tot, costo_totale_effettivo], 
+                    mode='lines+markers+text', 
+                    name='EAC + Indiretti', 
+                    line=dict(color='blue', dash='solid', width=3), 
+                    text=["", f"€ {costo_totale_effettivo:,.0f}"], 
+                    textposition="top left"
+                ))
+                
+                fig_sim.update_layout(
+                    title="Impatto Strategico Globale", 
+                    height=280, 
+                    margin=dict(l=10, r=10, t=35, b=10), 
+                    yaxis_title="Costo (€)", 
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+                )
                 st.plotly_chart(fig_sim, use_container_width=True)
                 
 # ---------------------------------------------------------
