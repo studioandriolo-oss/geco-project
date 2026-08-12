@@ -665,15 +665,19 @@ with tab3:
         
         attivita = str(row.get('Attività', '')).replace('<', '').replace('>', '').replace('&', 'e')
         
-        # --- FIX: SCUDO ANTI-CRASH PER VALORI VUOTI (NaN / None) ---
-        budget = pd.to_numeric(row.get('BAC_Budget', 0.0), errors='coerce')
-        costo_reale = pd.to_numeric(row.get('AC_Costo_Reale', 0.0), errors='coerce')
-        completamento = pd.to_numeric(row.get('%_Completamento', 0.0), errors='coerce')
+        # --- SCUDO ANTI-CRASH ASSOLUTO PER I VALORI VUOTI ---
+        try:
+            budget = float(row.get('BAC_Budget')) if pd.notna(row.get('BAC_Budget')) else 0.0
+        except: budget = 0.0
         
-        if pd.isna(budget): budget = 0.0
-        if pd.isna(costo_reale): costo_reale = 0.0
-        if pd.isna(completamento): completamento = 0.0
-        # ---------------------------------------------------------
+        try:
+            costo_reale = float(row.get('AC_Costo_Reale')) if pd.notna(row.get('AC_Costo_Reale')) else 0.0
+        except: costo_reale = 0.0
+        
+        try:
+            completamento = float(row.get('%_Completamento')) if pd.notna(row.get('%_Completamento')) else 0.0
+        except: completamento = 0.0
+        # ----------------------------------------------------
         
         wp_cpm = cpm_data.get(wbs_id, {})
         margine = wp_cpm.get('slack', 0)
@@ -694,7 +698,7 @@ with tab3:
         wp_html += f"<TR><TD ALIGN='LEFT'>Avanzamento: {completamento:.1f}%</TD><TD ALIGN='RIGHT'>{testo_margine}</TD></TR>"
         wp_html += "</TABLE>>"
         
-        # Generazione sicura del gradiente
+        # Ora completamento è sicuramente un numero (0.0), non crasherà mai.
         if completamento >= 100:
             stile = 'rounded,filled'
             colore_sfondo = '#C8E6C9' 
