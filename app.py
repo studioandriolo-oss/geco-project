@@ -978,12 +978,13 @@ with tab7:
     # ------------------------------
     
     with st.expander("🔬 2. Ambiente di Simulazione (Compromesso Costi / Tempi)"):
-        st.markdown("Simula l'impatto di un'azione correttiva. **Opzione Crashing:** inietta liquidità extra per accelerare i lavori e valuta lo spostamento della data di fine cantiere.")
+        st.markdown("Simula l'impatto di un'azione correttiva senza alterare i principi base dell'EVM. Valuta costi di *Crashing* e l'incidenza sui Costi Indiretti di cantiere.")
         
-        c_sim1, c_sim2, c_sim3 = st.columns([2, 1.5, 1.5])
+        c_sim1, c_sim2, c_sim3, c_sim4 = st.columns([2, 1.5, 1.5, 1.5])
         wp_scelto = c_sim1.selectbox("Seleziona Work Package da simulare", options=wbs_options_capa)
-        extra_costo = c_sim2.number_input("Iniezione Extra Costo (€)", value=0.0, step=500.0)
-        giorni_risparmiati = c_sim3.number_input("Stima recupero ritardo (Giorni)", value=0, step=1, min_value=0)
+        extra_costo = c_sim2.number_input("Costo Extra Diretto (€)", value=0.0, step=500.0, help="Costo vivo aggiuntivo (es. premi, straordinari). Intacca il CPI e fa salire l'EAC.")
+        var_giorni = c_sim3.number_input("Variazione Tempi (Giorni)", value=0, step=1, help="Usa numeri NEGATIVI per anticipare (es. -5), POSITIVI per ritardare (es. 5).")
+        costo_indiretto_gg = c_sim4.number_input("Costi Indiretti (€/gg)", value=0.0, step=50.0, help="Costi fissi (es. gru, baraccamenti) che si pagano/risparmiano a seconda della data finale.")
         
         if wp_scelto:
             wp_id = wp_scelto.split(' - ')[0]
@@ -995,12 +996,19 @@ with tab7:
             eac_attuale = df_reale_calc['EAC'].sum()
             ac_attuale_tot = df_reale_calc['AC_Costo_Reale'].sum()
             
-            # --- SIMULAZIONE COSTI: Aggiunta secca (una-tantum) ---
-            eac_simulato = eac_attuale + extra_costo
-            ac_simulato_tot = ac_attuale_tot + extra_costo
-            delta_eac = extra_costo
+            # --- SIMULAZIONE EVM PURA ---
+            df_simulazione = st.session_state.wbs_data.copy()
+            indice_riga = df_simulazione.index[df_simulazione['ID_WBS'] == wp_id].tolist()
+            if indice_riga:
+                idx = indice_riga[0]
+                # Iniettare costo diretto abbassa il CPI e alza l'EAC secondo le regole pure dell'EVM
+                df_simulazione.at[idx, 'AC_Costo_Reale'] = pd.to_numeric(df_simulazione.at[idx, 'AC_Costo_Reale'], errors='coerce') + extra_costo
+                
+            df_sim_calc = calcola_evm(get_foglie(df_simulazione), oggi)
+            eac_simulato = df_sim_calc['EAC'].sum()
+            ac_simulato_tot = df_sim_calc['AC_Costo_Reale'].sum()
             
-            # --- SIMULAZIONE TEMPI: Verifica Percorso Critico ---
+            # --- SIMULAZIONE TEMPI E COSTI INDIRETTI ---
             cpm_nodes = calcola_cpm(st.session_state.wbs_data)
             is_wp_critical = cpm_nodes.get(wp_id, {}).get('is_critical', False)
             
@@ -1018,70 +1026,57 @@ with tab7:
                 
                 data_fine_attuale = min_date + pd.Timedelta(days=giorni_stimati_attuali)
                 
-                # Se è critico scalo i giorni, altrimenti la data NON CAMBIA.
+                # Applica i giorni solo se la voce è critica
                 if is_wp_critical:
-                    data_fine_simulata = data_fine_attuale - pd.Timedelta(days=giorni_risparmiati)
+                    data_fine_simulata = data_fine_attuale + pd.Timedelta(days=var_giorni)
+                    giorni_delta = var_giorni
                 else:
                     data_fine_simulata = data_fine_attuale
+                    giorni_delta = 0
             else:
                 data_fine_attuale = data_fine_simulata = oggi
+                giorni_delta = 0
+                
+            # Calcolo separato per gli Indiretti
+            impatto_indiretti = giorni_delta * costo_indiretto_gg
+            costo_totale_effettivo = eac_simulato + impatto_indiretti
             
             # --- MESSAGGI DI ALLERTA INTELLIGENTI ---
-            if giorni_risparmiati > 0 and not is_wp_critical:
-                st.warning(f"⚠️ **Attenzione:** Stai accelerando un'attività NON CRITICA. Pagare {extra_costo}€ per finire prima '{wp_scelto.split(' - ')[1]}' non anticiperà la fine del cantiere!")
-            elif giorni_risparmiati > 0 and is_wp_critical:
-                st.success(f"✅ **Ottima mossa:** L'attività è sul percorso critico. Risparmiare {giorni_risparmiati} giorni qui anticiperà l'intero cantiere.")
+            if var_giorni != 0 and not is_wp_critical:
+                st.warning(f"⚠️ **Attenzione:** Stai modificando un'attività NON CRITICA. Cambiare i tempi di '{wp_scelto.split(' - ')[1]}' non sposterà la data di fine cantiere, quindi non inciderà sui costi indiretti.")
+            elif var_giorni < 0 and is_wp_critical:
+                st.success(f"✅ **Crashing Efficace:** L'attività è critica. Anticipando di {abs(var_giorni)} giorni la consegna, generi un risparmio extra (indiretto) di € {abs(impatto_indiretti):,.0f}.")
+            elif var_giorni > 0 and is_wp_critical:
+                st.error(f"🚨 **Allerta Ritardo:** Un ritardo critico di {var_giorni} giorni farà slittare il cantiere, aggiungendo € {impatto_indiretti:,.0f} ai tuoi costi fissi.")
             
-            c_res1, c_res2 = st.columns([1, 2])
+            c_res1, c_res2, c_res3 = st.columns([1, 1, 1.5])
             
             with c_res1:
-                st.metric(
-                    label="Nuovo Costo Finale (EAC Simulato)", 
-                    value=f"€ {eac_simulato:,.0f}", 
-                    delta=f"Investimento: € {delta_eac:,.0f}", 
-                    delta_color="inverse"
-                )
+                st.metric("EAC Simulato (Puro EVM)", f"€ {eac_simulato:,.0f}", delta=f"Deriva CPI: € {eac_simulato - eac_attuale:,.0f}", delta_color="inverse")
                 
-                label_delta_giorni = f"Anticipo: {giorni_risparmiati} gg" if is_wp_critical and giorni_risparmiati > 0 else "Nessun recupero totale"
-                st.metric(
-                    label="Nuova Data di Consegna",
-                    value=data_fine_simulata.strftime('%d/%m/%Y') if pd.notna(data_fine_simulata) else "N/D",
-                    delta=label_delta_giorni,
-                    delta_color="normal" if is_wp_critical else "off"
-                )
+                if giorni_delta < 0:
+                    label_delta_giorni = f"Anticipo: {abs(giorni_delta)} gg"
+                    colore_delta = "normal"
+                elif giorni_delta > 0:
+                    label_delta_giorni = f"Ritardo: {giorni_delta} gg"
+                    colore_delta = "inverse"
+                else:
+                    label_delta_giorni = "Nessuna variazione globale"
+                    colore_delta = "off"
+                    
+                st.metric("Nuova Data di Consegna", data_fine_simulata.strftime('%d/%m/%Y') if pd.notna(data_fine_simulata) else "N/D", delta=label_delta_giorni, delta_color=colore_delta)
             
             with c_res2:
-                fig_sim = go.Figure()
-                
-                fig_sim.add_trace(go.Scatter(
-                    x=[oggi, data_fine_attuale],
-                    y=[ac_attuale_tot, eac_attuale],
-                    mode='lines+markers+text',
-                    name='Traiettoria Attuale',
-                    line=dict(color='red', dash='dash', width=2),
-                    text=["", f"€ {eac_attuale:,.0f}"],
-                    textposition="bottom right"
-                ))
-                
-                fig_sim.add_trace(go.Scatter(
-                    x=[oggi, data_fine_simulata],
-                    y=[ac_simulato_tot, eac_simulato],
-                    mode='lines+markers+text',
-                    name='Simulazione Crashing',
-                    line=dict(color='blue', dash='solid', width=3),
-                    text=[f"Iniezione (Oggi): € {ac_simulato_tot:,.0f}", f"€ {eac_simulato:,.0f}"],
-                    textposition="top left"
-                ))
-                
-                fig_sim.update_layout(
-                    title="Impatto Strategico (Spostamento Data vs Costo)",
-                    height=280,
-                    margin=dict(l=10, r=10, t=35, b=10),
-                    yaxis_title="Investimento Totale (€)",
-                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
-                )
-                st.plotly_chart(fig_sim, use_container_width=True)
+                st.metric("Impatto Costi Indiretti", f"€ {impatto_indiretti:,.0f}", delta="Risparmio da anticipo" if impatto_indiretti < 0 else ("Penale / Spesa extra" if impatto_indiretti > 0 else "Nessun impatto"), delta_color="inverse")
+                st.metric("Costo Finale Effettivo", f"€ {costo_totale_effettivo:,.0f}", delta=f"Delta vs Attuale: € {costo_totale_effettivo - eac_attuale:,.0f}", delta_color="inverse")
 
+            with c_res3:
+                fig_sim = go.Figure()
+                fig_sim.add_trace(go.Scatter(x=[oggi, data_fine_attuale], y=[ac_attuale_tot, eac_attuale], mode='lines+markers+text', name='EAC Attuale', line=dict(color='red', dash='dash', width=2), text=["", f"€ {eac_attuale:,.0f}"], textposition="bottom right"))
+                fig_sim.add_trace(go.Scatter(x=[oggi, data_fine_simulata], y=[ac_simulato_tot, costo_totale_effettivo], mode='lines+markers+text', name='EAC + Indiretti', line=dict(color='blue', dash='solid', width=3), text=[f"Iniezione (Oggi): € {ac_simulato_tot:,.0f}", f"€ {costo_totale_effettivo:,.0f}"], textposition="top left"))
+                fig_sim.update_layout(title="Impatto Strategico Globale", height=280, margin=dict(l=10, r=10, t=35, b=10), yaxis_title="Costo (€)", legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
+                st.plotly_chart(fig_sim, use_container_width=True)
+                
 # ---------------------------------------------------------
     
     st.subheader("3. Stampa Verbale di Direzione Lavori")
