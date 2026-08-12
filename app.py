@@ -812,11 +812,16 @@ with tab4:
                 ))
                 
         # --- AGGIUNTA FRECCE DI DIPENDENZA LOGICA (GANTT LINKS) ---
-        if mostra_frecce and vista in ["Progetto (Baseline)", "Comparativa"]:
+        if mostra_frecce:
             for _, row in df_gantt.iterrows():
                 wbs_id = str(row['ID_WBS']).strip()
                 succ_y = wbs_id + " - " + str(row['Attività'])
-                succ_start = row['Inizio_Previsto']
+                
+                # Scegliamo la data di INIZIO in base alla vista selezionata
+                if vista == "Esecuzione (Esecutivo)" and pd.notna(row['Inizio_Effettivo']):
+                    succ_start = row['Inizio_Effettivo']
+                else:
+                    succ_start = row['Inizio_Previsto']
                 
                 preds = str(row.get('Predecessori', '')).strip()
                 if preds and preds.lower() not in ['none', 'nan', 'null']:
@@ -827,7 +832,13 @@ with tab4:
                         pred_row = df_gantt[df_gantt['ID_WBS'].astype(str) == p_id]
                         if not pred_row.empty:
                             pred_y = p_id + " - " + str(pred_row.iloc[0]['Attività'])
-                            pred_end = pred_row.iloc[0]['Fine_Prevista']
+                            
+                            # IL FIX È QUI: +1 Giorno sposta la coda della freccia esattamente alla fine visiva della barra!
+                            # Inoltre scegliamo la data di FINE in base alla vista
+                            if vista == "Esecuzione (Esecutivo)" and pd.notna(pred_row.iloc[0]['Fine_Effettiva']):
+                                pred_end = pred_row.iloc[0]['Fine_Effettiva'] + pd.Timedelta(days=1)
+                            else:
+                                pred_end = pred_row.iloc[0]['Fine_Prevista'] + pd.Timedelta(days=1)
                             
                             is_critical = cpm_data.get(wbs_id, {}).get('is_critical', False)
                             pred_is_critical = cpm_data.get(p_id, {}).get('is_critical', False)
@@ -840,7 +851,8 @@ with tab4:
                                 ax=pred_end, ay=pred_y,      # Coda della freccia (Fine Predecessore)
                                 xref='x', yref='y', axref='x', ayref='y',
                                 showarrow=True, arrowhead=2, arrowsize=1, arrowwidth=1.5,
-                                arrowcolor=arrow_color, opacity=0.8
+                                arrowcolor=arrow_color, opacity=0.8,
+                                standoff=2, startstandoff=2  # Distanzia leggermente la freccia per non "bucare" la barra
                             )
         
         # Altezza dinamica per evitare che le barre si schiaccino se hai tante lavorazioni
