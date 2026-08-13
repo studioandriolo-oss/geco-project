@@ -14,24 +14,25 @@ import base64
 # --- CONFIGURAZIONE PAGINA ---
 st.set_page_config(page_title="WBS/OBS Manager & EVM", layout="wide", initial_sidebar_state="expanded")
 
-# --- RIMOZIONE MIRATA (Ultra-Sicura) ---
+# --- RIMOZIONE MIRATA DEI PULSANTI ---
 nascondi_menu_style = """
     <style>
-    /* 1. Nasconde il menu ad hamburger */
+    /* 1. Cecchino sul menu ad hamburger */
     #MainMenu {visibility: hidden;}
     
-    /* 2. Nasconde il footer "Made with Streamlit" */
+    /* 2. Cecchino sul footer "Made with Streamlit" */
     footer {visibility: hidden;}
     
-    /* 3. Nasconde ESATTAMENTE il bottone "Deploy" in alto a destra */
+    /* 3. Cecchino sul bottone "Deploy" (copre sia le versioni nuove che vecchie di Streamlit) */
+    .stDeployButton {display: none;}
     .stAppDeployButton {display: none;}
     
-    /* 4. Nasconde eventuali altri pulsanti azione di Streamlit in alto a destra */
-    [data-testid="stToolbar"] {display: none;}
+    /* 4. Cecchino sul blocco delle icone in alto a destra (GitHub, ecc) */
+    [data-testid="stHeaderActionElements"] {display: none;}
     </style>
 """
 st.markdown(nascondi_menu_style, unsafe_allow_html=True)
-# --------------------------------------
+# ---------------------------------------------------------
 
 st.markdown("""
     <style>
