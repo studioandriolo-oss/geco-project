@@ -1709,29 +1709,51 @@ with col_sviluppo:
 # --- TAB 9: GUIDA, GLOSSARIO E FORMULARIO ---
     with tab9:
         st.header("Manuale d'Uso e Fondamenti di Project Management")
-        st.markdown("Questa sezione illustra il funzionamento dell'ecosistema gestionale e fornisce i riferimenti teorici della metodologia EVM (Earned Value Management).")
+        st.markdown("Questa sezione illustra il funzionamento dell'ecosistema gestionale, guidando l'utente dalla fase di setup fino al controllo avanzato dei rischi e all'emissione dei verbali.")
         
         # --- 1. IL CICLO DI VITA DELL'ECOSISTEMA (DIAGRAMMA) ---
-        st.subheader("1. L'Ecosistema e il Ciclo del Rischio")
-        st.markdown("Il software non è una semplice raccolta di tabelle, ma un ecosistema interconnesso. Questo diagramma mostra come le informazioni viaggiano automaticamente tra le varie sezioni, in particolare per la gestione dei rischi e degli imprevisti.")
+        st.subheader("1. L'Ecosistema Gestionale (Architettura dei Dati)")
+        st.markdown("Il software è progettato in modo che le informazioni viaggino automaticamente tra le varie sezioni, creando un ciclo continuo di pianificazione, misurazione, allerta e correzione.")
         
         diag_guida = graphviz.Digraph(engine='dot')
-        diag_guida.attr(rankdir='LR', splines='ortho')
-        diag_guida.attr('node', shape='box', style='rounded,filled', fontname='Helvetica', margin='0.2')
+        diag_guida.attr(rankdir='LR', splines='ortho', nodesep='0.8', ranksep='1.2')
+        diag_guida.attr('node', shape='box', style='rounded,filled', fontname='Helvetica', fontsize='11', margin='0.2')
         
-        # Nodi
-        diag_guida.node('T8', 'TAB 8: MATRICE RISCHI\nIdentificazione Pericolo\n(Probabilità x Impatto)', fillcolor='#FFCDD2', color='#E53935', penwidth='2')
-        diag_guida.node('T3', 'TAB 3: GRAFO E NODI\nAllarme Visivo (Bordo Rosso)\nsul Percorso Critico', fillcolor='#FFE0B2', color='#FBC02D', penwidth='2')
-        diag_guida.node('T5', 'TAB 5: EVM & CASH FLOW\nCongelamento Budget\n(Fondo Imprevisti Aumenta)', fillcolor='#C8E6C9', color='#43A047', penwidth='2')
-        diag_guida.node('T7', 'TAB 7: DIREZIONE & CAPA\nEmissione Ordine\ndi Mitigazione in cantiere', fillcolor='#BBDEFB', color='#1E88E5', penwidth='2')
-        diag_guida.node('AUTO', 'PILOTA AUTOMATICO\nAbbassa il rischio, \nlibera il budget e\nspegne gli allarmi', shape='ellipse', fillcolor='#E1BEE7', style='filled,dashed')
+        # Nodi Input Base (Grigi)
+        with diag_guida.subgraph(name='cluster_input') as c:
+            c.attr(label='FASE 1: INPUT DATI', style='dashed', color='gray')
+            c.node('T1', 'TAB 1: WBS (Lavorazioni)\nCreazione Struttura, Budget\nDate Previste ed Effettive', fillcolor='#F5F5F5')
+            c.node('T2', 'TAB 2: OBS (Risorse)\nAnagrafiche e Contratti', fillcolor='#F5F5F5')
+            c.node('T6', 'TAB 6: REGISTRO CONTABILE\nInserimento Fatture, Spese\ne Costi Reali (AC)', fillcolor='#F5F5F5')
+
+        # Nodi Motore e Output (Colorati)
+        with diag_guida.subgraph(name='cluster_analisi') as c:
+            c.attr(label='FASE 2: ANALISI E PREVISIONI', style='dashed', color='gray')
+            c.node('T3', 'TAB 3: GRAFO E MATRICE\nCalcolo Percorso Critico (CPM)\nMargini e Allarmi Visivi', fillcolor='#FFE0B2', color='#FBC02D', penwidth='2')
+            c.node('T4', 'TAB 4: GANTT\nCronoprogramma\nBaseline vs Esecutivo', fillcolor='#FFE0B2', color='#FBC02D', penwidth='2')
+            c.node('T5', 'TAB 5: EVM & CASH FLOW\n- Indicatori di Salute (CPI/SPI)\n- Curva ad S e Proiezioni\n- Scudo Finanziario', fillcolor='#C8E6C9', color='#43A047', penwidth='2')
+
+        # Nodi Gestione Rischi e Controllo
+        with diag_guida.subgraph(name='cluster_controllo') as c:
+            c.attr(label='FASE 3: DIREZIONE LAVORI', style='dashed', color='gray')
+            c.node('T8', 'TAB 8: MATRICE RISCHI\nHeatmap e Calcolo Punteggio\n(Probabilità x Impatto)', fillcolor='#FFCDD2', color='#E53935', penwidth='2')
+            c.node('T7', 'TAB 7: DIREZIONE & CAPA\n- Registro Interventi Correttivi\n- Simulatore Crashing (Costi/Tempi)\n- Stampa Verbale PDF', fillcolor='#BBDEFB', color='#1E88E5', penwidth='2')
+            c.node('AUTO', 'PILOTA AUTOMATICO', shape='ellipse', fillcolor='#E1BEE7', style='filled,dashed')
         
-        # Archi
-        diag_guida.edge('T8', 'T3', ' Allerta Visiva', color='gray', fontname='Helvetica', fontsize='10')
-        diag_guida.edge('T8', 'T5', ' Allerta Finanziaria', color='gray', fontname='Helvetica', fontsize='10')
-        diag_guida.edge('T8', 'T7', ' Richiede', color='gray', fontname='Helvetica', fontsize='10')
-        diag_guida.edge('T7', 'AUTO', ' Se Azione = CHIUSA', color='#1E88E5', fontcolor='#1E88E5', fontname='Helvetica', fontsize='10', style='bold')
-        diag_guida.edge('AUTO', 'T8', ' Auto-Mitigazione', color='#43A047', fontname='Helvetica', fontsize='10', style='bold')
+        # Archi Relazionali (Frecce)
+        diag_guida.edge('T2', 'T1', ' Assegnazione', color='gray')
+        diag_guida.edge('T1', 'T3', ' Predecessori', color='gray')
+        diag_guida.edge('T1', 'T4', ' Schedulazione', color='gray')
+        diag_guida.edge('T1', 'T5', ' Budget (BAC) & Valore (EV)', color='gray')
+        diag_guida.edge('T6', 'T5', ' Costo Reale (AC)', color='gray')
+        
+        # Archi Rischio e CAPA (Colorati)
+        diag_guida.edge('T8', 'T3', ' Allerta Visiva Nodi', color='#E53935', fontcolor='#E53935')
+        diag_guida.edge('T8', 'T5', ' Genera Fondo Imprevisti', color='#E53935', fontcolor='#E53935')
+        diag_guida.edge('T8', 'T7', ' Richiede Mitigazione', color='#E53935', fontcolor='#E53935')
+        diag_guida.edge('T7', 'T5', ' Impatto Simulato', color='#1E88E5', fontcolor='#1E88E5', style='dotted')
+        diag_guida.edge('T7', 'AUTO', ' Se Azione = CHIUSA', color='#1E88E5', fontcolor='#1E88E5', style='bold')
+        diag_guida.edge('AUTO', 'T8', ' Auto-Mitigazione Rischio\n(Sblocca Budget)', color='#43A047', fontcolor='#43A047', style='bold')
         
         st.graphviz_chart(diag_guida, use_container_width=True)
         
@@ -1774,7 +1796,7 @@ with col_sviluppo:
         
         col_form1, col_form2 = st.columns(2)
         with col_form1:
-            st.latex(r"EV = BAC \times \% \text{ Avanzamento FIsico}")
+            st.latex(r"EV = BAC \times \% \text{ Avanzamento Fisico}")
             st.latex(r"CV = EV - AC")
             st.latex(r"SV = EV - PV")
             st.latex(r"CPI = \frac{EV}{AC}")
@@ -1785,3 +1807,36 @@ with col_sviluppo:
             st.latex(r"VAC = BAC - EAC")
             
         st.latex(r"\text{EAC Risk-Adjusted} = EAC + \sum (\text{Budget}_\text{WBS} \times \text{Probabilità}_\text{Rischio} \times \text{Impatto}_\text{Rischio})")
+
+        # --- 4. MANUALE OPERATIVO ---
+        st.divider()
+        st.subheader("4. Manuale Operativo (Workflow Consigliato)")
+        st.markdown("Segui questi passaggi per gestire un progetto da zero fino alla chiusura:")
+        
+        st.info("**STEP 1: Impostazione del Progetto (Pianificazione)**\n\n"
+                "1. Usa il **Pannello di Sinistra** per dare un nome al progetto.\n"
+                "2. Vai nel **TAB 2 (OBS)** e inserisci le anagrafiche dei tuoi fornitori, subappalti e professionisti.\n"
+                "3. Vai nel **TAB 1 (WBS)** e crea l'albero delle lavorazioni. Per ogni voce compila:\n"
+                "   - *Predecessori* (per creare le dipendenze temporali)\n"
+                "   - *Risorsa OBS*\n"
+                "   - *Date di Inizio e Fine Prevista*\n"
+                "   - *Budget (BAC)*\n\n"
+                "*A questo punto il tuo progetto è configurato. Nel Tab 3 e 4 vedrai già disegnato il percorso logico (CPM) e il Gantt di base.*")
+        
+        st.success("**STEP 2: Rilevamento Avanzamento (Esecuzione)**\n\n"
+                "Una volta iniziati i lavori, l'aggiornamento va fatto periodicamente (es. ogni settimana o mese):\n"
+                "1. Vai nel **TAB 1 (WBS)**: per le attività in corso, inserisci la *Data Inizio Effettivo* e la percentuale di *Avanzamento* attuale. Se un'attività è finita, inserisci la *Data Fine Effettiva* e 100%.\n"
+                "2. Vai nel **TAB 6 (Reg. Contabile)**: ogni volta che ti arriva una fattura o certifichi un costo (SAL), registralo qui assegnandolo alla giusta voce WBS. Questo alimenterà automaticamente i costi reali (AC) nel sistema.")
+        
+        st.warning("**STEP 3: Mappatura Rischi e Allarmi (Controllo)**\n\n"
+                "1. Vai nel **TAB 8 (Rischi)** e inserisci gli imprevisti noti (es. maltempo, ritardo forniture, varianti in corso d'opera) assegnando Probabilità e Impatto.\n"
+                "2. Osserva il **TAB 3 (Nodi & Matrice)**: le attività con un rischio elevato saranno circondate da un bordo rosso/arancione e avranno l'icona ⚠️.\n"
+                "3. Apri il **TAB 5 (EVM)** e verifica il *Fondo Imprevisti* dello Scudo Finanziario: il sistema avrà temporaneamente accantonato del capitale per far fronte a questi rischi.")
+        
+        st.error("**STEP 4: Direzione Lavori e Chiusura (Correzione)**\n\n"
+                "Se i KPI del Tab 5 sono negativi o se c'è un rischio critico da gestire:\n"
+                "1. Vai nel **TAB 7 (CAPA)** per emettere un ordine o un'Azione Correttiva.\n"
+                "2. Usa l'area *Ambiente di Simulazione* per capire se vale la pena iniettare costi extra (es. pagare straordinari) per recuperare giorni di ritardo, bilanciando costi diretti e indiretti.\n"
+                "3. Quando emetti un'azione CAPA, ricordati di collegarla al rischio corrispondente tramite l'apposita tendina.\n"
+                "4. Quando i lavori di mitigazione finiscono, cambia lo stato dell'azione in *Chiuso*. **Il Pilota Automatico abbatterà il Rischio nel Tab 8**, farà svanire gli allarmi nel Tab 3 e libererà il capitale dal Fondo Imprevisti nel Tab 5.\n"
+                "5. Stampa il **Verbale di Direzione Lavori (PDF)** in fondo al Tab 7 per far firmare le disposizioni ai responsabili.")
