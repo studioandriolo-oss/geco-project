@@ -14,6 +14,25 @@ import base64
 # --- CONFIGURAZIONE PAGINA ---
 st.set_page_config(page_title="WBS/OBS Manager & EVM", layout="wide", initial_sidebar_state="expanded")
 
+# --- RIMOZIONE MIRATA (Ultra-Sicura) ---
+nascondi_menu_style = """
+    <style>
+    /* 1. Nasconde il menu ad hamburger */
+    #MainMenu {visibility: hidden;}
+    
+    /* 2. Nasconde il footer "Made with Streamlit" */
+    footer {visibility: hidden;}
+    
+    /* 3. Nasconde ESATTAMENTE il bottone "Deploy" in alto a destra */
+    .stAppDeployButton {display: none;}
+    
+    /* 4. Nasconde eventuali altri pulsanti azione di Streamlit in alto a destra */
+    [data-testid="stToolbar"] {display: none;}
+    </style>
+"""
+st.markdown(nascondi_menu_style, unsafe_allow_html=True)
+# --------------------------------------
+
 st.markdown("""
     <style>
         .block-container {
