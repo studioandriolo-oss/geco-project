@@ -14,6 +14,28 @@ import base64
 # --- CONFIGURAZIONE PAGINA ---
 st.set_page_config(page_title="WBS/OBS Manager & EVM", layout="wide")
 
+# --- RIMOZIONE MENU, HEADER E FOOTER DI STREAMLIT ---
+nascondi_menu_style = """
+    <style>
+    /* Nasconde il menu ad hamburger in alto a destra */
+    #MainMenu {visibility: hidden;}
+    
+    /* Nasconde l'intero blocco dell'header (icone Github, Deploy, ecc.) */
+    header {visibility: hidden;}
+    
+    /* Nasconde il footer di default di Streamlit in basso ("Made with Streamlit") */
+    footer {visibility: hidden;}
+    
+    /* Riduce lo spazio vuoto in alto lasciato dall'header invisibile */
+    .block-container {
+        padding-top: 2rem;
+        padding-bottom: 2rem;
+    }
+    </style>
+"""
+st.markdown(nascondi_menu_style, unsafe_allow_html=True)
+# ----------------------------------------------------
+
 st.markdown("""
     <style>
         .block-container {
