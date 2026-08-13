@@ -35,7 +35,7 @@ header[data-testid="stHeader"] {display: none !important;}
 # --------------------------------------------------------
 
 # --- DIVISIONE DELLO SCHERMO ---
-col_save, col_sviluppo = st.columns([1, 6]) # Rapporto 1 a 6 (modificabile)
+col_save, col_sviluppo = st.columns([1, 10]) # Rapporto modificabile
 
 # ==========================================
 # COLONNA DI SINISTRA (PANNELLO DI CONTROLLO)
