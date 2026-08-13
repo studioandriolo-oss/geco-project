@@ -14,6 +14,65 @@ import base64
 # --- CONFIGURAZIONE PAGINA ---
 st.set_page_config(page_title="WBS/OBS Manager & EVM", layout="wide", initial_sidebar_state="expanded")
 
+# --- RIMOZIONE TOTALE HEADER E STILE COLONNA COMPATTA ---
+stile_geniale = """
+    <style>
+    /* 1. Distruzione totale della barra superiore (nessun prigioniero) */
+    header[data-testid="stHeader"] {display: none !important;}
+    
+    /* 2. Via menu e footer */
+    #MainMenu, footer {display: none !important;}
+    
+    /* 3. Riduciamo i margini bianchi della pagina visto che non c'è più la barra */
+    .block-container {
+        padding-top: 1rem !important;
+        padding-bottom: 1rem !important;
+        max-width: 98% !important; /* Allarghiamo la pagina per fare spazio */
+    }
+    
+    /* 4. Il tuo stile per la colonna sinistra (bottoni piccoli e compatti) */
+    .btn-compatto button {
+        padding: 0.2rem 0.5rem !important;
+        min-height: 30px !important;
+        font-size: 0.85rem !important;
+        margin-bottom: 0px !important;
+    }
+    </style>
+"""
+st.markdown(stile_geniale, unsafe_allow_html=True)
+# --------------------------------------------------------
+
+# --- DIVISIONE DELLO SCHERMO ---
+col_save, col_sviluppo = st.columns([1, 6]) # Rapporto 1 a 6 (modificabile)
+
+# ==========================================
+# COLONNA DI SINISTRA (IL TUO NUOVO PANNELLO)
+# ==========================================
+with col_save:
+    st.markdown("### 💾 Dati")
+    
+    # Avvolgiamo i bottoni nel div per renderli piccoli (CSS applicato sopra)
+    st.markdown('<div class="btn-compatto">', unsafe_allow_html=True)
+    
+    # ESEMPIO DEI TUOI BOTTONI (sostituisci con i tuoi veri)
+    if st.button("💾 Salva WBS"):
+        pass 
+    if st.button("📂 Carica Progetto"):
+        pass
+    if st.button("📥 Download Excel"):
+        pass
+        
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    # Puoi aggiungere un divisore e altre sezioni compatte
+    st.divider()
+    st.caption("Versione 1.0")
+
+# ==========================================
+# COLONNA DI DESTRA (IL MOTORE DELL'APP)
+# ==========================================
+with col_sviluppo:
+
 st.markdown("""
     <style>
         .block-container {
