@@ -14,24 +14,6 @@ import base64
 # --- CONFIGURAZIONE PAGINA ---
 st.set_page_config(page_title="WBS/OBS Manager & EVM", layout="wide", initial_sidebar_state="expanded")
 
-nascondi_menu_style = """
-    <style>
-    /* 1. Spegne la luce a TUTTA la barra superiore (sparisce tutto) */
-    header[data-testid="stHeader"] {
-        visibility: hidden !important;
-    }
-    
-    /* 2. Riaccende la luce SOLO sul bottone della sidebar (che riappare nel vuoto) */
-    button[data-testid="collapsedControl"] {
-        visibility: visible !important;
-    }
-    
-    /* 3. Via il footer */
-    footer {display: none !important;}
-    </style>
-"""
-st.markdown(nascondi_menu_style, unsafe_allow_html=True)
-
 st.markdown("""
     <style>
         .block-container {
