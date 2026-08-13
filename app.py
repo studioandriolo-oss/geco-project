@@ -1160,6 +1160,66 @@ with col_sviluppo:
                 st.metric("EAC Risk-Adjusted", f"€ {eac_risk_adjusted:,.0f}", delta=f"Deriva da rischio: € {contingency_reserve:,.0f}" if contingency_reserve>0 else "Allineato all'EVM puro", delta_color="inverse" if contingency_reserve>0 else "off")
                 
         st.divider()
+                c4, c5 = st.columns(2)
+                c4.metric("CPI (Costi)", f"{cpi_globale:.2f}", delta="Over-budget" if cpi_globale < 1 else "Under-budget", delta_color="inverse")
+                
+        st.divider()
+        
+        # 1. Motore di calcolo EMV (Expected Monetary Value)
+        df_rischi = st.session_state.rischi_data.copy()
+        fondo_imprevisti = 0.0
+        conteggio_attivi = 0
+        
+        if not df_rischi.empty:
+            # Peschiamo SOLO i rischi non ancora risolti
+            rischi_attivi = df_rischi[df_rischi['Stato'].isin(['Attivo ▾', 'Monitorato ▾'])]
+            conteggio_attivi = len(rischi_attivi)
+            
+            if conteggio_attivi > 0:
+                # Mappatura standard Punteggio -> Percentuale
+                prob_map = {1: 0.10, 2: 0.30, 3: 0.50, 4: 0.70, 5: 0.90} # 10% - 90%
+                imp_map = {1: 0.02, 2: 0.05, 3: 0.10, 4: 0.15, 5: 0.20} # 2% - 20% del Budget
+                
+                for _, r in rischi_attivi.iterrows():
+                    id_wbs = str(r['ID_WBS_Rif']).split(' - ')[0].strip()
+                    try:
+                        prob = int(r['Probabilità (1-5)'])
+                        imp = int(r['Impatto (1-5)'])
+                        
+                        if prob in prob_map and imp in imp_map:
+                            # Troviamo il Budget originale della singola WBS interessata
+                            wbs_row = df_evm[df_evm['ID_WBS'].astype(str) == id_wbs]
+                            bac_wbs = wbs_row['BAC_Budget'].values[0] if not wbs_row.empty else 0.0
+                            
+                            # Calcolo EMV per questo specifico rischio
+                            emv = bac_wbs * prob_map[prob] * imp_map[imp]
+                            fondo_imprevisti += emv
+                    except:
+                        pass
+        
+        eac_risk_adjusted = tot_eac + fondo_imprevisti
+
+        # 2. Interfaccia Visiva dello Scudo
+        st.markdown("### 🛡️ Scudo Finanziario (Risk-Adjusted EVM)")
+        with st.expander("Metodologia Contingency Reserve (Fondo Imprevisti)", expanded=True):
+            st.markdown(f'''
+            **Integrazione EMV (Expected Monetary Value) tra Tab 8 e Tab 5:**
+            Il sistema non si limita a calcolare la proiezione dei costi attuale (EAC Tradizionale), ma "congela" dinamicamente una quota di capitale in base ai pericoli registrati nel **Risk Register**. 
+            Per ogni rischio ancora *Attivo* o *Monitorato*, il motore trasforma Probabilità e Impatto in percentuali, calcolando la penale attesa sul Budget (BAC) della specifica lavorazione.
+            
+            * **Formula EMV Singolo:** `BAC Lavorazione` × `Probabilità (%)` × `Impatto (%)`
+            * **Formula EAC Risk-Adjusted:** `EAC Tradizionale` + `Σ (Somma EMV Attivi)`
+            
+            *(N.B. Appena modifichi lo stato di un rischio in "Mitigato" o "Chiuso" nel Tab 8, il Fondo si svuoterà automaticamente, liberando quel capitale per il committente).*
+            ''')
+            
+            c_scudo1, c_scudo2, c_scudo3 = st.columns(3)
+            c_scudo1.metric("EAC Tradizionale (Puro)", f"€ {tot_eac:,.0f}", help="Costo stimato a fine progetto senza considerare i rischi futuri.")
+            c_scudo2.metric("Fondo Imprevisti (EMV Totale)", f"€ {fondo_imprevisti:,.0f}", delta=f"{conteggio_attivi} Rischi aperti", delta_color="inverse")
+            c_scudo3.metric("EAC Risk-Adjusted", f"€ {eac_risk_adjusted:,.0f}", delta="Peggior Scenario Probabile", delta_color="off")
+        
+        st.divider()
+        st.subheader("📈 Andamento di Progetto")
         st.subheader("📈 Andamento di Progetto & Proiezioni")
         
         df_scurve = genera_dati_scurve(df_evm, st.session_state.registro_data, data_status_evm)
