@@ -841,59 +841,69 @@ with col_sviluppo:
             if df_wp_reali.empty or len(valid_wbs_ids) == 0:
                 graph.node("Vuoto", label="Nessuna lavorazione inserita.", shape="rect")
                 
+            # --- AGGIORNAMENTO GRAFO: INTEGRAZIONE RISCHI ---
+            df_rischi = st.session_state.rischi_data
+            
             for _, row in df_wp_reali.iterrows():
                 wbs_id = str(row.get('ID_WBS', '')).strip()
                 if not wbs_id or wbs_id in ['nan', 'None']: continue
                 
                 attivita = pulisci_testo(row.get('Attività', ''))
                 
-                # SCUDO ASSOLUTO PER I NUMERI (Converte forzatamente i vuoti in 0.0)
+                # Calcolo punteggio rischio per questo WBS
+                rischi_wbs = df_rischi[df_rischi['ID_WBS_Rif'].astype(str).str.startswith(wbs_id + " -")]
+                punteggio_max = 0
+                if not rischi_wbs.empty:
+                    punteggio_max = (rischi_wbs['Probabilità (1-5)'] * rischi_wbs['Impatto (1-5)']).max()
+                
+                # Logica grafica allerta (Soglia 15: Rosso, Soglia 8: Arancione)
+                if punteggio_max >= 15:
+                    bordo_allerta, spessore_allerta = '#FF0000', '4.0'
+                    tag_rischio = " ‼️ ALTO RISCHIO"
+                elif punteggio_max >= 8:
+                    bordo_allerta, spessore_allerta = '#FF9800', '2.5'
+                    tag_rischio = " ⚠️ RISCHIO"
+                else:
+                    bordo_allerta, spessore_allerta = 'black', '1.5' # Default (o il colore critico del CPM)
+                    tag_rischio = ""
+
+                # Override se è Critico (CPM)
+                wp_cpm = cpm_data.get(wbs_id, {})
+                if wp_cpm.get('is_critical', False):
+                    bordo_allerta, spessore_allerta = '#D32F2F', '3.0'
+
+                # ... (Qui mantieni le tue variabili budget, costo_reale, completamento, inizio, fine)
                 try: budget = float(str(row.get('BAC_Budget', 0)).replace(',', '.'))
                 except: budget = 0.0
-                
                 try: costo_reale = float(str(row.get('AC_Costo_Reale', 0)).replace(',', '.'))
                 except: costo_reale = 0.0
-                
                 try: completamento = float(str(row.get('%_Completamento', 0)).replace(',', '.'))
                 except: completamento = 0.0
-                
-                wp_cpm = cpm_data.get(wbs_id, {})
-                margine = wp_cpm.get('slack', 0)
-                is_critical = wp_cpm.get('is_critical', False)
                 
                 inizio_val = pd.to_datetime(row.get('Inizio_Previsto'), errors='coerce')
                 inizio_str = inizio_val.strftime('%d/%m/%Y') if pd.notna(inizio_val) else "N/D"
                 fine_val = pd.to_datetime(row.get('Fine_Prevista'), errors='coerce')
                 fine_str = fine_val.strftime('%d/%m/%Y') if pd.notna(fine_val) else "N/D"
                 
-                if is_critical:
-                    testo_margine = f"<FONT COLOR='#D32F2F'><B>Margine: {margine} gg</B></FONT>"
-                    bordo_colore, spessore_bordo = '#D32F2F', '3.0'
-                else:
-                    testo_margine = f"<FONT COLOR='#388E3C'>Margine: {margine} gg</FONT>"
-                    bordo_colore, spessore_bordo = '#388E3C', '1.5'
-                
-                # Sostituito il simbolo Euro per evitare crash del motore grafico
                 wp_html = f"<<TABLE BORDER='0' CELLBORDER='0' CELLSPACING='4'>"
-                wp_html += f"<TR><TD COLSPAN='2'><B>{wbs_id} - {attivita}</B></TD></TR>"
+                wp_html += f"<TR><TD COLSPAN='2'><B>{wbs_id} - {attivita}{tag_rischio}</B></TD></TR>"
                 wp_html += f"<TR><TD ALIGN='LEFT'>Inizio: {inizio_str}</TD><TD ALIGN='RIGHT'>Fine: {fine_str}</TD></TR>"
                 wp_html += f"<TR><TD ALIGN='LEFT'>Budget: {budget:,.0f} Euro</TD><TD ALIGN='RIGHT'>AC: {costo_reale:,.0f} Euro</TD></TR>"
-                wp_html += f"<TR><TD ALIGN='LEFT'>Avanzamento: {completamento:.0f}%</TD><TD ALIGN='RIGHT'>{testo_margine}</TD></TR>"
+                wp_html += f"<TR><TD ALIGN='LEFT'>Avanzamento: {completamento:.0f}%</TD><TD ALIGN='RIGHT'>Margine: {wp_cpm.get('slack', 0)} gg</TD></TR>"
                 wp_html += "</TABLE>>"
                 
-                # BARRA DI PROGRESSIONE CORAZZATA (Neutralizza i conflitti punto/virgola)
+                # Stile grafico
                 if completamento >= 100:
-                    stile, colore_sfondo = 'rounded,filled', '#C8E6C9' 
+                    stile, colore_sfondo = 'rounded,filled', '#C8E6C9'
                 elif completamento <= 0:
-                    stile, colore_sfondo = 'rounded,filled', 'white'   
+                    stile, colore_sfondo = 'rounded,filled', 'white'
                 else:
                     stile = 'rounded,striped'
                     quota_verde = max(0.01, min(0.99, completamento / 100.0))
-                    # Forzatura manuale del punto decimale per Graphviz
                     colore_sfondo = f"#C8E6C9;{str(round(quota_verde, 3)).replace(',', '.')}:white"
-                    
-                graph.node(f"WBS_{wbs_id}", label=wp_html, shape='rect', style=stile, fillcolor=colore_sfondo, color=bordo_colore, penwidth=spessore_bordo)
                 
+                graph.node(f"WBS_{wbs_id}", label=wp_html, shape='rect', style=stile, fillcolor=colore_sfondo, color=bordo_allerta, penwidth=spessore_allerta)
+                     
                 obs_val = str(row.get('ID_OBS_Assegnato', '')).strip()
                 if obs_val and obs_val.lower() not in ['none', 'nan', 'null']:
                     for o in [o.strip() for o in obs_val.split(',')]:
