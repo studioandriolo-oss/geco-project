@@ -794,7 +794,6 @@ with col_sviluppo:
     # --- TAB 3: MATRICE E GRAFO A NODI ---
     with tab3:
         st.header("Percorso Logico - Work Packages e Percorso Critico")
-        st.session_state.rischi_data
         
         try:
             cpm_data = calcola_cpm(st.session_state.wbs_data)
