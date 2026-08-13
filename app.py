@@ -1086,7 +1086,7 @@ with col_sviluppo:
     with tab5:
         st.header("Controllo Costi e Analisi EVM")
         
-        data_status_evm = st.date_input("📅 Data di Stato (Status Date):", value=date(2026, 10, 15))
+        data_status_evm = st.date_input("📅 Data di Stato (Status Date):", value=pd.Timestamp.today().date())
         df_evm = calcola_evm(get_foglie(st.session_state.wbs_data), data_status_evm)
         
         tot_bac, tot_pv, tot_ev, tot_ac = df_evm['BAC_Budget'].sum(), df_evm['PV'].sum(), df_evm['EV'].sum(), df_evm['AC_Costo_Reale'].sum()
@@ -1096,6 +1096,34 @@ with col_sviluppo:
         perc_completamento = (tot_ev / tot_bac * 100) if tot_bac > 0 else 0.0
         perc_pianificata = (tot_pv / tot_bac * 100) if tot_bac > 0 else 0.0
         
+        # --- CALCOLO CONTINGENCY RESERVE (EMV DAI RISCHI) ---
+        df_rischi = st.session_state.rischi_data.copy()
+        contingency_reserve = 0.0
+        
+        if not df_rischi.empty:
+            # Peschiamo SOLO i rischi attivi o monitorati
+            rischi_attivi = df_rischi[df_rischi['Stato'].isin(['Attivo ▾', 'Monitorato ▾'])]
+            for _, r_row in rischi_attivi.iterrows():
+                wbs_id_full = str(r_row.get('ID_WBS_Rif', ''))
+                wbs_id = wbs_id_full.split(' - ')[0].strip()
+                
+                # Cerchiamo il budget di quella specifica attività
+                wbs_match = df_evm[df_evm['ID_WBS'].astype(str) == wbs_id]
+                wbs_budget = float(wbs_match.iloc[0]['BAC_Budget']) if not wbs_match.empty else 0.0
+                
+                prob = pd.to_numeric(r_row['Probabilità (1-5)'], errors='coerce')
+                imp = pd.to_numeric(r_row['Impatto (1-5)'], errors='coerce')
+                
+                if pd.notna(prob) and pd.notna(imp) and wbs_budget > 0:
+                    prob_pct = prob * 0.20        # Prob: 1=20%, 5=100%
+                    imp_pct = (imp - 1) * 0.05    # Impatto: 1=0%, 5=20% del budget
+                    
+                    emv = wbs_budget * prob_pct * imp_pct
+                    contingency_reserve += emv
+                    
+        eac_risk_adjusted = tot_eac + contingency_reserve
+        
+        # --- CRUSCOTTO UI ---
         col_box1, col_box2 = st.columns(2)
         with col_box1:
             with st.container(border=True):
@@ -1113,15 +1141,26 @@ with col_sviluppo:
             with st.container(border=True):
                 st.markdown("#### 🔮 Previsioni a Finire (Proiezioni)")
                 c1, c2, c3 = st.columns(3)
-                c1.metric("Costo Finale Stimato (EAC)", f"€ {tot_eac:,.0f}", delta="Proiezione a fine lavori", delta_color="off")
-                c2.metric("Costo Residuo (ETC)", f"€ {tot_etc:,.0f}", delta="Capitale ancora necessario", delta_color="off")
+                c1.metric("Costo Stimato (EAC)", f"€ {tot_eac:,.0f}", delta="Puro EVM matematico", delta_color="off")
+                c2.metric("Costo Residuo (ETC)", f"€ {tot_etc:,.0f}", delta="Capitale necessario", delta_color="off")
                 c3.metric("Varianza a Finire (VAC)", f"€ {tot_vac:,.0f}", delta="Perdita" if tot_vac < 0 else "Risparmio", delta_color="normal")
                 st.divider()
                 c4, c5 = st.columns(2)
                 c4.metric("CPI (Costi)", f"{cpi_globale:.2f}", delta="Over-budget" if cpi_globale < 1 else "Under-budget", delta_color="inverse")
+        
+        # --- SCUDO FINANZIARIO (IL NUOVO BOX) ---
+        with st.container(border=True):
+            col_r1, col_r2, col_r3 = st.columns([1.5, 1, 1])
+            with col_r1:
+                st.markdown("#### 🛡️ Scudo Finanziario (Risk-Adjusted)")
+                st.markdown("Integrazione della **Matrice dei Rischi** nel bilancio tramite logica *Expected Monetary Value (EMV)*.")
+            with col_r2:
+                st.metric("Fondo Imprevisti (Contingency)", f"€ {contingency_reserve:,.0f}", delta="Liquidità da accantonare", delta_color="off")
+            with col_r3:
+                st.metric("EAC Risk-Adjusted", f"€ {eac_risk_adjusted:,.0f}", delta=f"Deriva da rischio: € {contingency_reserve:,.0f}" if contingency_reserve>0 else "Allineato all'EVM puro", delta_color="inverse" if contingency_reserve>0 else "off")
                 
         st.divider()
-        st.subheader("📈 Andamento di Progetto")
+        st.subheader("📈 Andamento di Progetto & Proiezioni")
         
         df_scurve = genera_dati_scurve(df_evm, st.session_state.registro_data, data_status_evm)
         if df_scurve is not None and not df_scurve.empty:
@@ -1132,8 +1171,14 @@ with col_sviluppo:
                 spi_effettivo = df_past.iloc[-1]['EV (Valore Guadagnato)'] / df_past.iloc[-1]['PV (Valore Pianificato)'] if df_past.iloc[-1]['PV (Valore Pianificato)'] > 0 else 1.0
                 giorni_stimati = min(int((max_date - min_date).days / spi_effettivo) if spi_effettivo > 0 else (max_date - min_date).days, (max_date - min_date).days * 3) 
                 data_fine_stimata = min_date + pd.Timedelta(days=giorni_stimati)
-                fig_scurve.add_trace(go.Scatter(x=[data_status_evm, data_fine_stimata], y=[df_past.iloc[-1]['AC (Costo Reale)'], tot_eac], mode='lines', line=dict(color='red', dash='dot', width=2), name='Proiezione Costi'))
-                fig_scurve.add_trace(go.Scatter(x=[data_status_evm, data_fine_stimata], y=[df_past.iloc[-1]['EV (Valore Guadagnato)'], tot_bac], mode='lines', line=dict(color='green', dash='dot', width=2), name='Proiezione Lavoro'))
+                
+                # Proiezione Base
+                fig_scurve.add_trace(go.Scatter(x=[data_status_evm, data_fine_stimata], y=[df_past.iloc[-1]['AC (Costo Reale)'], tot_eac], mode='lines', line=dict(color='red', dash='dot', width=2), name='Proiezione Costi (EVM Puro)'))
+                # Proiezione Risk-Adjusted (se ci sono rischi)
+                if contingency_reserve > 0:
+                    fig_scurve.add_trace(go.Scatter(x=[data_status_evm, data_fine_stimata], y=[df_past.iloc[-1]['AC (Costo Reale)'], eac_risk_adjusted], mode='lines', line=dict(color='darkred', dash='solid', width=3), name='Proiezione Risk-Adjusted'))
+                
+                fig_scurve.add_trace(go.Scatter(x=[data_status_evm, data_fine_stimata], y=[df_past.iloc[-1]['EV (Valore Guadagnato)'], tot_bac], mode='lines', line=dict(color='green', dash='dot', width=2), name='Proiezione Lavoro (Tempi)'))
                 fig_scurve.update_xaxes(range=[min_date, max(max_date, data_fine_stimata) + pd.Timedelta(days=5)])
             fig_scurve.update_layout(hovermode="x unified", legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1), margin=dict(t=50, b=20))
             st.plotly_chart(fig_scurve, use_container_width=True)
