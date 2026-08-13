@@ -41,7 +41,7 @@ col_save, col_sviluppo = st.columns([1, 10]) # Rapporto modificabile
 # COLONNA DI SINISTRA (PANNELLO DI CONTROLLO)
 # ==========================================
 with col_save:
-    st.markdown("Progetto")
+    st.markdown("PROGETTO")
     
     # Campo testo per dare un nome al progetto
     st.session_state.nome_progetto_attivo = st.text_input("Nome Progetto", value=st.session_state.nome_progetto_attivo, label_visibility="collapsed")
@@ -49,7 +49,6 @@ with col_save:
     st.markdown('<div class="btn-compatto">', unsafe_allow_html=True)
     
     # --- 1. MEMORIA DI SESSIONE ---
-    st.caption("MEMORIA SESSIONE")
     
     if st.button("💾 Salva", use_container_width=True):
         st.session_state.archivio_progetti[st.session_state.nome_progetto_attivo] = {
@@ -86,7 +85,7 @@ with col_save:
 
     st.divider()
     if st.button("📄 Nuovo", use_container_width=True):
-        st.session_state.nome_progetto_attivo = "Nuovo_Progetto"
+        st.session_state.nome_progetto_attivo = "Nome"
         for key in ['wbs_data', 'obs_data', 'registro_data', 'capa_data']:
             if key in st.session_state:
                 del st.session_state[key]
