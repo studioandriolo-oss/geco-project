@@ -1189,7 +1189,7 @@ with col_sviluppo:
         st.markdown("### 🛡️ Scudo Finanziario (Risk-Adjusted EVM)")
         with st.expander("Metodologia Contingency Reserve (Fondo Imprevisti)", expanded=True):
             st.markdown(f'''
-            **Integrazione EMV (Expected Monetary Value) tra Tab 8 e Tab 5:**
+            **Integrazione EMV (Expected Monetary Value):**
             Il sistema non si limita a calcolare la proiezione dei costi attuale (EAC Tradizionale), ma "congela" dinamicamente una quota di capitale in base ai pericoli registrati nel **Risk Register**. 
             Per ogni rischio ancora *Attivo* o *Monitorato*, il motore trasforma Probabilità e Impatto in percentuali, calcolando la penale attesa sul Budget (BAC) della specifica lavorazione.
             
@@ -1205,7 +1205,7 @@ with col_sviluppo:
             c_scudo3.metric("EAC Risk-Adjusted", f"€ {eac_risk_adjusted:,.0f}", delta="Peggior Scenario Probabile", delta_color="off")
         
         st.divider()
-        st.subheader("📈 Andamento di Progetto")
+
         st.subheader("📈 Andamento di Progetto & Proiezioni")
         
         df_scurve = genera_dati_scurve(df_evm, st.session_state.registro_data, data_status_evm)
