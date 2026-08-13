@@ -83,7 +83,6 @@ with col_save:
                     del st.session_state[k]
             st.rerun()
 
-    st.divider()
     if st.button("📄 Nuovo", use_container_width=True):
         st.session_state.nome_progetto_attivo = "Nome"
         for key in ['wbs_data', 'obs_data', 'registro_data', 'capa_data']:
@@ -259,8 +258,7 @@ with col_sviluppo:
     if 'archivio_progetti' not in st.session_state:
         st.session_state.archivio_progetti = {}
     if 'nome_progetto_attivo' not in st.session_state:
-        st.session_state.nome_progetto_attivo = "Nuovo_Progetto"
-
+        st.session_state.nome_progetto_attivo = "Nome"
 
     # --- 2. MOTORI MATEMATICI ---
     def aggiorna_gerarchia(df):
