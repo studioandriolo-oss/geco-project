@@ -1149,22 +1149,8 @@ with col_sviluppo:
                 c4.metric("CPI (Costi)", f"{cpi_globale:.2f}", delta="Over-budget" if cpi_globale < 1 else "Under-budget", delta_color="inverse")
         
         # --- SCUDO FINANZIARIO (IL NUOVO BOX) ---
-        with st.container(border=True):
-            col_r1, col_r2, col_r3 = st.columns([1.5, 1, 1])
-            with col_r1:
-                st.markdown("#### 🛡️ Scudo Finanziario (Risk-Adjusted)")
-                st.markdown("Integrazione della **Matrice dei Rischi** nel bilancio tramite logica *Expected Monetary Value (EMV)*.")
-            with col_r2:
-                st.metric("Fondo Imprevisti (Contingency)", f"€ {contingency_reserve:,.0f}", delta="Liquidità da accantonare", delta_color="off")
-            with col_r3:
-                st.metric("EAC Risk-Adjusted", f"€ {eac_risk_adjusted:,.0f}", delta=f"Deriva da rischio: € {contingency_reserve:,.0f}" if contingency_reserve>0 else "Allineato all'EVM puro", delta_color="inverse" if contingency_reserve>0 else "off")
-                
+
         st.divider()
-        c4, c5 = st.columns(2)
-        c4.metric("CPI (Costi)", f"{cpi_globale:.2f}", delta="Over-budget" if cpi_globale < 1 else "Under-budget", delta_color="inverse")
-                
-        st.divider()
-        
         # 1. Motore di calcolo EMV (Expected Monetary Value)
         df_rischi = st.session_state.rischi_data.copy()
         fondo_imprevisti = 0.0
