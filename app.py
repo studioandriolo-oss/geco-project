@@ -629,7 +629,8 @@ with col_sviluppo:
         "📈 Earned Value & Cash Flow",
         "🧾 Reg. Contabile",
         "🛠️ Direzione & CAPA",
-        "🚦 Risk Management"
+        "⚠️ Matrice Rischi",
+        "📚 Guida & Glossario"
     ])
         
     # --- TAB 1: SETUP WBS ---
@@ -1704,3 +1705,83 @@ with col_sviluppo:
             st.markdown("**Legenda Stato Rischi:** 🔴 `Attivo` | 🟠 `Monitorato` | 🟢 `Mitigato` | ⚪ `Chiuso`")
         else:
             st.info("ℹ️ Compila i valori numerici (da 1 a 5) nella colonna Probabilità e Impatto della tabella qui sopra per generare la matrice.")
+
+# --- TAB 9: GUIDA, GLOSSARIO E FORMULARIO ---
+    with tab9:
+        st.header("Manuale d'Uso e Fondamenti di Project Management")
+        st.markdown("Questa sezione illustra il funzionamento dell'ecosistema gestionale e fornisce i riferimenti teorici della metodologia EVM (Earned Value Management).")
+        
+        # --- 1. IL CICLO DI VITA DELL'ECOSISTEMA (DIAGRAMMA) ---
+        st.subheader("1. L'Ecosistema e il Ciclo del Rischio")
+        st.markdown("Il software non è una semplice raccolta di tabelle, ma un ecosistema interconnesso. Questo diagramma mostra come le informazioni viaggiano automaticamente tra le varie sezioni, in particolare per la gestione dei rischi e degli imprevisti.")
+        
+        diag_guida = graphviz.Digraph(engine='dot')
+        diag_guida.attr(rankdir='LR', splines='ortho')
+        diag_guida.attr('node', shape='box', style='rounded,filled', fontname='Helvetica', margin='0.2')
+        
+        # Nodi
+        diag_guida.node('T8', 'TAB 8: MATRICE RISCHI\nIdentificazione Pericolo\n(Probabilità x Impatto)', fillcolor='#FFCDD2', color='#E53935', penwidth='2')
+        diag_guida.node('T3', 'TAB 3: GRAFO E NODI\nAllarme Visivo (Bordo Rosso)\nsul Percorso Critico', fillcolor='#FFE0B2', color='#FBC02D', penwidth='2')
+        diag_guida.node('T5', 'TAB 5: EVM & CASH FLOW\nCongelamento Budget\n(Fondo Imprevisti Aumenta)', fillcolor='#C8E6C9', color='#43A047', penwidth='2')
+        diag_guida.node('T7', 'TAB 7: DIREZIONE & CAPA\nEmissione Ordine\ndi Mitigazione in cantiere', fillcolor='#BBDEFB', color='#1E88E5', penwidth='2')
+        diag_guida.node('AUTO', 'PILOTA AUTOMATICO\nAbbassa il rischio, \nlibera il budget e\nspegne gli allarmi', shape='ellipse', fillcolor='#E1BEE7', style='filled,dashed')
+        
+        # Archi
+        diag_guida.edge('T8', 'T3', ' Allerta Visiva', color='gray', fontname='Helvetica', fontsize='10')
+        diag_guida.edge('T8', 'T5', ' Allerta Finanziaria', color='gray', fontname='Helvetica', fontsize='10')
+        diag_guida.edge('T8', 'T7', ' Richiede', color='gray', fontname='Helvetica', fontsize='10')
+        diag_guida.edge('T7', 'AUTO', ' Se Azione = CHIUSA', color='#1E88E5', fontcolor='#1E88E5', fontname='Helvetica', fontsize='10', style='bold')
+        diag_guida.edge('AUTO', 'T8', ' Auto-Mitigazione', color='#43A047', fontname='Helvetica', fontsize='10', style='bold')
+        
+        st.graphviz_chart(diag_guida, use_container_width=True)
+        
+        # --- 2. GLOSSARIO EVM ---
+        st.divider()
+        st.subheader("2. Glossario EVM (Earned Value Management)")
+        
+        c_glos1, c_glos2 = st.columns(2)
+        with c_glos1:
+            with st.expander("Valori Base (I Pilastri)"):
+                st.markdown("""
+                * **BAC (Budget at Completion):** Il Budget totale pianificato per l'intero progetto o lavorazione.
+                * **PV (Planned Value):** Il valore del lavoro che *dovrebbe* essere stato completato fino ad oggi secondo il cronoprogramma. (Si calcola proiettando il BAC nel tempo).
+                * **EV (Earned Value):** Il valore del lavoro *effettivamente* completato fino ad oggi. È la metrica più importante: indica i soldi che il cantiere ha realmente "guadagnato" producendo.
+                * **AC (Actual Cost):** I costi reali effettivamente sostenuti per il lavoro svolto fino ad oggi (fatture, ore manodopera, materiali).
+                """)
+        with c_glos2:
+            with st.expander("Indicatori di Performance (KPI)"):
+                st.markdown("""
+                * **CV (Cost Variance):** Varianza dei costi. Se è negativa, stai spendendo più del previsto.
+                * **SV (Schedule Variance):** Varianza dei tempi. Se è negativa, sei in ritardo sul cronoprogramma.
+                * **CPI (Cost Performance Index):** Efficienza dei costi. Valore ideale: ≥ 1.0. Se vale 0.8, significa che per ogni Euro speso stai producendo solo 80 centesimi di valore.
+                * **SPI (Schedule Performance Index):** Efficienza dei tempi. Valore ideale: ≥ 1.0. Se vale 0.9, stai viaggiando al 90% della velocità prevista.
+                """)
+                
+        with st.expander("Previsioni e Rischio (Proiezioni)"):
+            st.markdown("""
+            * **EAC (Estimate At Completion):** Costo totale stimato a fine progetto, ricalcolato in base all'efficienza attuale (CPI). Ti dice quanto ti costerà davvero il cantiere se continui a lavorare come stai facendo oggi.
+            * **ETC (Estimate To Complete):** I fondi residui necessari per finire il lavoro da oggi in poi.
+            * **VAC (Variance At Completion):** Scostamento finale previsto (BAC - EAC). Se è negativo, il progetto si chiuderà in perdita rispetto al budget iniziale.
+            * **EMV (Expected Monetary Value):** Valore Monetario Atteso. Trasforma i punteggi di rischio in valuta, creando un *Fondo Imprevisti* dinamico.
+            * **EAC Risk-Adjusted:** L'EAC classico sommato al Fondo Imprevisti. È lo scenario finanziario più prudente.
+            """)
+
+        # --- 3. FORMULARIO MATEMATICO ---
+        st.divider()
+        st.subheader("3. Formulario Matematico")
+        
+        st.markdown("Il motore del software utilizza queste equazioni standard internazionali per calcolare in tempo reale lo stato di salute del progetto.")
+        
+        col_form1, col_form2 = st.columns(2)
+        with col_form1:
+            st.latex(r"EV = BAC \times \% \text{ Avanzamento FIsico}")
+            st.latex(r"CV = EV - AC")
+            st.latex(r"SV = EV - PV")
+            st.latex(r"CPI = \frac{EV}{AC}")
+        with col_form2:
+            st.latex(r"SPI = \frac{EV}{PV}")
+            st.latex(r"EAC = \frac{BAC}{CPI}")
+            st.latex(r"ETC = EAC - AC")
+            st.latex(r"VAC = BAC - EAC")
+            
+        st.latex(r"\text{EAC Risk-Adjusted} = EAC + \sum (\text{Budget}_\text{WBS} \times \text{Probabilità}_\text{Rischio} \times \text{Impatto}_\text{Rischio})")
