@@ -461,12 +461,11 @@ col_save, col_sviluppo = st.columns([1, 10]) # Rapporto 1 a 10 (Sinistra stretti
 with col_save:
     st.markdown("PROGETTO")
     
-    st.session_state.nome_progetto_attivo = st.text_input("Nome Progetto", value=st.session_state.nome_progetto_attivo, label_visibility="collapsed")
+    st.session_state.nome_progetto_attivo = st.text_area("Nome Progetto", value=st.session_state.nome_progetto_attivo, label_visibility="collapsed, height=100")
     
     st.markdown('<div class="btn-compatto">', unsafe_allow_html=True)
     
     # --- 1. MEMORIA DI SESSIONE ---
-    st.caption("MEMORIA SESSIONE")
     
     if st.button("💾 Salva", use_container_width=True):
         st.session_state.archivio_progetti[st.session_state.nome_progetto_attivo] = {
