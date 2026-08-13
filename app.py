@@ -91,7 +91,7 @@ if 'registro_data' not in st.session_state:
 
 if 'capa_data' not in st.session_state:
     st.session_state.capa_data = pd.DataFrame(columns=[
-        'Data_Apertura', 'ID_WBS_Rif', 'Tipo_Azione', 'Descrizione', 'Responsabile_OBS', 'Stato'
+        'Data_Apertura', 'ID_WBS_Rif', 'Tipo_Azione', 'Descrizione', 'Responsabile_OBS', 'Stato', 'Rischio_Associato'
     ])
 
 if 'rischi_data' not in st.session_state:
@@ -562,7 +562,7 @@ with col_save:
                 
                 df_capa = pd.DataFrame(dati_caricati.get('capa', []))
                 if df_capa.empty:
-                    df_capa = pd.DataFrame(columns=['Data_Apertura', 'ID_WBS_Rif', 'Tipo_Azione', 'Descrizione', 'Responsabile_OBS', 'Stato'])
+                    df_capa = pd.DataFrame(columns=['Data_Apertura', 'ID_WBS_Rif', 'Tipo_Azione', 'Descrizione', 'Responsabile_OBS', 'Stato', 'Rischio_Associato'])
                 st.session_state.capa_data = df_capa
 
                 df_rischi = pd.DataFrame(dati_caricati.get('rischi', []))
@@ -1315,7 +1315,7 @@ with col_sviluppo:
                     del st.session_state[k]
             st.success("✅ Dati contabili salvati e costi aggiornati!")
             st.rerun() # Forza ricaricamento pagina visivo
-            
+
     # --- TAB 7: DIREZIONE LAVORI, CAPA & REPORTISTICA ---
     with tab7:
         st.header("Direzione Lavori: Interventi (CAPA) e Simulazioni")
@@ -1324,17 +1324,22 @@ with col_sviluppo:
         wbs_options_capa = [f"{row['ID_WBS']} - {row['Attività']}" for _, row in leaf_wbs_capa.iterrows()]
         obs_options_capa = [f"{row['ID_OBS']} - {row['Risorsa']}" for _, row in st.session_state.obs_data.iterrows()]
         
+        # NUOVO: Recuperiamo i rischi registrati dal Tab 8 per popolare la tendina
+        lista_rischi = [""] + [str(r) for r in st.session_state.rischi_data['Descrizione_Rischio'].dropna().unique() if str(r).strip() != ""]
+        
         st.subheader("1. Registro Azioni Correttive e Preventive (CAPA)")
         
-        # --- FIX: SCUDO FORMATO DATE PER LA TABELLA CAPA ---
         df_capa = st.session_state.capa_data.copy()
+        
+        # Retro-compatibilità: Se carichi un vecchio progetto senza questa colonna, la crea al volo
+        if 'Rischio_Associato' not in df_capa.columns:
+            df_capa['Rischio_Associato'] = ""
+            
         if not df_capa.empty:
             df_capa['Data_Apertura'] = pd.to_datetime(df_capa['Data_Apertura'], errors='coerce').dt.date
         else:
-            # Forza la colonna Date a non diventare un "numero" quando è vuota
             df_capa['Data_Apertura'] = pd.Series(dtype='object')
         st.session_state.capa_data = df_capa
-        # ----------------------------------------------------
         
         edited_capa = st.data_editor(
             st.session_state.capa_data, num_rows="dynamic", use_container_width=True, hide_index=True,
@@ -1342,8 +1347,9 @@ with col_sviluppo:
                 "Data_Apertura": st.column_config.DateColumn("Data Segnalazione"),
                 "ID_WBS_Rif": st.column_config.SelectboxColumn("Attività WBS (Rif.)", options=wbs_options_capa),
                 "Tipo_Azione": st.column_config.SelectboxColumn("Tipo", options=["Correttiva ▾", "Preventiva ▾"]),
-                "Descrizione": st.column_config.TextColumn("Descrizione Intervento / Ordine", width="large"),
+                "Descrizione": st.column_config.TextColumn("Descrizione Intervento / Ordine", width="medium"),
                 "Responsabile_OBS": st.column_config.SelectboxColumn("Risorsa (OBS)", options=obs_options_capa),
+                "Rischio_Associato": st.column_config.SelectboxColumn("Rischio da mitigare ▾", options=lista_rischi), # LA NUOVA TENDINA
                 "Stato": st.column_config.SelectboxColumn("Stato", options=["Aperto ▾", "In Lavorazione ▾", "Chiuso ▾"])
             }
         )
@@ -1352,8 +1358,31 @@ with col_sviluppo:
         st.warning("⚠️ **Ricordati di cliccare il tasto rosso qui sotto dopo aver inserito i dati!**")
         if st.button("💾 SALVA REGISTRO CAPA", type="primary", use_container_width=True):
             st.session_state.capa_data = edited_capa
-            st.success("✅ Interventi salvati con successo nel database!")
-            st.rerun() # Forza ricaricamento
+            
+            # --- AUTO-MITIGAZIONE RISCHI (IL PILOTA AUTOMATICO) ---
+            rischi_aggiornati = False
+            df_rischi = st.session_state.rischi_data.copy()
+            
+            for _, capa_row in edited_capa.iterrows():
+                # Se l'azione di cantiere è stata CHIUSA e c'era un rischio collegato
+                if capa_row['Stato'] == 'Chiuso ▾' and pd.notna(capa_row.get('Rischio_Associato')) and str(capa_row.get('Rischio_Associato')).strip() != "":
+                    rischio_target = str(capa_row['Rischio_Associato']).strip()
+                    
+                    # Cerca questo rischio nel Tab 8. Se è ancora Attivo o Monitorato...
+                    mask = (df_rischi['Descrizione_Rischio'] == rischio_target) & (~df_rischi['Stato'].isin(['Mitigato ▾', 'Chiuso ▾']))
+                    if mask.any():
+                        # ...abbatti la sua Probabilità a 1 e settalo come Mitigato!
+                        df_rischi.loc[mask, 'Probabilità (1-5)'] = 1
+                        df_rischi.loc[mask, 'Stato'] = 'Mitigato ▾'
+                        rischi_aggiornati = True
+            
+            if rischi_aggiornati:
+                st.session_state.rischi_data = df_rischi
+                st.success("✅ Interventi salvati! Il pilota automatico ha **Mitigato** i rischi associati alle azioni chiuse nel Tab 8.")
+            else:
+                st.success("✅ Interventi salvati con successo nel database!")
+                
+            st.rerun()
 
         # ------------------------------
         # SIMULAZIONE
