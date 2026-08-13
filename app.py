@@ -1160,8 +1160,8 @@ with col_sviluppo:
                 st.metric("EAC Risk-Adjusted", f"€ {eac_risk_adjusted:,.0f}", delta=f"Deriva da rischio: € {contingency_reserve:,.0f}" if contingency_reserve>0 else "Allineato all'EVM puro", delta_color="inverse" if contingency_reserve>0 else "off")
                 
         st.divider()
-                c4, c5 = st.columns(2)
-                c4.metric("CPI (Costi)", f"{cpi_globale:.2f}", delta="Over-budget" if cpi_globale < 1 else "Under-budget", delta_color="inverse")
+        c4, c5 = st.columns(2)
+        c4.metric("CPI (Costi)", f"{cpi_globale:.2f}", delta="Over-budget" if cpi_globale < 1 else "Under-budget", delta_color="inverse")
                 
         st.divider()
         
