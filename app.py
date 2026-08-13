@@ -41,7 +41,7 @@ col_save, col_sviluppo = st.columns([1, 10]) # Rapporto modificabile
 # COLONNA DI SINISTRA (PANNELLO DI CONTROLLO)
 # ==========================================
 with col_save:
-    st.markdown("### 📂 Progetto")
+    st.markdown("Progetto")
     
     # Campo testo per dare un nome al progetto
     st.session_state.nome_progetto_attivo = st.text_input("Nome Progetto", value=st.session_state.nome_progetto_attivo, label_visibility="collapsed")
@@ -50,9 +50,8 @@ with col_save:
     
     # --- 1. MEMORIA DI SESSIONE ---
     st.caption("MEMORIA SESSIONE")
-    c_save, c_dup = st.columns(2)
     
-    if c_save.button("💾 Salva", use_container_width=True):
+    if st.button("💾 Salva", use_container_width=True):
         st.session_state.archivio_progetti[st.session_state.nome_progetto_attivo] = {
             "wbs": st.session_state.wbs_data.copy(),
             "obs": st.session_state.obs_data.copy(),
@@ -61,7 +60,7 @@ with col_save:
         }
         st.success("Salvato!")
         
-    if c_dup.button("📑 Duplica", use_container_width=True):
+    if st.button("📑 Duplica", use_container_width=True):
         nuovo_nome = f"{st.session_state.nome_progetto_attivo}_Copia"
         st.session_state.archivio_progetti[nuovo_nome] = {
             "wbs": st.session_state.wbs_data.copy(),
@@ -86,7 +85,7 @@ with col_save:
             st.rerun()
 
     st.divider()
-    if st.button("📄 Nuovo (Svuota Tutto)", use_container_width=True):
+    if st.button("📄 Nuovo", use_container_width=True):
         st.session_state.nome_progetto_attivo = "Nuovo_Progetto"
         for key in ['wbs_data', 'obs_data', 'registro_data', 'capa_data']:
             if key in st.session_state:
@@ -98,7 +97,7 @@ with col_save:
         
     # --- 2. ARCHIVIAZIONE SU PC (JSON) ---
     st.divider()
-    st.caption("ARCHIVIO SU PC (JSON)")
+    st.caption("ARCHIVIO SU PC")
     
     try:
         progetto_export = {
