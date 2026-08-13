@@ -459,7 +459,7 @@ col_save, col_sviluppo = st.columns([1, 10]) # Rapporto 1 a 10 (Sinistra stretti
 # COLONNA DI SINISTRA (PANNELLO DI CONTROLLO)
 # ==========================================
 with col_save:
-    st.caption("""" PROGETTO")
+    st.caption("   PROGETTO")
     
     st.session_state.nome_progetto_attivo = st.text_area("Nome Progetto", value=st.session_state.nome_progetto_attivo, label_visibility="collapsed", height=100)
     
