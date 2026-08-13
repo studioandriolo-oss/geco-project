@@ -621,14 +621,15 @@ with col_sviluppo:
         st.title("Project Workflow & EVM Controller")
 
     # --- CREAZIONE TAB ---
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
         "🗂️ WBS (Lavorazioni)", 
         "👥 OBS (Risorse)", 
         "🕸️ Nodi & Matrice", 
         "📅 Cronoprogramma", 
         "📈 Earned Value & Cash Flow",
         "🧾 Reg. Contabile",
-        "🛠️ Direzione & CAPA"
+        "🛠️ Direzione & CAPA",
+        "Risk Management"
     ])
         
     # --- TAB 1: SETUP WBS ---
