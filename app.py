@@ -15,7 +15,7 @@ import base64
 st.set_page_config(page_title="WBS/OBS Manager & EVM", layout="wide", initial_sidebar_state="expanded")
 
 # --- RIMOZIONE TOTALE HEADER, SIDEBAR E STILE COLONNA COMPATTA ---
-stile_geniale = """
+st.markdown("""
 <style>
 header[data-testid="stHeader"] {display: none !important;}
 #MainMenu, footer, [data-testid="stSidebar"], [data-testid="collapsedControl"] {display: none !important;}
@@ -31,30 +31,7 @@ header[data-testid="stHeader"] {display: none !important;}
     margin-bottom: 0px !important;
 }
 </style>
-"""
-st.markdown(stile_geniale, unsafe_allow_html=True)
-# --------------------------------------------------------
-    
-    /* 2. Via menu e footer */
-    #MainMenu, footer {display: none !important;}
-    
-    /* 3. Riduciamo i margini bianchi della pagina visto che non c'è più la barra */
-    .block-container {
-        padding-top: 1rem !important;
-        padding-bottom: 1rem !important;
-        max-width: 98% !important; /* Allarghiamo la pagina per fare spazio */
-    }
-    
-    /* 4. Il tuo stile per la colonna sinistra (bottoni piccoli e compatti) */
-    .btn-compatto button {
-        padding: 0.2rem 0.5rem !important;
-        min-height: 30px !important;
-        font-size: 0.85rem !important;
-        margin-bottom: 0px !important;
-    }
-    </style>
-"""
-st.markdown(stile_geniale, unsafe_allow_html=True)
+""", unsafe_allow_html=True)
 # --------------------------------------------------------
 
 # --- DIVISIONE DELLO SCHERMO ---
