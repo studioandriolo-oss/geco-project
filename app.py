@@ -32,25 +32,444 @@ header[data-testid="stHeader"] {display: none !important;}
 }
 </style>
 """, unsafe_allow_html=True)
-# --------------------------------------------------------
+
+# ==========================================
+# IL MOTORE (PRIMA DELLA GRAFICA)
+# ==========================================
+
+# --- SISTEMA DI LOGIN SICURO ---
+try:
+    USER_ID = st.secrets["USER_ID"]
+    PASSWORD = st.secrets["PASSWORD"]
+except KeyError:
+    st.error("⚠️ Errore di sistema: Credenziali non trovate. Configura i 'Secrets' di Streamlit.")
+    st.stop()
+
+if st.query_params.get("auth") == "valid":
+    st.session_state.logged_in = True
+elif 'logged_in' not in st.session_state:
+    st.session_state.logged_in = False
+
+if not st.session_state.logged_in:
+    st.markdown("<br><br><h2 style='text-align: center;'>🔒 Accesso Riservato GECO</h2>", unsafe_allow_html=True)
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        with st.form("login_form"):
+            user_input = st.text_input("ID Utente")
+            pass_input = st.text_input("Password", type="password")
+            submit = st.form_submit_button("Accedi al Gestionale", use_container_width=True)
+            
+            if submit:
+                if user_input == USER_ID and pass_input == PASSWORD:
+                    st.session_state.logged_in = True
+                    st.query_params["auth"] = "valid" 
+                    st.rerun() 
+                else:
+                    st.error("Credenziali errate. Riprova.")                
+    st.stop()
+
+# --- 1. INIZIALIZZAZIONE DATI ---
+if 'wbs_data' not in st.session_state:
+    st.session_state.wbs_data = pd.DataFrame([{
+        'ID_WBS': '1', 
+        'Attività': 'Progetto Principale', 
+        'Inizio_Previsto': None, 'Fine_Prevista': None, 
+        'Inizio_Effettivo': None, 'Fine_Effettiva': None, 
+        'BAC_Budget': 0.0, '%_Completamento': 0.0, 
+        'AC_Costo_Reale': 0.0, 'ID_OBS_Assegnato': None, 'Predecessori': ''
+    }])
+    
+if 'obs_data' not in st.session_state:
+    st.session_state.obs_data = pd.DataFrame(columns=[
+        'ID_OBS', 'Ruolo', 'Risorsa', 'Tipo_Contratto', 'Note'
+    ])
+    
+if 'registro_data' not in st.session_state:
+    st.session_state.registro_data = pd.DataFrame(columns=[
+        'Data', 'N_Doc', 'Fornitore', 'Voce_WBS', 'Importo_Netto', 'Descrizione'
+    ])
+
+if 'capa_data' not in st.session_state:
+    st.session_state.capa_data = pd.DataFrame(columns=[
+        'Data_Apertura', 'ID_WBS_Rif', 'Tipo_Azione', 'Descrizione', 'Responsabile_OBS', 'Stato'
+    ])
+
+if 'archivio_progetti' not in st.session_state:
+    st.session_state.archivio_progetti = {}
+if 'nome_progetto_attivo' not in st.session_state:
+    st.session_state.nome_progetto_attivo = "Nuovo_Progetto"
+
+
+# --- 2. MOTORI MATEMATICI ---
+def aggiorna_gerarchia(df):
+    df_calc = df.copy()
+    df_calc['BAC_Budget'] = pd.to_numeric(df_calc['BAC_Budget'], errors='coerce').fillna(0.0)
+    df_calc['AC_Costo_Reale'] = pd.to_numeric(df_calc['AC_Costo_Reale'], errors='coerce').fillna(0.0)
+    df_calc['%_Completamento'] = pd.to_numeric(df_calc['%_Completamento'], errors='coerce').fillna(0.0)
+    
+    for col in ['Inizio_Previsto', 'Fine_Prevista', 'Inizio_Effettivo', 'Fine_Effettiva']:
+        if col in df_calc.columns:
+            df_calc[col] = df_calc[col].astype(object)
+            
+    ids = df_calc['ID_WBS'].astype(str).tolist()
+    foglie = [uid for uid in ids if not any(other.startswith(uid + '.') for other in ids if other != uid)]
+    df_calc['Is_Leaf'] = df_calc['ID_WBS'].astype(str).isin(foglie)
+    
+    df_calc['Livello'] = df_calc['ID_WBS'].astype(str).apply(lambda x: len(x.split('.')))
+    df_calc = df_calc.sort_values(by='Livello', ascending=False)
+    
+    for index, row in df_calc.iterrows():
+        uid = str(row['ID_WBS'])
+        if not row['Is_Leaf']:
+            discendenti = df_calc[df_calc['ID_WBS'].astype(str).str.startswith(uid + '.') & df_calc['Is_Leaf']]
+            if not discendenti.empty:
+                df_calc.at[index, 'BAC_Budget'] = discendenti['BAC_Budget'].sum()
+                df_calc.at[index, 'AC_Costo_Reale'] = discendenti['AC_Costo_Reale'].sum()
+                
+                inizio_min = pd.to_datetime(discendenti['Inizio_Previsto']).min()
+                fine_max = pd.to_datetime(discendenti['Fine_Prevista']).max()
+                if pd.notna(inizio_min): df_calc.at[index, 'Inizio_Previsto'] = inizio_min.date()
+                if pd.notna(fine_max): df_calc.at[index, 'Fine_Prevista'] = fine_max.date()
+                
+                inizio_eff_min = pd.to_datetime(discendenti['Inizio_Effettivo']).min()
+                fine_eff_max = pd.to_datetime(discendenti['Fine_Effettiva']).max()
+                if pd.notna(inizio_eff_min): df_calc.at[index, 'Inizio_Effettivo'] = inizio_eff_min.date()
+                if pd.notna(fine_eff_max): df_calc.at[index, 'Fine_Effettiva'] = fine_eff_max.date()
+                
+                tot_bac = discendenti['BAC_Budget'].sum()
+                if tot_bac > 0:
+                    df_calc.at[index, '%_Completamento'] = (discendenti['BAC_Budget'] * discendenti['%_Completamento']).sum() / tot_bac
+                else:
+                    df_calc.at[index, '%_Completamento'] = discendenti['%_Completamento'].mean()
+                    
+    df_calc['sort_key'] = df_calc['ID_WBS'].astype(str).apply(lambda x: '.'.join([p.zfill(5) for p in x.split('.')]))
+    df_calc = df_calc.sort_values(by='sort_key').drop(columns=['sort_key', 'Is_Leaf', 'Livello']).reset_index(drop=True)
+    return df_calc
+
+def modifica_struttura(id_target, azione):
+    df = st.session_state.wbs_data.copy()
+    
+    def get_sort_key(wbs_id):
+        return [int(x) if x.isdigit() else x for x in str(wbs_id).split('.')]
+    
+    df['sort_key'] = df['ID_WBS'].apply(get_sort_key)
+    df = df.sort_values(by='sort_key').reset_index(drop=True)
+    df['Livello'] = df['ID_WBS'].apply(lambda x: len(str(x).split('.')))
+    
+    if azione == 'elimina':
+        mask = (df['ID_WBS'].astype(str) == id_target) | (df['ID_WBS'].astype(str).str.startswith(f"{id_target}."))
+        df = df[~mask].reset_index(drop=True) 
+        
+        if df.empty:
+            df = pd.DataFrame([{'ID_WBS': '1', 'Attività': 'Progetto Principale', 'BAC_Budget': 0.0, '%_Completamento': 0.0, 'AC_Costo_Reale': 0.0, 'Livello': 1}])
+            st.session_state.wbs_data = df.drop(columns=['Livello'])
+            st.session_state['tracker_id'] = None
+            for k in list(st.session_state.keys()):
+                if k.startswith("editor_wbs_"): 
+                    del st.session_state[k]
+            st.rerun()
+            
+    elif azione in ['su', 'giu', 'destra', 'sinistra']:
+        ids = df['ID_WBS'].astype(str).tolist()
+        if id_target not in ids: return
+        idx = ids.index(id_target)
+        livello_target = df.at[idx, 'Livello']
+        
+        end_idx = idx + 1
+        while end_idx < len(df) and df.at[end_idx, 'Livello'] > livello_target:
+            end_idx += 1
+        blocco_target = list(range(idx, end_idx))
+        
+        if azione == 'destra':
+            if idx > 0 and df.at[idx - 1, 'Livello'] >= livello_target: df.loc[blocco_target, 'Livello'] += 1
+        elif azione == 'sinistra':
+            if livello_target > 1: df.loc[blocco_target, 'Livello'] -= 1
+        elif azione == 'su':
+            prev_idx = idx - 1
+            while prev_idx >= 0 and df.at[prev_idx, 'Livello'] > livello_target: prev_idx -= 1
+            if prev_idx >= 0 and df.at[prev_idx, 'Livello'] == livello_target:
+                blocco_prev = list(range(prev_idx, idx))
+                new_order = list(range(len(df)))
+                new_order[prev_idx:end_idx] = blocco_target + blocco_prev
+                df = df.iloc[new_order].reset_index(drop=True)
+        elif azione == 'giu':
+            next_idx = end_idx
+            if next_idx < len(df) and df.at[next_idx, 'Livello'] == livello_target:
+                next_end = next_idx + 1
+                while next_end < len(df) and df.at[next_end, 'Livello'] > livello_target: next_end += 1
+                blocco_next = list(range(next_idx, next_end))
+                new_order = list(range(len(df)))
+                new_order[idx:next_end] = blocco_next + blocco_target
+                df = df.iloc[new_order].reset_index(drop=True)
+
+    nuovi_id = []
+    counters = {} 
+    
+    for idx, row in df.iterrows():
+        liv = row['Livello']
+        if idx == 0: liv = 1
+        else:
+            prev_liv = df.at[idx-1, 'Livello']
+            if liv > prev_liv + 1: liv = prev_liv + 1 
+                
+        df.at[idx, 'Livello'] = liv
+        counters[liv] = counters.get(liv, 0) + 1
+        for k in list(counters.keys()):
+            if k > liv: counters[k] = 0 
+                
+        nuovo_id = ".".join([str(counters[i]) for i in range(1, liv + 1)])
+        nuovi_id.append(nuovo_id)
+        
+    old_ids = df['ID_WBS'].astype(str).tolist()
+    mapping = dict(zip(old_ids, nuovi_id))
+    
+    def aggiorna_preds(val):
+        if not val or pd.isna(val) or str(val).strip() in ['', 'None', 'nan']: return val
+        preds = [p.strip() for p in str(val).split(',')]
+        new_preds = []
+        for p in preds:
+            parts = p.split(' - ', 1)
+            vecchio_id = parts[0].strip()
+            nuovo_id = mapping.get(vecchio_id, vecchio_id)
+            if len(parts) > 1: new_preds.append(f"{nuovo_id} - {parts[1]}")
+            else: new_preds.append(nuovo_id)
+        return ', '.join(new_preds)
+        
+    df['ID_WBS'] = nuovi_id
+    if 'Predecessori' in df.columns:
+        df['Predecessori'] = df['Predecessori'].apply(aggiorna_preds)
+        
+    df = df.drop(columns=['Livello', 'sort_key'])
+    
+    st.session_state.wbs_data = df.copy()
+    st.session_state.wbs_data = aggiorna_gerarchia(st.session_state.wbs_data)
+    
+    if azione != 'elimina':
+        st.session_state['tracker_id'] = mapping.get(id_target, id_target)
+    else:
+        st.session_state['tracker_id'] = None
+        
+    for k in list(st.session_state.keys()):
+        if k.startswith("editor_wbs_"):
+            del st.session_state[k]
+            
+    st.rerun()
+    
+def get_foglie(df):
+    ids = df['ID_WBS'].astype(str).tolist()
+    foglie = [uid for uid in ids if not any(other.startswith(uid + '.') for other in ids if other != uid)]
+    return df[df['ID_WBS'].astype(str).isin(foglie)].copy()
+
+def aggiorna_costi_reali():
+    df_reg = st.session_state.registro_data.copy()
+    if not df_reg.empty:
+        df_reg['ID_WBS_calc'] = df_reg['Voce_WBS'].astype(str).apply(
+            lambda x: str(x).split(' - ')[0].strip() if pd.notna(x) and str(x).strip() not in ['', 'None', 'nan'] else None
+        )
+        costi_raggruppati = df_reg.groupby('ID_WBS_calc')['Importo_Netto'].sum().reset_index()
+        cost_map = dict(zip(costi_raggruppati['ID_WBS_calc'], costi_raggruppati['Importo_Netto']))
+        wbs = st.session_state.wbs_data
+        wbs['AC_Costo_Reale'] = wbs['ID_WBS'].apply(lambda x: cost_map.get(str(x), 0.0))
+        st.session_state.wbs_data = wbs
+
+def calcola_evm(df, data_status):
+    oggi = pd.to_datetime(data_status).date()
+    df['BAC_Budget'] = pd.to_numeric(df['BAC_Budget'], errors='coerce').fillna(0.0)
+    df['%_Completamento'] = pd.to_numeric(df['%_Completamento'], errors='coerce').fillna(0.0)
+    df['AC_Costo_Reale'] = pd.to_numeric(df['AC_Costo_Reale'], errors='coerce').fillna(0.0)
+    
+    def calcola_pv(row):
+        try:
+            inizio_ts = pd.to_datetime(row['Inizio_Previsto'])
+            fine_ts = pd.to_datetime(row['Fine_Prevista'])
+            bac = float(row['BAC_Budget'])
+            
+            if pd.isna(inizio_ts) or pd.isna(fine_ts) or bac == 0: 
+                return 0.0
+            inizio = inizio_ts.date()
+            fine = fine_ts.date()
+            
+            if oggi >= fine: return bac 
+            if oggi <= inizio: return 0.0 
+            
+            giorni_totali = (fine - inizio).days
+            giorni_trascorsi = (oggi - inizio).days
+            if giorni_totali <= 0: return bac
+            return bac * (giorni_trascorsi / giorni_totali)
+        except Exception:
+            return 0.0
+
+    df['PV'] = df.apply(calcola_pv, axis=1)
+    df['EV'] = df['BAC_Budget'] * (df['%_Completamento'] / 100.0)
+    df['CV'] = df['EV'] - df['AC_Costo_Reale'] 
+    df['SV'] = df['EV'] - df['PV']               
+    
+    df['SPI'] = df.apply(lambda x: (x['EV'] / x['PV']) if x['PV'] > 0 else (1.0 if x['EV']==0 else 1.1), axis=1)
+    df['CPI'] = df.apply(lambda x: (x['EV'] / x['AC_Costo_Reale']) if x['AC_Costo_Reale'] > 0 else (1.0 if x['EV']==0 else 1.1), axis=1)
+
+    df['EAC'] = df.apply(lambda x: x['BAC_Budget'] / x['CPI'] if x['CPI'] > 0 else x['BAC_Budget'], axis=1)
+    df['ETC'] = df['EAC'] - df['AC_Costo_Reale']
+    df['VAC'] = df['BAC_Budget'] - df['EAC']
+    return df
+
+def genera_dati_scurve(df_wbs, df_reg, data_status):
+    oggi = pd.to_datetime(data_status).date()
+    date_inizio = pd.to_datetime(df_wbs['Inizio_Previsto']).dropna().dt.date
+    date_fine = pd.to_datetime(df_wbs['Fine_Prevista']).dropna().dt.date
+    
+    if date_inizio.empty or date_fine.empty:
+        return None
+        
+    min_date = date_inizio.min()
+    max_date = date_fine.max()
+    date_range = pd.date_range(start=min_date, end=max_date)
+    
+    df_reg_calc = df_reg.copy()
+    if not df_reg_calc.empty:
+        df_reg_calc['Data'] = pd.to_datetime(df_reg_calc['Data'], errors='coerce').dt.date
+        ac_daily = df_reg_calc.groupby('Data')['Importo_Netto'].sum().to_dict()
+    else:
+        ac_daily = {}
+    
+    dati = []
+    cum_ac = 0.0
+    
+    for d_ts in date_range:
+        d = d_ts.date()
+        pv_giorno = 0.0
+        ev_giorno = 0.0
+        
+        for _, row in df_wbs.iterrows():
+            bac = float(row['BAC_Budget']) if pd.notna(row['BAC_Budget']) else 0.0
+            ip = pd.to_datetime(row['Inizio_Previsto']).date() if pd.notna(row['Inizio_Previsto']) else None
+            fp = pd.to_datetime(row['Fine_Prevista']).date() if pd.notna(row['Fine_Prevista']) else None
+            if ip and fp and bac > 0:
+                if d >= fp: 
+                    pv_giorno += bac
+                elif d > ip:
+                    giorni_tot = (fp - ip).days
+                    if giorni_tot > 0:
+                        pv_giorno += bac * ((d - ip).days / giorni_tot)
+                        
+            if d <= oggi:
+                ev_attuale = float(row['EV']) if 'EV' in row else 0.0
+                ie = pd.to_datetime(row['Inizio_Effettivo']).date() if pd.notna(row['Inizio_Effettivo']) else ip
+                if ie and ev_attuale > 0:
+                    if d >= oggi:
+                        ev_giorno += ev_attuale
+                    elif d > ie:
+                        giorni_lav = (oggi - ie).days
+                        if giorni_lav > 0:
+                            ev_giorno += ev_attuale * ((d - ie).days / giorni_lav)
+        
+        if d <= oggi:
+            cum_ac += ac_daily.get(d, 0.0)
+            ac_val = cum_ac
+            ev_val = ev_giorno
+        else:
+            ac_val = None
+            ev_val = None
+            
+        dati.append({'Data': d, 'PV (Valore Pianificato)': pv_giorno, 'EV (Valore Guadagnato)': ev_val, 'AC (Costo Reale)': ac_val})
+    return pd.DataFrame(dati)
+
+def calcola_cpm(df_wbs):
+    df_wp = get_foglie(df_wbs)
+    cpm_nodes = {}
+    
+    for _, row in df_wp.iterrows():
+        node_id = str(row['ID_WBS']).strip()
+        inizio = pd.to_datetime(row['Inizio_Previsto'], errors='coerce')
+        fine = pd.to_datetime(row['Fine_Prevista'], errors='coerce')
+        
+        durata = max((fine - inizio).days + 1, 1) if pd.notna(inizio) and pd.notna(fine) else 1
+        
+        pred_val = str(row.get('Predecessori', '')).strip()
+        preds = []
+        if pred_val and pred_val.lower() not in ['none', 'nan', 'null']:
+            for p in pred_val.split(','):
+                p_id = p.split(' - ')[0].strip()
+                if p_id.endswith('.0'): p_id = p_id[:-2]
+                if p_id: preds.append(p_id)
+        
+        cpm_nodes[node_id] = {
+            'durata': durata, 'preds': preds, 'succs': [],
+            'ES': 0, 'EF': 0, 'LS': 0, 'LF': 0, 'slack': 0, 'is_critical': False
+        }
+        
+    for n_id, data in cpm_nodes.items():
+        for p_id in data['preds']:
+            if p_id in cpm_nodes:
+                cpm_nodes[p_id]['succs'].append(n_id)
+                
+    changed = True
+    loop_counter = 0
+    while changed and loop_counter < 1000:
+        loop_counter += 1
+        changed = False
+        for n_id, data in cpm_nodes.items():
+            max_ef = 0
+            for p_id in data['preds']:
+                if p_id in cpm_nodes:
+                    max_ef = max(max_ef, cpm_nodes[p_id]['EF'])
+            new_es = max_ef
+            new_ef = new_es + data['durata']
+            if new_es != data['ES'] or new_ef != data['EF']:
+                data['ES'] = new_es; data['EF'] = new_ef; changed = True
+                
+    project_duration = max([data['EF'] for data in cpm_nodes.values()], default=0)
+    for n_id, data in cpm_nodes.items():
+        data['LF'] = project_duration
+        data['LS'] = data['LF'] - data['durata']
+        
+    changed = True
+    loop_counter = 0
+    while changed and loop_counter < 1000:
+        loop_counter += 1
+        changed = False
+        for n_id, data in cpm_nodes.items():
+            min_ls = data['LF'] 
+            if len(data['succs']) > 0:
+                min_ls = min([cpm_nodes[s_id]['LS'] for s_id in data['succs'] if s_id in cpm_nodes])
+            new_lf = min_ls
+            new_ls = new_lf - data['durata']
+            if new_lf != data['LF'] or new_ls != data['LS']:
+                data['LF'] = new_lf; data['LS'] = new_ls; changed = True
+                
+    for n_id, data in cpm_nodes.items():
+        data['slack'] = data['LS'] - data['ES']
+        if data['slack'] <= 0:
+            data['is_critical'] = True
+            
+    return cpm_nodes
+
+# --- 3. ESECUZIONE CALCOLI INIZIALI ---
+aggiorna_costi_reali()
+st.session_state.wbs_data = aggiorna_gerarchia(st.session_state.wbs_data)
+st.session_state.wbs_data = calcola_evm(st.session_state.wbs_data, pd.Timestamp.today().date())
+
+# ==========================================
+# IMPOSTAZIONE GRAFICA (COLONNE E SCHERMO)
+# ==========================================
 
 # --- DIVISIONE DELLO SCHERMO ---
-col_save, col_sviluppo = st.columns([1, 12]) # Rapporto modificabile
+col_save, col_sviluppo = st.columns([1, 10]) # Rapporto 1 a 10 (Sinistra strettissima!)
 
 # ==========================================
 # COLONNA DI SINISTRA (PANNELLO DI CONTROLLO)
 # ==========================================
 with col_save:
-    st.markdown("PROGETTO")
+    st.markdown("### 📂 Progetto")
     
-    # Campo testo per dare un nome al progetto
     st.session_state.nome_progetto_attivo = st.text_input("Nome Progetto", value=st.session_state.nome_progetto_attivo, label_visibility="collapsed")
     
     st.markdown('<div class="btn-compatto">', unsafe_allow_html=True)
     
     # --- 1. MEMORIA DI SESSIONE ---
+    st.caption("MEMORIA SESSIONE")
+    c_save, c_dup = st.columns(2)
     
-    if st.button("💾 Salva", use_container_width=True):
+    if c_save.button("💾 Salva", use_container_width=True):
         st.session_state.archivio_progetti[st.session_state.nome_progetto_attivo] = {
             "wbs": st.session_state.wbs_data.copy(),
             "obs": st.session_state.obs_data.copy(),
@@ -59,7 +478,7 @@ with col_save:
         }
         st.success("Salvato!")
         
-    if st.button("📑 Duplica", use_container_width=True):
+    if c_dup.button("📑 Duplica", use_container_width=True):
         nuovo_nome = f"{st.session_state.nome_progetto_attivo}_Copia"
         st.session_state.archivio_progetti[nuovo_nome] = {
             "wbs": st.session_state.wbs_data.copy(),
@@ -83,8 +502,9 @@ with col_save:
                     del st.session_state[k]
             st.rerun()
 
-    if st.button("📄 Nuovo", use_container_width=True):
-        st.session_state.nome_progetto_attivo = "Nome"
+    st.divider()
+    if st.button("📄 Nuovo (Svuota Tutto)", use_container_width=True):
+        st.session_state.nome_progetto_attivo = "Nuovo_Progetto"
         for key in ['wbs_data', 'obs_data', 'registro_data', 'capa_data']:
             if key in st.session_state:
                 del st.session_state[key]
@@ -95,7 +515,7 @@ with col_save:
         
     # --- 2. ARCHIVIAZIONE SU PC (JSON) ---
     st.divider()
-    st.caption("ARCHIVIO PC")
+    st.caption("ARCHIVIO SU PC (JSON)")
     
     try:
         progetto_export = {
@@ -107,7 +527,7 @@ with col_save:
         json_string = json.dumps(progetto_export, indent=4)
         
         st.download_button(
-            label="⬇️ Scarica)",
+            label="⬇️ Scarica su PC (.json)",
             data=json_string,
             file_name=f"{st.session_state.nome_progetto_attivo}.json",
             mime="application/json",
@@ -122,31 +542,26 @@ with col_save:
             try:
                 dati_caricati = json.load(uploaded_file)
                 
-                # Ricarica WBS
                 df_wbs = pd.DataFrame(dati_caricati.get('wbs', []))
                 if df_wbs.empty:
                     df_wbs = pd.DataFrame([{'ID_WBS': '1', 'Attività': 'Progetto Principale', 'BAC_Budget': 0.0, '%_Completamento': 0.0, 'AC_Costo_Reale': 0.0, 'ID_OBS_Assegnato': None, 'Predecessori': ''}])
                 st.session_state.wbs_data = df_wbs
                 
-                # Ricarica OBS
                 df_obs = pd.DataFrame(dati_caricati.get('obs', []))
                 if df_obs.empty:
                     df_obs = pd.DataFrame(columns=['ID_OBS', 'Ruolo', 'Risorsa', 'Tipo_Contratto', 'Note'])
                 st.session_state.obs_data = df_obs
                 
-                # Ricarica Registro
                 df_reg = pd.DataFrame(dati_caricati.get('registro', []))
                 if df_reg.empty:
                     df_reg = pd.DataFrame(columns=['Data', 'N_Doc', 'Fornitore', 'Voce_WBS', 'Importo_Netto', 'Descrizione'])
                 st.session_state.registro_data = df_reg
                 
-                # Ricarica CAPA
                 df_capa = pd.DataFrame(dati_caricati.get('capa', []))
                 if df_capa.empty:
                     df_capa = pd.DataFrame(columns=['Data_Apertura', 'ID_WBS_Rif', 'Tipo_Azione', 'Descrizione', 'Responsabile_OBS', 'Stato'])
                 st.session_state.capa_data = df_capa
                 
-                # Formattazione sicura Date
                 for col in ['Inizio_Previsto', 'Fine_Prevista', 'Inizio_Effettivo', 'Fine_Effettiva']:
                     if col in st.session_state.wbs_data.columns:
                         st.session_state.wbs_data[col] = pd.to_datetime(st.session_state.wbs_data[col], errors='coerce').dt.date
@@ -173,7 +588,6 @@ with col_save:
 # ==========================================
 # COLONNA DI DESTRA (IL MOTORE DELL'APP)
 # ==========================================
-
 with col_sviluppo:
 
     st.markdown("""
@@ -198,429 +612,9 @@ with col_sviluppo:
     with col_title:
         st.title("Project Workflow & EVM Controller")
 
-    # --- SISTEMA DI LOGIN SICURO ---
-    try:
-        USER_ID = st.secrets["USER_ID"]
-        PASSWORD = st.secrets["PASSWORD"]
-    except KeyError:
-        st.error("⚠️ Errore di sistema: Credenziali non trovate. Configura i 'Secrets' di Streamlit.")
-        st.stop()
-
-    if st.query_params.get("auth") == "valid":
-        st.session_state.logged_in = True
-    elif 'logged_in' not in st.session_state:
-        st.session_state.logged_in = False
-
-    if not st.session_state.logged_in:
-        st.markdown("<br><br><h2 style='text-align: center;'>🔒 Accesso Riservato GECO</h2>", unsafe_allow_html=True)
-        col1, col2, col3 = st.columns([1, 2, 1])
-        with col2:
-            with st.form("login_form"):
-                user_input = st.text_input("ID Utente")
-                pass_input = st.text_input("Password", type="password")
-                submit = st.form_submit_button("Accedi al Gestionale", use_container_width=True)
-                
-                if submit:
-                    if user_input == USER_ID and pass_input == PASSWORD:
-                        st.session_state.logged_in = True
-                        st.query_params["auth"] = "valid" 
-                        st.rerun() 
-                    else:
-                        st.error("Credenziali errate. Riprova.")                
-        st.stop()
-
-    # --- 1. INIZIALIZZAZIONE DATI ---
-    if 'wbs_data' not in st.session_state:
-        st.session_state.wbs_data = pd.DataFrame([{
-            'ID_WBS': '1', 
-            'Attività': 'Progetto Principale', 
-            'Inizio_Previsto': None, 'Fine_Prevista': None, 
-            'Inizio_Effettivo': None, 'Fine_Effettiva': None, 
-            'BAC_Budget': 0.0, '%_Completamento': 0.0, 
-            'AC_Costo_Reale': 0.0, 'ID_OBS_Assegnato': None, 'Predecessori': ''
-        }])
-        
-    if 'obs_data' not in st.session_state:
-        st.session_state.obs_data = pd.DataFrame(columns=[
-            'ID_OBS', 'Ruolo', 'Risorsa', 'Tipo_Contratto', 'Note'
-        ])
-        
-    if 'registro_data' not in st.session_state:
-        st.session_state.registro_data = pd.DataFrame(columns=[
-            'Data', 'N_Doc', 'Fornitore', 'Voce_WBS', 'Importo_Netto', 'Descrizione'
-        ])
-
-    if 'capa_data' not in st.session_state:
-        st.session_state.capa_data = pd.DataFrame(columns=[
-            'Data_Apertura', 'ID_WBS_Rif', 'Tipo_Azione', 'Descrizione', 'Responsabile_OBS', 'Stato'
-        ])
-
-    if 'archivio_progetti' not in st.session_state:
-        st.session_state.archivio_progetti = {}
-    if 'nome_progetto_attivo' not in st.session_state:
-        st.session_state.nome_progetto_attivo = "Nome"
-
-    # --- 2. MOTORI MATEMATICI ---
-    def aggiorna_gerarchia(df):
-        df_calc = df.copy()
-        df_calc['BAC_Budget'] = pd.to_numeric(df_calc['BAC_Budget'], errors='coerce').fillna(0.0)
-        df_calc['AC_Costo_Reale'] = pd.to_numeric(df_calc['AC_Costo_Reale'], errors='coerce').fillna(0.0)
-        df_calc['%_Completamento'] = pd.to_numeric(df_calc['%_Completamento'], errors='coerce').fillna(0.0)
-        
-        for col in ['Inizio_Previsto', 'Fine_Prevista', 'Inizio_Effettivo', 'Fine_Effettiva']:
-            if col in df_calc.columns:
-                df_calc[col] = df_calc[col].astype(object)
-                
-        ids = df_calc['ID_WBS'].astype(str).tolist()
-        foglie = [uid for uid in ids if not any(other.startswith(uid + '.') for other in ids if other != uid)]
-        df_calc['Is_Leaf'] = df_calc['ID_WBS'].astype(str).isin(foglie)
-        
-        df_calc['Livello'] = df_calc['ID_WBS'].astype(str).apply(lambda x: len(x.split('.')))
-        df_calc = df_calc.sort_values(by='Livello', ascending=False)
-        
-        for index, row in df_calc.iterrows():
-            uid = str(row['ID_WBS'])
-            if not row['Is_Leaf']:
-                discendenti = df_calc[df_calc['ID_WBS'].astype(str).str.startswith(uid + '.') & df_calc['Is_Leaf']]
-                if not discendenti.empty:
-                    df_calc.at[index, 'BAC_Budget'] = discendenti['BAC_Budget'].sum()
-                    df_calc.at[index, 'AC_Costo_Reale'] = discendenti['AC_Costo_Reale'].sum()
-                    
-                    inizio_min = pd.to_datetime(discendenti['Inizio_Previsto']).min()
-                    fine_max = pd.to_datetime(discendenti['Fine_Prevista']).max()
-                    if pd.notna(inizio_min): df_calc.at[index, 'Inizio_Previsto'] = inizio_min.date()
-                    if pd.notna(fine_max): df_calc.at[index, 'Fine_Prevista'] = fine_max.date()
-                    
-                    inizio_eff_min = pd.to_datetime(discendenti['Inizio_Effettivo']).min()
-                    fine_eff_max = pd.to_datetime(discendenti['Fine_Effettiva']).max()
-                    if pd.notna(inizio_eff_min): df_calc.at[index, 'Inizio_Effettivo'] = inizio_eff_min.date()
-                    if pd.notna(fine_eff_max): df_calc.at[index, 'Fine_Effettiva'] = fine_eff_max.date()
-                    
-                    tot_bac = discendenti['BAC_Budget'].sum()
-                    if tot_bac > 0:
-                        df_calc.at[index, '%_Completamento'] = (discendenti['BAC_Budget'] * discendenti['%_Completamento']).sum() / tot_bac
-                    else:
-                        df_calc.at[index, '%_Completamento'] = discendenti['%_Completamento'].mean()
-                        
-        df_calc['sort_key'] = df_calc['ID_WBS'].astype(str).apply(lambda x: '.'.join([p.zfill(5) for p in x.split('.')]))
-        df_calc = df_calc.sort_values(by='sort_key').drop(columns=['sort_key', 'Is_Leaf', 'Livello']).reset_index(drop=True)
-        return df_calc
-
-    def modifica_struttura(id_target, azione):
-        df = st.session_state.wbs_data.copy()
-        
-        def get_sort_key(wbs_id):
-            return [int(x) if x.isdigit() else x for x in str(wbs_id).split('.')]
-        
-        df['sort_key'] = df['ID_WBS'].apply(get_sort_key)
-        df = df.sort_values(by='sort_key').reset_index(drop=True)
-        df['Livello'] = df['ID_WBS'].apply(lambda x: len(str(x).split('.')))
-        
-        if azione == 'elimina':
-            mask = (df['ID_WBS'].astype(str) == id_target) | (df['ID_WBS'].astype(str).str.startswith(f"{id_target}."))
-            df = df[~mask].reset_index(drop=True) 
-            
-            if df.empty:
-                df = pd.DataFrame([{'ID_WBS': '1', 'Attività': 'Progetto Principale', 'BAC_Budget': 0.0, '%_Completamento': 0.0, 'AC_Costo_Reale': 0.0, 'Livello': 1}])
-                st.session_state.wbs_data = df.drop(columns=['Livello'])
-                st.session_state['tracker_id'] = None
-                for k in list(st.session_state.keys()):
-                    if k.startswith("editor_wbs_"): 
-                        del st.session_state[k]
-                st.rerun()
-                
-        elif azione in ['su', 'giu', 'destra', 'sinistra']:
-            ids = df['ID_WBS'].astype(str).tolist()
-            if id_target not in ids: return
-            idx = ids.index(id_target)
-            livello_target = df.at[idx, 'Livello']
-            
-            end_idx = idx + 1
-            while end_idx < len(df) and df.at[end_idx, 'Livello'] > livello_target:
-                end_idx += 1
-            blocco_target = list(range(idx, end_idx))
-            
-            if azione == 'destra':
-                if idx > 0 and df.at[idx - 1, 'Livello'] >= livello_target: df.loc[blocco_target, 'Livello'] += 1
-            elif azione == 'sinistra':
-                if livello_target > 1: df.loc[blocco_target, 'Livello'] -= 1
-            elif azione == 'su':
-                prev_idx = idx - 1
-                while prev_idx >= 0 and df.at[prev_idx, 'Livello'] > livello_target: prev_idx -= 1
-                if prev_idx >= 0 and df.at[prev_idx, 'Livello'] == livello_target:
-                    blocco_prev = list(range(prev_idx, idx))
-                    new_order = list(range(len(df)))
-                    new_order[prev_idx:end_idx] = blocco_target + blocco_prev
-                    df = df.iloc[new_order].reset_index(drop=True)
-            elif azione == 'giu':
-                next_idx = end_idx
-                if next_idx < len(df) and df.at[next_idx, 'Livello'] == livello_target:
-                    next_end = next_idx + 1
-                    while next_end < len(df) and df.at[next_end, 'Livello'] > livello_target: next_end += 1
-                    blocco_next = list(range(next_idx, next_end))
-                    new_order = list(range(len(df)))
-                    new_order[idx:next_end] = blocco_next + blocco_target
-                    df = df.iloc[new_order].reset_index(drop=True)
-
-        nuovi_id = []
-        counters = {} 
-        
-        for idx, row in df.iterrows():
-            liv = row['Livello']
-            if idx == 0: liv = 1
-            else:
-                prev_liv = df.at[idx-1, 'Livello']
-                if liv > prev_liv + 1: liv = prev_liv + 1 
-                    
-            df.at[idx, 'Livello'] = liv
-            counters[liv] = counters.get(liv, 0) + 1
-            for k in list(counters.keys()):
-                if k > liv: counters[k] = 0 
-                    
-            nuovo_id = ".".join([str(counters[i]) for i in range(1, liv + 1)])
-            nuovi_id.append(nuovo_id)
-            
-        old_ids = df['ID_WBS'].astype(str).tolist()
-        mapping = dict(zip(old_ids, nuovi_id))
-        
-        def aggiorna_preds(val):
-            if not val or pd.isna(val) or str(val).strip() in ['', 'None', 'nan']: return val
-            preds = [p.strip() for p in str(val).split(',')]
-            new_preds = []
-            for p in preds:
-                parts = p.split(' - ', 1)
-                vecchio_id = parts[0].strip()
-                nuovo_id = mapping.get(vecchio_id, vecchio_id)
-                if len(parts) > 1: new_preds.append(f"{nuovo_id} - {parts[1]}")
-                else: new_preds.append(nuovo_id)
-            return ', '.join(new_preds)
-            
-        df['ID_WBS'] = nuovi_id
-        if 'Predecessori' in df.columns:
-            df['Predecessori'] = df['Predecessori'].apply(aggiorna_preds)
-            
-        df = df.drop(columns=['Livello', 'sort_key'])
-        
-        st.session_state.wbs_data = df.copy()
-        st.session_state.wbs_data = aggiorna_gerarchia(st.session_state.wbs_data)
-        
-        # --- MEMORIZZATORE ID ---
-        if azione != 'elimina':
-            st.session_state['tracker_id'] = mapping.get(id_target, id_target)
-        else:
-            st.session_state['tracker_id'] = None
-            
-        for k in list(st.session_state.keys()):
-            if k.startswith("editor_wbs_"):
-                del st.session_state[k]
-                
-        st.rerun()
-        
-    def get_foglie(df):
-        ids = df['ID_WBS'].astype(str).tolist()
-        foglie = [uid for uid in ids if not any(other.startswith(uid + '.') for other in ids if other != uid)]
-        return df[df['ID_WBS'].astype(str).isin(foglie)].copy()
-
-    def aggiorna_costi_reali():
-        df_reg = st.session_state.registro_data.copy()
-        if not df_reg.empty:
-            df_reg['ID_WBS_calc'] = df_reg['Voce_WBS'].astype(str).apply(
-                lambda x: str(x).split(' - ')[0].strip() if pd.notna(x) and str(x).strip() not in ['', 'None', 'nan'] else None
-            )
-            costi_raggruppati = df_reg.groupby('ID_WBS_calc')['Importo_Netto'].sum().reset_index()
-            cost_map = dict(zip(costi_raggruppati['ID_WBS_calc'], costi_raggruppati['Importo_Netto']))
-            wbs = st.session_state.wbs_data
-            wbs['AC_Costo_Reale'] = wbs['ID_WBS'].apply(lambda x: cost_map.get(str(x), 0.0))
-            st.session_state.wbs_data = wbs
-
-    def calcola_evm(df, data_status):
-        oggi = pd.to_datetime(data_status).date()
-        df['BAC_Budget'] = pd.to_numeric(df['BAC_Budget'], errors='coerce').fillna(0.0)
-        df['%_Completamento'] = pd.to_numeric(df['%_Completamento'], errors='coerce').fillna(0.0)
-        df['AC_Costo_Reale'] = pd.to_numeric(df['AC_Costo_Reale'], errors='coerce').fillna(0.0)
-        
-        def calcola_pv(row):
-            try:
-                inizio_ts = pd.to_datetime(row['Inizio_Previsto'])
-                fine_ts = pd.to_datetime(row['Fine_Prevista'])
-                bac = float(row['BAC_Budget'])
-                
-                if pd.isna(inizio_ts) or pd.isna(fine_ts) or bac == 0: 
-                    return 0.0
-                inizio = inizio_ts.date()
-                fine = fine_ts.date()
-                
-                if oggi >= fine: return bac 
-                if oggi <= inizio: return 0.0 
-                
-                giorni_totali = (fine - inizio).days
-                giorni_trascorsi = (oggi - inizio).days
-                if giorni_totali <= 0: return bac
-                return bac * (giorni_trascorsi / giorni_totali)
-            except Exception:
-                return 0.0
-
-        df['PV'] = df.apply(calcola_pv, axis=1)
-        df['EV'] = df['BAC_Budget'] * (df['%_Completamento'] / 100.0)
-        df['CV'] = df['EV'] - df['AC_Costo_Reale'] 
-        df['SV'] = df['EV'] - df['PV']               
-        
-        df['SPI'] = df.apply(lambda x: (x['EV'] / x['PV']) if x['PV'] > 0 else (1.0 if x['EV']==0 else 1.1), axis=1)
-        df['CPI'] = df.apply(lambda x: (x['EV'] / x['AC_Costo_Reale']) if x['AC_Costo_Reale'] > 0 else (1.0 if x['EV']==0 else 1.1), axis=1)
-
-        df['EAC'] = df.apply(lambda x: x['BAC_Budget'] / x['CPI'] if x['CPI'] > 0 else x['BAC_Budget'], axis=1)
-        df['ETC'] = df['EAC'] - df['AC_Costo_Reale']
-        df['VAC'] = df['BAC_Budget'] - df['EAC']
-        return df
-
-    def genera_dati_scurve(df_wbs, df_reg, data_status):
-        oggi = pd.to_datetime(data_status).date()
-        date_inizio = pd.to_datetime(df_wbs['Inizio_Previsto']).dropna().dt.date
-        date_fine = pd.to_datetime(df_wbs['Fine_Prevista']).dropna().dt.date
-        
-        if date_inizio.empty or date_fine.empty:
-            return None
-            
-        min_date = date_inizio.min()
-        max_date = date_fine.max()
-        date_range = pd.date_range(start=min_date, end=max_date)
-        
-        df_reg_calc = df_reg.copy()
-        if not df_reg_calc.empty:
-            df_reg_calc['Data'] = pd.to_datetime(df_reg_calc['Data'], errors='coerce').dt.date
-            ac_daily = df_reg_calc.groupby('Data')['Importo_Netto'].sum().to_dict()
-        else:
-            ac_daily = {}
-        
-        dati = []
-        cum_ac = 0.0
-        
-        for d_ts in date_range:
-            d = d_ts.date()
-            pv_giorno = 0.0
-            ev_giorno = 0.0
-            
-            for _, row in df_wbs.iterrows():
-                bac = float(row['BAC_Budget']) if pd.notna(row['BAC_Budget']) else 0.0
-                ip = pd.to_datetime(row['Inizio_Previsto']).date() if pd.notna(row['Inizio_Previsto']) else None
-                fp = pd.to_datetime(row['Fine_Prevista']).date() if pd.notna(row['Fine_Prevista']) else None
-                if ip and fp and bac > 0:
-                    if d >= fp: 
-                        pv_giorno += bac
-                    elif d > ip:
-                        giorni_tot = (fp - ip).days
-                        if giorni_tot > 0:
-                            pv_giorno += bac * ((d - ip).days / giorni_tot)
-                            
-                if d <= oggi:
-                    ev_attuale = float(row['EV']) if 'EV' in row else 0.0
-                    ie = pd.to_datetime(row['Inizio_Effettivo']).date() if pd.notna(row['Inizio_Effettivo']) else ip
-                    if ie and ev_attuale > 0:
-                        if d >= oggi:
-                            ev_giorno += ev_attuale
-                        elif d > ie:
-                            giorni_lav = (oggi - ie).days
-                            if giorni_lav > 0:
-                                ev_giorno += ev_attuale * ((d - ie).days / giorni_lav)
-            
-            if d <= oggi:
-                cum_ac += ac_daily.get(d, 0.0)
-                ac_val = cum_ac
-                ev_val = ev_giorno
-            else:
-                ac_val = None
-                ev_val = None
-                
-            dati.append({'Data': d, 'PV (Valore Pianificato)': pv_giorno, 'EV (Valore Guadagnato)': ev_val, 'AC (Costo Reale)': ac_val})
-        return pd.DataFrame(dati)
-
-    def calcola_cpm(df_wbs):
-        df_wp = get_foglie(df_wbs)
-        cpm_nodes = {}
-        
-        for _, row in df_wp.iterrows():
-            node_id = str(row['ID_WBS']).strip()
-            inizio = pd.to_datetime(row['Inizio_Previsto'], errors='coerce')
-            fine = pd.to_datetime(row['Fine_Prevista'], errors='coerce')
-            
-            durata = max((fine - inizio).days + 1, 1) if pd.notna(inizio) and pd.notna(fine) else 1
-            
-            pred_val = str(row.get('Predecessori', '')).strip()
-            preds = []
-            if pred_val and pred_val.lower() not in ['none', 'nan', 'null']:
-                for p in pred_val.split(','):
-                    p_id = p.split(' - ')[0].strip()
-                    if p_id.endswith('.0'): p_id = p_id[:-2]
-                    if p_id: preds.append(p_id)
-            
-            cpm_nodes[node_id] = {
-                'durata': durata, 'preds': preds, 'succs': [],
-                'ES': 0, 'EF': 0, 'LS': 0, 'LF': 0, 'slack': 0, 'is_critical': False
-            }
-            
-        for n_id, data in cpm_nodes.items():
-            for p_id in data['preds']:
-                if p_id in cpm_nodes:
-                    cpm_nodes[p_id]['succs'].append(n_id)
-                    
-        # FIX: Loop counter per impedire il blocco del programma se si inseriscono dipendenze incrociate per sbaglio!
-        changed = True
-        loop_counter = 0
-        while changed and loop_counter < 1000:
-            loop_counter += 1
-            changed = False
-            for n_id, data in cpm_nodes.items():
-                max_ef = 0
-                for p_id in data['preds']:
-                    if p_id in cpm_nodes:
-                        max_ef = max(max_ef, cpm_nodes[p_id]['EF'])
-                new_es = max_ef
-                new_ef = new_es + data['durata']
-                if new_es != data['ES'] or new_ef != data['EF']:
-                    data['ES'] = new_es; data['EF'] = new_ef; changed = True
-                    
-        project_duration = max([data['EF'] for data in cpm_nodes.values()], default=0)
-        for n_id, data in cpm_nodes.items():
-            data['LF'] = project_duration
-            data['LS'] = data['LF'] - data['durata']
-            
-        changed = True
-        loop_counter = 0
-        while changed and loop_counter < 1000:
-            loop_counter += 1
-            changed = False
-            for n_id, data in cpm_nodes.items():
-                min_ls = data['LF'] 
-                if len(data['succs']) > 0:
-                    min_ls = min([cpm_nodes[s_id]['LS'] for s_id in data['succs'] if s_id in cpm_nodes])
-                new_lf = min_ls
-                new_ls = new_lf - data['durata']
-                if new_lf != data['LF'] or new_ls != data['LS']:
-                    data['LF'] = new_lf; data['LS'] = new_ls; changed = True
-                    
-        for n_id, data in cpm_nodes.items():
-            data['slack'] = data['LS'] - data['ES']
-            if data['slack'] <= 0:
-                data['is_critical'] = True
-                
-        return cpm_nodes
-
-    # --- 3. ESECUZIONE CALCOLI INIZIALI ---
-    aggiorna_costi_reali()
-    st.session_state.wbs_data = aggiorna_gerarchia(st.session_state.wbs_data)
-    st.session_state.wbs_data = calcola_evm(st.session_state.wbs_data, pd.Timestamp.today().date())
-
     # --- CREAZIONE TAB ---
     tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
-        "🗂️ WBS (Lavorazioni)", 
-        "👥 OBS (Risorse)", 
-        "🕸️ Nodi & Matrice", 
-        "📅 Cronoprogramma", 
-        "📈 Earned Value & Cash Flow",
-        "🧾 Reg. Contabile",
-        "🛠️ Direzione & CAPA"
-    ])
-
+        
     # --- TAB 1: SETUP WBS ---
     with tab1:
         st.header("WBS - Work Breakdown Structure")
