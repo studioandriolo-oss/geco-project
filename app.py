@@ -94,6 +94,11 @@ if 'capa_data' not in st.session_state:
         'Data_Apertura', 'ID_WBS_Rif', 'Tipo_Azione', 'Descrizione', 'Responsabile_OBS', 'Stato'
     ])
 
+if 'rischi_data' not in st.session_state:
+    st.session_state.rischi_data = pd.DataFrame(columns=[
+        'ID_WBS_Rif', 'Descrizione_Rischio', 'Probabilità (1-5)', 'Impatto (1-5)', 'Stato'
+    ])
+    
 if 'archivio_progetti' not in st.session_state:
     st.session_state.archivio_progetti = {}
 if 'nome_progetto_attivo' not in st.session_state:
@@ -519,7 +524,8 @@ with col_save:
             "wbs": json.loads(st.session_state.wbs_data.to_json(orient="records", date_format="iso")),
             "obs": json.loads(st.session_state.obs_data.to_json(orient="records")),
             "registro": json.loads(st.session_state.registro_data.to_json(orient="records", date_format="iso")),
-            "capa": json.loads(st.session_state.capa_data.to_json(orient="records", date_format="iso"))
+            "capa": json.loads(st.session_state.capa_data.to_json(orient="records", date_format="iso")),
+            "rischi": json.loads(st.session_state.rischi_data.to_json(orient="records"))
         }
         json_string = json.dumps(progetto_export, indent=4)
         
@@ -558,6 +564,11 @@ with col_save:
                 if df_capa.empty:
                     df_capa = pd.DataFrame(columns=['Data_Apertura', 'ID_WBS_Rif', 'Tipo_Azione', 'Descrizione', 'Responsabile_OBS', 'Stato'])
                 st.session_state.capa_data = df_capa
+
+                df_rischi = pd.DataFrame(dati_caricati.get('rischi', []))
+                if df_rischi.empty:
+                    df_rischi = pd.DataFrame(columns=['ID_WBS_Rif', 'Descrizione_Rischio', 'Probabilità (1-5)', 'Impatto (1-5)', 'Stato'])
+                st.session_state.rischi_data = df_rischi
                 
                 for col in ['Inizio_Previsto', 'Fine_Prevista', 'Inizio_Effettivo', 'Fine_Effettiva']:
                     if col in st.session_state.wbs_data.columns:
@@ -1435,3 +1446,88 @@ with col_sviluppo:
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             type="primary"
         )
+        
+    # --- TAB 8: MATRICE DEI RISCHI (RISK MANAGEMENT) ---
+    with tab8:
+        st.header("Matrice di Rischio Strategico")
+        st.markdown("Valuta e mappa i rischi associati alle singole lavorazioni (WBS) assegnando un punteggio da **1 (Minimo)** a **5 (Massimo)**.")
+        
+        leaf_wbs_rischi = get_foglie(st.session_state.wbs_data)
+        wbs_options_rischi = [f"{row['ID_WBS']} - {row['Attività']}" for _, row in leaf_wbs_rischi.iterrows()]
+        
+        st.subheader("1. Registro dei Rischi (Risk Register)")
+        
+        edited_rischi = st.data_editor(
+            st.session_state.rischi_data, num_rows="dynamic", use_container_width=True, hide_index=True,
+            column_config={
+                "ID_WBS_Rif": st.column_config.SelectboxColumn("Attività WBS (Rif.)", options=wbs_options_rischi),
+                "Descrizione_Rischio": st.column_config.TextColumn("Descrizione / Nome del Rischio", width="large"),
+                "Probabilità (1-5)": st.column_config.NumberColumn("Probabilità (1=Rara, 5=Certa)", min_value=1, max_value=5, step=1),
+                "Impatto (1-5)": st.column_config.NumberColumn("Impatto (1=Lieve, 5=Critico)", min_value=1, max_value=5, step=1),
+                "Stato": st.column_config.SelectboxColumn("Stato", options=["Attivo ▾", "Monitorato ▾", "Mitigato ▾", "Chiuso ▾"])
+            }
+        )
+        
+        st.divider()
+        st.warning("⚠️ **Ricordati di cliccare il tasto rosso qui sotto dopo aver modificato o aggiunto i rischi!**")
+        if st.button("💾 SALVA REGISTRO RISCHI E AGGIORNA GRAFICO", type="primary", use_container_width=True):
+            st.session_state.rischi_data = edited_rischi
+            st.success("✅ Rischi mappati con successo!")
+            st.rerun()
+            
+        st.divider()
+        st.subheader("2. Mappa di Calore Operativa (Heatmap)")
+        
+        df_plot = st.session_state.rischi_data.copy()
+        df_plot = df_plot.dropna(subset=['Probabilità (1-5)', 'Impatto (1-5)'])
+        
+        if not df_plot.empty:
+            df_plot['Probabilità (1-5)'] = pd.to_numeric(df_plot['Probabilità (1-5)'])
+            df_plot['Impatto (1-5)'] = pd.to_numeric(df_plot['Impatto (1-5)'])
+            df_plot['Punteggio'] = df_plot['Probabilità (1-5)'] * df_plot['Impatto (1-5)']
+            
+            fig_risk = go.Figure()
+            
+            # --- 4 QUADRANTI COLORATI ---
+            fig_risk.add_shape(type="rect", x0=0.5, y0=0.5, x1=3, y1=3, fillcolor="#E8F5E9", line_width=0, layer="below")
+            fig_risk.add_shape(type="rect", x0=0.5, y0=3, x1=3, y1=5.5, fillcolor="#FFFDE7", line_width=0, layer="below")
+            fig_risk.add_shape(type="rect", x0=3, y0=0.5, x1=5.5, y1=3, fillcolor="#FFFDE7", line_width=0, layer="below")
+            fig_risk.add_shape(type="rect", x0=3, y0=3, x1=5.5, y1=5.5, fillcolor="#FFEBEE", line_width=0, layer="below")
+            
+            # Linee tratteggiate a Croce
+            fig_risk.add_hline(y=3, line_dash="dash", line_color="gray", line_width=2)
+            fig_risk.add_vline(x=3, line_dash="dash", line_color="gray", line_width=2)
+            
+            # --- TRACCE FANTASMA PER LA LEGENDA GRAFICA ---
+            fig_risk.add_trace(go.Scatter(x=[None], y=[None], mode='markers', marker=dict(size=18, color='#E8F5E9', symbol='square', line=dict(color='gray', width=1)), name='Safe-Zone (Rischio Controllato)'))
+            fig_risk.add_trace(go.Scatter(x=[None], y=[None], mode='markers', marker=dict(size=18, color='#FFFDE7', symbol='square', line=dict(color='gray', width=1)), name='Area di Attenzione'))
+            fig_risk.add_trace(go.Scatter(x=[None], y=[None], mode='markers', marker=dict(size=18, color='#FFEBEE', symbol='square', line=dict(color='gray', width=1)), name='Area Critica'))
+            
+            # --- I PUNTI DEI RISCHI (COLORATI IN BASE ALLO STATO) ---
+            colori_stato = {"Attivo ▾": "#F44336", "Monitorato ▾": "#FF9800", "Mitigato ▾": "#4CAF50", "Chiuso ▾": "#9E9E9E"}
+            df_plot['Colore_Punto'] = df_plot['Stato'].map(colori_stato).fillna("#607D8B")
+            
+            fig_risk.add_trace(go.Scatter(
+                x=df_plot['Probabilità (1-5)'], y=df_plot['Impatto (1-5)'],
+                mode='markers+text',
+                text=df_plot['ID_WBS_Rif'].apply(lambda x: str(x).split(' - ')[0] if pd.notna(x) else ""),
+                textposition="top center",
+                textfont=dict(size=12, color='DarkSlateGrey', family="Arial Black"),
+                marker=dict(size=18, color=df_plot['Colore_Punto'], line=dict(width=2, color='white')),
+                showlegend=False,
+                hovertemplate="<b>WBS: %{text}</b><br>Rischio: %{customdata[0]}<br>Probabilità: %{x}<br>Impatto: %{y}<br>Punteggio: %{customdata[2]}<br>Stato: %{customdata[1]}<extra></extra>",
+                customdata=df_plot[['Descrizione_Rischio', 'Stato', 'Punteggio']]
+            ))
+            
+            fig_risk.update_layout(
+                xaxis=dict(title="<b>Probabilità di Accadimento (1-5)</b>", range=[0.5, 5.5], dtick=1, gridcolor='white', zeroline=False),
+                yaxis=dict(title="<b>Impatto sul Progetto (1-5)</b>", range=[0.5, 5.5], dtick=1, gridcolor='white', zeroline=False),
+                height=600, plot_bgcolor='white', margin=dict(l=60, r=40, t=40, b=60),
+                legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01, bgcolor="rgba(255, 255, 255, 0.9)", bordercolor="lightgray", borderwidth=1)
+            )
+            
+            st.plotly_chart(fig_risk, use_container_width=True)
+            
+            st.markdown("**Legenda Stato Rischi:** 🔴 `Attivo` | 🟠 `Monitorato` | 🟢 `Mitigato` | ⚪ `Chiuso`")
+        else:
+            st.info("ℹ️ Compila i valori numerici (da 1 a 5) nella colonna Probabilità e Impatto della tabella qui sopra per generare la matrice.")
