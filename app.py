@@ -14,25 +14,33 @@ import base64
 # --- CONFIGURAZIONE PAGINA ---
 st.set_page_config(page_title="WBS/OBS Manager & EVM", layout="wide", initial_sidebar_state="expanded")
 
-# --- RIMOZIONE MIRATA DEI PULSANTI ---
+# --- RIMOZIONE DEFINITIVA MENU E PULSANTI (Salva Sidebar) ---
 nascondi_menu_style = """
     <style>
-    /* 1. Cecchino sul menu ad hamburger */
-    #MainMenu {visibility: hidden;}
+    /* 1. Nasconde hamburger e footer classici */
+    #MainMenu {visibility: hidden !important;}
+    footer {visibility: hidden !important;}
     
-    /* 2. Cecchino sul footer "Made with Streamlit" */
-    footer {visibility: hidden;}
+    /* 2. Retata su tutti i nomi in codice noti di Streamlit */
+    .stAppDeployButton, .stDeployButton {display: none !important;}
+    [data-testid="stToolbar"], [data-testid="stHeaderActionElements"] {display: none !important;}
     
-    /* 3. Cecchino sul bottone "Deploy" (copre sia le versioni nuove che vecchie di Streamlit) */
-    .stDeployButton {display: none;}
-    .stAppDeployButton {display: none;}
+    /* 3. IL COLPO DI GRAZIA GEOMETRICO: 
+       L'intestazione ha due "scatole" (sinistra per la sidebar, destra per i bottoni).
+       Noi disintegriamo l'ultima scatola a destra, a prescindere dal nome! */
+    header[data-testid="stHeader"] > div:last-child {
+        display: none !important;
+    }
     
-    /* 4. Cecchino sul blocco delle icone in alto a destra (GitHub, ecc) */
-    [data-testid="stHeaderActionElements"] {display: none;}
+    /* Riduce lo spazio bianco */
+    .block-container {
+        padding-top: 2rem;
+        padding-bottom: 2rem;
+    }
     </style>
 """
 st.markdown(nascondi_menu_style, unsafe_allow_html=True)
-# ---------------------------------------------------------
+# -------------------------------------------------------------
 
 st.markdown("""
     <style>
