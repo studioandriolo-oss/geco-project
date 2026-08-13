@@ -629,7 +629,7 @@ with col_sviluppo:
         "📈 Earned Value & Cash Flow",
         "🧾 Reg. Contabile",
         "🛠️ Direzione & CAPA",
-        "Risk Management"
+        "🚦 Risk Management"
     ])
         
     # --- TAB 1: SETUP WBS ---
@@ -1448,7 +1448,10 @@ with col_sviluppo:
             type="primary"
         )
         
+    # ---------------------------------------------------
     # --- TAB 8: MATRICE DEI RISCHI (RISK MANAGEMENT) ---
+    # ---------------------------------------------------
+    
     with tab8:
         st.header("Matrice di Rischio Strategico")
         st.markdown("Valuta e mappa i rischi associati alle singole lavorazioni (WBS) assegnando un punteggio da **1 (Minimo)** a **5 (Massimo)**.")
@@ -1479,6 +1482,9 @@ with col_sviluppo:
         st.divider()
         st.subheader("2. Mappa di Calore Operativa (Heatmap)")
         
+        # IL TUO NUOVO INTERRUTTORE
+        mostra_nomi = st.toggle("👁️ Mostra nomi completi delle attività sul grafico", value=False)
+        
         df_plot = st.session_state.rischi_data.copy()
         df_plot = df_plot.dropna(subset=['Probabilità (1-5)', 'Impatto (1-5)'])
         
@@ -1504,6 +1510,12 @@ with col_sviluppo:
             fig_risk.add_trace(go.Scatter(x=[None], y=[None], mode='markers', marker=dict(size=18, color='#FFFDE7', symbol='square', line=dict(color='gray', width=1)), name='Area di Attenzione'))
             fig_risk.add_trace(go.Scatter(x=[None], y=[None], mode='markers', marker=dict(size=18, color='#FFEBEE', symbol='square', line=dict(color='gray', width=1)), name='Area Critica'))
             
+            # Logica dell'interruttore: Testo Lungo vs ID Corto
+            if mostra_nomi:
+                etichette_punti = df_plot['ID_WBS_Rif'].apply(lambda x: str(x) if pd.notna(x) else "")
+            else:
+                etichette_punti = df_plot['ID_WBS_Rif'].apply(lambda x: str(x).split(' - ')[0] if pd.notna(x) else "")
+
             # --- I PUNTI DEI RISCHI (COLORATI IN BASE ALLO STATO) ---
             colori_stato = {"Attivo ▾": "#F44336", "Monitorato ▾": "#FF9800", "Mitigato ▾": "#4CAF50", "Chiuso ▾": "#9E9E9E"}
             df_plot['Colore_Punto'] = df_plot['Stato'].map(colori_stato).fillna("#607D8B")
@@ -1511,7 +1523,7 @@ with col_sviluppo:
             fig_risk.add_trace(go.Scatter(
                 x=df_plot['Probabilità (1-5)'], y=df_plot['Impatto (1-5)'],
                 mode='markers+text',
-                text=df_plot['ID_WBS_Rif'].apply(lambda x: str(x).split(' - ')[0] if pd.notna(x) else ""),
+                text=etichette_punti,
                 textposition="top center",
                 textfont=dict(size=12, color='DarkSlateGrey', family="Arial Black"),
                 marker=dict(size=18, color=df_plot['Colore_Punto'], line=dict(width=2, color='white')),
@@ -1520,10 +1532,26 @@ with col_sviluppo:
                 customdata=df_plot[['Descrizione_Rischio', 'Stato', 'Punteggio']]
             ))
             
+            # --- IL PALLINO ROSSO GIGANTE DEL RISCHIO MEDIO ---
+            media_prob = df_plot['Probabilità (1-5)'].mean()
+            media_imp = df_plot['Impatto (1-5)'].mean()
+            
+            fig_risk.add_trace(go.Scatter(
+                x=[media_prob], 
+                y=[media_imp],
+                mode='markers+text',
+                text=["RISCHIO MEDIO"],
+                textposition="bottom center",
+                textfont=dict(size=14, color='DarkRed', family="Arial Black"),
+                marker=dict(size=35, color='rgba(255, 0, 0, 0.7)', line=dict(width=3, color='DarkRed')),
+                showlegend=False,
+                hovertemplate="<b>RISCHIO GLOBALE MEDIO</b><br>Probabilità Media: %{x:.2f}<br>Impatto Medio: %{y:.2f}<extra></extra>"
+            ))
+            
             fig_risk.update_layout(
                 xaxis=dict(title="<b>Probabilità di Accadimento (1-5)</b>", range=[0.5, 5.5], dtick=1, gridcolor='white', zeroline=False),
                 yaxis=dict(title="<b>Impatto sul Progetto (1-5)</b>", range=[0.5, 5.5], dtick=1, gridcolor='white', zeroline=False),
-                height=600, plot_bgcolor='white', margin=dict(l=60, r=40, t=40, b=60),
+                height=650, plot_bgcolor='white', margin=dict(l=60, r=40, t=40, b=60),
                 legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01, bgcolor="rgba(255, 255, 255, 0.9)", bordercolor="lightgray", borderwidth=1)
             )
             
