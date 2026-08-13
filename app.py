@@ -15,10 +15,33 @@ import base64
 st.set_page_config(page_title="WBS/OBS Manager & EVM", layout="wide", initial_sidebar_state="expanded")
 
 # --- RIMOZIONE TOTALE HEADER E STILE COLONNA COMPATTA ---
+# --- RIMOZIONE TOTALE HEADER, SIDEBAR E STILE COLONNA COMPATTA ---
 stile_geniale = """
     <style>
-    /* 1. Distruzione totale della barra superiore (nessun prigioniero) */
+    /* 1. Distruzione totale della barra superiore */
     header[data-testid="stHeader"] {display: none !important;}
+    
+    /* 2. Via menu, footer e vecchia SIDEBAR nativa */
+    #MainMenu, footer, [data-testid="stSidebar"], [data-testid="collapsedControl"] {display: none !important;}
+    
+    /* 3. Riduciamo i margini bianchi della pagina */
+    .block-container {
+        padding-top: 1rem !important;
+        padding-bottom: 1rem !important;
+        max-width: 98% !important;
+    }
+    
+    /* 4. Stile per la TUA nuova colonna sinistra (bottoni piccoli e compatti) */
+    .btn-compatto button {
+        padding: 0.2rem 0.5rem !important;
+        min-height: 30px !important;
+        font-size: 0.85rem !important;
+        margin-bottom: 0px !important;
+    }
+    </style>
+"""
+st.markdown(stile_geniale, unsafe_allow_html=True)
+# --------------------------------------------------------
     
     /* 2. Via menu e footer */
     #MainMenu, footer {display: none !important;}
@@ -1334,123 +1357,3 @@ with col_sviluppo:
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             type="primary"
         )
-
-# --- SIDEBAR: GESTIONE PROGETTI A SCOMPARSA ---
-with st.sidebar:
-    st.header("📂 Gestione Progetti")
-    
-    st.session_state.nome_progetto_attivo = st.text_input("Nome Progetto Attuale", value=st.session_state.nome_progetto_attivo)
-    
-    c_save, c_dup = st.columns(2)
-    if c_save.button("💾 Salva in Memoria", use_container_width=True):
-        st.session_state.archivio_progetti[st.session_state.nome_progetto_attivo] = {
-            "wbs": st.session_state.wbs_data.copy(),
-            "obs": st.session_state.obs_data.copy(),
-            "registro": st.session_state.registro_data.copy(),
-            "capa": st.session_state.capa_data.copy()
-        }
-        st.success("Progetto salvato in memoria temporanea!")
-        
-    if c_dup.button("📑 Duplica", use_container_width=True):
-        nuovo_nome = f"{st.session_state.nome_progetto_attivo}_Copia"
-        st.session_state.archivio_progetti[nuovo_nome] = {
-            "wbs": st.session_state.wbs_data.copy(),
-            "obs": st.session_state.obs_data.copy(),
-            "registro": st.session_state.registro_data.copy(),
-            "capa": st.session_state.capa_data.copy()
-        }
-        st.session_state.nome_progetto_attivo = nuovo_nome
-        st.success("Progetto duplicato!")
-        st.rerun()
-
-    if st.session_state.archivio_progetti:
-        st.divider()
-        st.write("🔄 **Progetti in memoria (Sessione attuale)**")
-        prog_selezionato = st.selectbox("Seleziona da caricare", options=list(st.session_state.archivio_progetti.keys()), label_visibility="collapsed")
-        if st.button("📂 Apri Progetto", use_container_width=True):
-            st.session_state.wbs_data = st.session_state.archivio_progetti[prog_selezionato]["wbs"].copy()
-            st.session_state.obs_data = st.session_state.archivio_progetti[prog_selezionato]["obs"].copy()
-            st.session_state.registro_data = st.session_state.archivio_progetti[prog_selezionato]["registro"].copy()
-            st.session_state.capa_data = st.session_state.archivio_progetti[prog_selezionato]["capa"].copy()
-            st.session_state.nome_progetto_attivo = prog_selezionato
-            for k in list(st.session_state.keys()):
-                if k.startswith("editor_wbs_"):
-                    del st.session_state[k]
-            st.rerun()
-
-    st.divider()
-    if st.button("📄 Nuovo Progetto (Reset Dati)", use_container_width=True):
-        st.session_state.nome_progetto_attivo = "Nuovo_Progetto"
-        for key in ['wbs_data', 'obs_data', 'registro_data', 'capa_data']:
-            if key in st.session_state:
-                del st.session_state[key]
-        for k in list(st.session_state.keys()):
-            if k.startswith("editor_wbs_"):
-                del st.session_state[k]
-        st.rerun()
-        
-    st.divider()
-    st.write("💾 **Archiviazione su PC**")
-    try:
-        progetto_export = {
-            "wbs": json.loads(st.session_state.wbs_data.to_json(orient="records", date_format="iso")),
-            "obs": json.loads(st.session_state.obs_data.to_json(orient="records")),
-            "registro": json.loads(st.session_state.registro_data.to_json(orient="records", date_format="iso")),
-            "capa": json.loads(st.session_state.capa_data.to_json(orient="records", date_format="iso"))
-        }
-        json_string = json.dumps(progetto_export, indent=4)
-        
-        st.download_button(
-            label="⬇️ Scarica File JSON",
-            data=json_string,
-            file_name=f"{st.session_state.nome_progetto_attivo}.json",
-            mime="application/json",
-            use_container_width=True
-        )
-    except Exception as e:
-        st.error(f"Errore esportazione: {e}")
-    
-    uploaded_file = st.file_uploader("📤 Carica da PC", type=['json'], label_visibility="collapsed")
-    if uploaded_file is not None:
-        if 'ultimo_file_caricato' not in st.session_state or st.session_state.ultimo_file_caricato != uploaded_file.file_id:
-            try:
-                dati_caricati = json.load(uploaded_file)
-                df_wbs = pd.DataFrame(dati_caricati.get('wbs', []))
-                if df_wbs.empty:
-                    df_wbs = pd.DataFrame([{'ID_WBS': '1', 'Attività': 'Progetto Principale', 'BAC_Budget': 0.0, '%_Completamento': 0.0, 'AC_Costo_Reale': 0.0, 'ID_OBS_Assegnato': None, 'Predecessori': ''}])
-                st.session_state.wbs_data = df_wbs
-                
-                df_obs = pd.DataFrame(dati_caricati.get('obs', []))
-                if df_obs.empty:
-                    df_obs = pd.DataFrame(columns=['ID_OBS', 'Ruolo', 'Risorsa', 'Tipo_Contratto', 'Note'])
-                st.session_state.obs_data = df_obs
-                
-                df_reg = pd.DataFrame(dati_caricati.get('registro', []))
-                if df_reg.empty:
-                    df_reg = pd.DataFrame(columns=['Data', 'N_Doc', 'Fornitore', 'Voce_WBS', 'Importo_Netto', 'Descrizione'])
-                st.session_state.registro_data = df_reg
-                
-                df_capa = pd.DataFrame(dati_caricati.get('capa', []))
-                if df_capa.empty:
-                    df_capa = pd.DataFrame(columns=['Data_Apertura', 'ID_WBS_Rif', 'Tipo_Azione', 'Descrizione', 'Responsabile_OBS', 'Stato'])
-                st.session_state.capa_data = df_capa
-                
-                for col in ['Inizio_Previsto', 'Fine_Prevista', 'Inizio_Effettivo', 'Fine_Effettiva']:
-                    if col in st.session_state.wbs_data.columns:
-                        st.session_state.wbs_data[col] = pd.to_datetime(st.session_state.wbs_data[col], errors='coerce').dt.date
-                if 'Data' in st.session_state.registro_data.columns:
-                    st.session_state.registro_data['Data'] = pd.to_datetime(st.session_state.registro_data['Data'], errors='coerce').dt.date
-                if 'Data_Apertura' in st.session_state.capa_data.columns:
-                    st.session_state.capa_data['Data_Apertura'] = pd.to_datetime(st.session_state.capa_data['Data_Apertura'], errors='coerce').dt.date
-                
-                st.session_state.wbs_data = aggiorna_gerarchia(st.session_state.wbs_data)
-                st.session_state.nome_progetto_attivo = uploaded_file.name.replace(".json", "")
-                st.session_state.ultimo_file_caricato = uploaded_file.file_id
-                
-                for k in list(st.session_state.keys()):
-                    if k.startswith("editor_wbs_"):
-                        del st.session_state[k]
-                st.success("Dati ripristinati in modo sicuro!")
-                st.rerun() 
-            except Exception as e:
-                st.error(f"Errore critico durante la lettura: {e}")
