@@ -850,29 +850,32 @@ with col_sviluppo:
                 
                 attivita = pulisci_testo(row.get('Attività', ''))
                 
-                # Calcolo punteggio rischio per questo WBS
+                # Recuperiamo info dal motore CPM
+                wp_cpm = cpm_data.get(wbs_id, {})
+                is_critical = wp_cpm.get('is_critical', False) # <--- DEFINIAMO LA VARIABILE QUI
+                
+                # Calcolo punteggio rischio
                 rischi_wbs = df_rischi[df_rischi['ID_WBS_Rif'].astype(str).str.startswith(wbs_id + " -")]
                 punteggio_max = 0
                 if not rischi_wbs.empty:
                     punteggio_max = (rischi_wbs['Probabilità (1-5)'] * rischi_wbs['Impatto (1-5)']).max()
                 
                 # Logica grafica allerta (Soglia 15: Rosso, Soglia 8: Arancione)
-                if punteggio_max >= 15:
-                    bordo_allerta, spessore_allerta = '#FF0000', '4.0'
+                # Diamo priorità all'allerta rischio, ma se è critico CPM sovrascriviamo
+                if is_critical:
+                    bordo_allerta, spessore_allerta = '#D32F2F', '4.0'
+                    tag_rischio = " ‼️ CRITICO"
+                elif punteggio_max >= 15:
+                    bordo_allerta, spessore_allerta = '#FF0000', '3.0'
                     tag_rischio = " ‼️ ALTO RISCHIO"
                 elif punteggio_max >= 8:
                     bordo_allerta, spessore_allerta = '#FF9800', '2.5'
                     tag_rischio = " ⚠️ RISCHIO"
                 else:
-                    bordo_allerta, spessore_allerta = 'black', '1.5' # Default (o il colore critico del CPM)
+                    bordo_allerta, spessore_allerta = 'black', '1.5'
                     tag_rischio = ""
 
-                # Override se è Critico (CPM)
-                wp_cpm = cpm_data.get(wbs_id, {})
-                if wp_cpm.get('is_critical', False):
-                    bordo_allerta, spessore_allerta = '#D32F2F', '3.0'
-
-                # ... (Qui mantieni le tue variabili budget, costo_reale, completamento, inizio, fine)
+                # ... (resto del codice per budget, costi, completamento, ecc)
                 try: budget = float(str(row.get('BAC_Budget', 0)).replace(',', '.'))
                 except: budget = 0.0
                 try: costo_reale = float(str(row.get('AC_Costo_Reale', 0)).replace(',', '.'))
@@ -892,7 +895,6 @@ with col_sviluppo:
                 wp_html += f"<TR><TD ALIGN='LEFT'>Avanzamento: {completamento:.0f}%</TD><TD ALIGN='RIGHT'>Margine: {wp_cpm.get('slack', 0)} gg</TD></TR>"
                 wp_html += "</TABLE>>"
                 
-                # Stile grafico
                 if completamento >= 100:
                     stile, colore_sfondo = 'rounded,filled', '#C8E6C9'
                 elif completamento <= 0:
