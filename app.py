@@ -38,31 +38,145 @@ header[data-testid="stHeader"] {display: none !important;}
 col_save, col_sviluppo = st.columns([1, 6]) # Rapporto 1 a 6 (modificabile)
 
 # ==========================================
-# COLONNA DI SINISTRA (IL TUO NUOVO PANNELLO)
+# COLONNA DI SINISTRA (PANNELLO DI CONTROLLO)
 # ==========================================
 with col_save:
-    st.markdown("### 💾 Dati")
+    st.markdown("### 📂 Progetto")
     
-    # Avvolgiamo i bottoni nel div per renderli piccoli (CSS applicato sopra)
+    # Campo testo per dare un nome al progetto
+    st.session_state.nome_progetto_attivo = st.text_input("Nome Progetto", value=st.session_state.nome_progetto_attivo, label_visibility="collapsed")
+    
     st.markdown('<div class="btn-compatto">', unsafe_allow_html=True)
     
-    # ESEMPIO DEI TUOI BOTTONI (sostituisci con i tuoi veri)
-    if st.button("💾 Salva WBS"):
-        pass 
-    if st.button("📂 Carica Progetto"):
-        pass
-    if st.button("📥 Download Excel"):
-        pass
-        
-    st.markdown('</div>', unsafe_allow_html=True)
+    # --- 1. MEMORIA DI SESSIONE ---
+    st.caption("MEMORIA SESSIONE")
+    c_save, c_dup = st.columns(2)
     
-    # Puoi aggiungere un divisore e altre sezioni compatte
+    if c_save.button("💾 Salva", use_container_width=True):
+        st.session_state.archivio_progetti[st.session_state.nome_progetto_attivo] = {
+            "wbs": st.session_state.wbs_data.copy(),
+            "obs": st.session_state.obs_data.copy(),
+            "registro": st.session_state.registro_data.copy(),
+            "capa": st.session_state.capa_data.copy()
+        }
+        st.success("Salvato!")
+        
+    if c_dup.button("📑 Duplica", use_container_width=True):
+        nuovo_nome = f"{st.session_state.nome_progetto_attivo}_Copia"
+        st.session_state.archivio_progetti[nuovo_nome] = {
+            "wbs": st.session_state.wbs_data.copy(),
+            "obs": st.session_state.obs_data.copy(),
+            "registro": st.session_state.registro_data.copy(),
+            "capa": st.session_state.capa_data.copy()
+        }
+        st.session_state.nome_progetto_attivo = nuovo_nome
+        st.rerun()
+
+    if st.session_state.archivio_progetti:
+        prog_selezionato = st.selectbox("Apri Progetto", options=list(st.session_state.archivio_progetti.keys()), label_visibility="collapsed")
+        if st.button("📂 Apri Selezionato", use_container_width=True):
+            st.session_state.wbs_data = st.session_state.archivio_progetti[prog_selezionato]["wbs"].copy()
+            st.session_state.obs_data = st.session_state.archivio_progetti[prog_selezionato]["obs"].copy()
+            st.session_state.registro_data = st.session_state.archivio_progetti[prog_selezionato]["registro"].copy()
+            st.session_state.capa_data = st.session_state.archivio_progetti[prog_selezionato]["capa"].copy()
+            st.session_state.nome_progetto_attivo = prog_selezionato
+            for k in list(st.session_state.keys()):
+                if k.startswith("editor_wbs_"):
+                    del st.session_state[k]
+            st.rerun()
+
+    st.divider()
+    if st.button("📄 Nuovo (Svuota Tutto)", use_container_width=True):
+        st.session_state.nome_progetto_attivo = "Nuovo_Progetto"
+        for key in ['wbs_data', 'obs_data', 'registro_data', 'capa_data']:
+            if key in st.session_state:
+                del st.session_state[key]
+        for k in list(st.session_state.keys()):
+            if k.startswith("editor_wbs_"):
+                del st.session_state[k]
+        st.rerun()
+        
+    # --- 2. ARCHIVIAZIONE SU PC (JSON) ---
+    st.divider()
+    st.caption("ARCHIVIO SU PC (JSON)")
+    
+    try:
+        progetto_export = {
+            "wbs": json.loads(st.session_state.wbs_data.to_json(orient="records", date_format="iso")),
+            "obs": json.loads(st.session_state.obs_data.to_json(orient="records")),
+            "registro": json.loads(st.session_state.registro_data.to_json(orient="records", date_format="iso")),
+            "capa": json.loads(st.session_state.capa_data.to_json(orient="records", date_format="iso"))
+        }
+        json_string = json.dumps(progetto_export, indent=4)
+        
+        st.download_button(
+            label="⬇️ Scarica su PC (.json)",
+            data=json_string,
+            file_name=f"{st.session_state.nome_progetto_attivo}.json",
+            mime="application/json",
+            use_container_width=True
+        )
+    except Exception as e:
+        st.error(f"Errore: {e}")
+    
+    uploaded_file = st.file_uploader("📤 Carica da PC", type=['json'], label_visibility="collapsed")
+    if uploaded_file is not None:
+        if 'ultimo_file_caricato' not in st.session_state or st.session_state.ultimo_file_caricato != uploaded_file.file_id:
+            try:
+                dati_caricati = json.load(uploaded_file)
+                
+                # Ricarica WBS
+                df_wbs = pd.DataFrame(dati_caricati.get('wbs', []))
+                if df_wbs.empty:
+                    df_wbs = pd.DataFrame([{'ID_WBS': '1', 'Attività': 'Progetto Principale', 'BAC_Budget': 0.0, '%_Completamento': 0.0, 'AC_Costo_Reale': 0.0, 'ID_OBS_Assegnato': None, 'Predecessori': ''}])
+                st.session_state.wbs_data = df_wbs
+                
+                # Ricarica OBS
+                df_obs = pd.DataFrame(dati_caricati.get('obs', []))
+                if df_obs.empty:
+                    df_obs = pd.DataFrame(columns=['ID_OBS', 'Ruolo', 'Risorsa', 'Tipo_Contratto', 'Note'])
+                st.session_state.obs_data = df_obs
+                
+                # Ricarica Registro
+                df_reg = pd.DataFrame(dati_caricati.get('registro', []))
+                if df_reg.empty:
+                    df_reg = pd.DataFrame(columns=['Data', 'N_Doc', 'Fornitore', 'Voce_WBS', 'Importo_Netto', 'Descrizione'])
+                st.session_state.registro_data = df_reg
+                
+                # Ricarica CAPA
+                df_capa = pd.DataFrame(dati_caricati.get('capa', []))
+                if df_capa.empty:
+                    df_capa = pd.DataFrame(columns=['Data_Apertura', 'ID_WBS_Rif', 'Tipo_Azione', 'Descrizione', 'Responsabile_OBS', 'Stato'])
+                st.session_state.capa_data = df_capa
+                
+                # Formattazione sicura Date
+                for col in ['Inizio_Previsto', 'Fine_Prevista', 'Inizio_Effettivo', 'Fine_Effettiva']:
+                    if col in st.session_state.wbs_data.columns:
+                        st.session_state.wbs_data[col] = pd.to_datetime(st.session_state.wbs_data[col], errors='coerce').dt.date
+                if 'Data' in st.session_state.registro_data.columns:
+                    st.session_state.registro_data['Data'] = pd.to_datetime(st.session_state.registro_data['Data'], errors='coerce').dt.date
+                if 'Data_Apertura' in st.session_state.capa_data.columns:
+                    st.session_state.capa_data['Data_Apertura'] = pd.to_datetime(st.session_state.capa_data['Data_Apertura'], errors='coerce').dt.date
+                
+                st.session_state.wbs_data = aggiorna_gerarchia(st.session_state.wbs_data)
+                st.session_state.nome_progetto_attivo = uploaded_file.name.replace(".json", "")
+                st.session_state.ultimo_file_caricato = uploaded_file.file_id
+                
+                for k in list(st.session_state.keys()):
+                    if k.startswith("editor_wbs_"):
+                        del st.session_state[k]
+                st.rerun() 
+            except Exception as e:
+                st.error(f"Errore critico durante la lettura: {e}")
+                
+    st.markdown('</div>', unsafe_allow_html=True)
     st.divider()
     st.caption("Versione 1.0")
 
 # ==========================================
 # COLONNA DI DESTRA (IL MOTORE DELL'APP)
 # ==========================================
+
 with col_sviluppo:
 
     st.markdown("""
