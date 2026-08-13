@@ -14,31 +14,23 @@ import base64
 # --- CONFIGURAZIONE PAGINA ---
 st.set_page_config(page_title="WBS/OBS Manager & EVM", layout="wide", initial_sidebar_state="expanded")
 
-# --- RIMOZIONE TOTALE HEADER E STILE COLONNA COMPATTA ---
 # --- RIMOZIONE TOTALE HEADER, SIDEBAR E STILE COLONNA COMPATTA ---
 stile_geniale = """
-    <style>
-    /* 1. Distruzione totale della barra superiore */
-    header[data-testid="stHeader"] {display: none !important;}
-    
-    /* 2. Via menu, footer e vecchia SIDEBAR nativa */
-    #MainMenu, footer, [data-testid="stSidebar"], [data-testid="collapsedControl"] {display: none !important;}
-    
-    /* 3. Riduciamo i margini bianchi della pagina */
-    .block-container {
-        padding-top: 1rem !important;
-        padding-bottom: 1rem !important;
-        max-width: 98% !important;
-    }
-    
-    /* 4. Stile per la TUA nuova colonna sinistra (bottoni piccoli e compatti) */
-    .btn-compatto button {
-        padding: 0.2rem 0.5rem !important;
-        min-height: 30px !important;
-        font-size: 0.85rem !important;
-        margin-bottom: 0px !important;
-    }
-    </style>
+<style>
+header[data-testid="stHeader"] {display: none !important;}
+#MainMenu, footer, [data-testid="stSidebar"], [data-testid="collapsedControl"] {display: none !important;}
+.block-container {
+    padding-top: 1rem !important;
+    padding-bottom: 1rem !important;
+    max-width: 98% !important;
+}
+.btn-compatto button {
+    padding: 0.2rem 0.5rem !important;
+    min-height: 30px !important;
+    font-size: 0.85rem !important;
+    margin-bottom: 0px !important;
+}
+</style>
 """
 st.markdown(stile_geniale, unsafe_allow_html=True)
 # --------------------------------------------------------
