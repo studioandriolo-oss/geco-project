@@ -12,21 +12,21 @@ import html
 import base64
 
 # --- CONFIGURAZIONE PAGINA ---
-st.set_page_config(page_title="WBS/OBS Manager & EVM", layout="wide")
+st.set_page_config(page_title="WBS/OBS Manager & EVM", layout="wide", initial_sidebar_state="expanded")
 
-## --- RIMOZIONE MENU, HEADER E FOOTER DI STREAMLIT ---
+# --- RIMOZIONE MENU E FOOTER DI STREAMLIT ---
 nascondi_menu_style = """
     <style>
-    /* Nasconde SOLO gli strumenti di destra (GitHub, Deploy, Puntini) salvando il bottone della Sidebar a sinistra */
-    [data-testid="stToolbar"] {visibility: hidden !important;}
+    /* Nasconde la barra degli strumenti a destra (GitHub, Deploy) */
+    [data-testid="stToolbar"] {display: none !important;}
     
-    /* Sicurezza aggiuntiva per nascondere il menu classico */
-    #MainMenu {visibility: hidden !important;}
+    /* Nasconde l'hamburger menu di Streamlit */
+    [data-testid="stHamburger"] {display: none !important;}
     
-    /* Nasconde il footer di default di Streamlit in basso ("Made with Streamlit") */
-    footer {visibility: hidden !important;}
+    /* Nasconde il footer di default in basso */
+    footer {display: none !important;}
     
-    /* Riduce lo spazio vuoto in alto */
+    /* Riduce lo spazio bianco in alto */
     .block-container {
         padding-top: 2rem;
         padding-bottom: 2rem;
@@ -34,7 +34,7 @@ nascondi_menu_style = """
     </style>
 """
 st.markdown(nascondi_menu_style, unsafe_allow_html=True)
-# ----------------------------------------------------
+# --------------------------------------------
 
 st.markdown("""
     <style>
