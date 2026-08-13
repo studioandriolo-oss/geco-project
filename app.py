@@ -95,7 +95,7 @@ with col_save:
         
     # --- 2. ARCHIVIAZIONE SU PC (JSON) ---
     st.divider()
-    st.caption("ARCHIVIO SU PC")
+    st.caption("ARCHIVIO PC")
     
     try:
         progetto_export = {
@@ -107,7 +107,7 @@ with col_save:
         json_string = json.dumps(progetto_export, indent=4)
         
         st.download_button(
-            label="⬇️ Scarica su PC (.json)",
+            label="⬇️ Scarica)",
             data=json_string,
             file_name=f"{st.session_state.nome_progetto_attivo}.json",
             mime="application/json",
