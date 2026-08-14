@@ -2150,35 +2150,33 @@ with col_sviluppo:
         with t_sec3:
             st.subheader("Matematica e Indicatori di Performance (EVM)")
             st.markdown("Il motore calcola in tempo reale lo stato di salute del cantiere utilizzando le metriche standard internazionali dell'**Earned Value Management** e della finanza di progetto:")
-
-            col_f1, col_f2 = st.columns(2)
-            
-            with col_f1:
-                st.markdown("#### ⏳ Tempi e Scadenze")
+            with st.expander("Valori Base (I Pilastri)"):
+                st.latex(r"EV = BAC \times \% \text{ Avanzamento Fisico}")
+                st.caption("**EV (Earned Value)")
+                st.text(Planned Value: sono i costi definiti da progetto/computo - inseriti manualmente in WBS)
+                st.text(BAC (Budget at Completion): Il Budget totale pianificato)
+                
+                
+            with st.expander("Indicatori di Performance (KPI)"):
+                st.latex(r"CV = EV - AC")
+                st.caption("**CV (Cost Variance):** Variazione dei costi (Valore Guadagnato meno Costo Reale).")
+                st.latex(r"SV = EV - PV")
+                st.caption("**SV (Schedule Variance)")
+                st.latex(r"CPI = \frac{EV}{AC}")
+                st.caption("**CPI (Cost Performance Index):** Efficienza economica. Se $< 0.95$, si sta spendendo più del budget previsto.")
                 st.latex(r"SPI = \frac{EV}{PV}")
                 st.caption("**SPI (Schedule Performance Index):** Efficienza temporale. Se $< 0.95$, il cantiere è in ritardo rispetto al cronoprogramma.")
+                
+            with st.expander("Previsioni e Rischio (Proiezioni)"):
                 st.latex(r"EAC = \frac{BAC}{CPI}")
                 st.caption("**EAC (Estimate At Completion)")
                 st.latex(r"ETC = EAC - AC")
                 st.caption("**ETC (Estimate To Complete)")
                 st.latex(r"VAC = BAC - EAC")
-                st.caption("**VAC (Variance At Completion)")
-                st.latex(r"CV = EV - AC")
-                st.caption("**CV (Cost Variance):** Variazione dei costi (Valore Guadagnato meno Costo Reale).")
-
-            with col_f2:
-                st.markdown("#### 💸 Costi e Liquidità")
-                st.latex(r"EV = BAC \times \% \text{ Avanzamento Fisico}")
-                st.caption("**EV (Earned Value)")
-                st.latex(r"CV = EV - AC")
-                st.caption("**CV (Cost Variance)")
-                st.latex(r"SV = EV - PV")
-                st.caption("**SV (Schedule Variance)")
-                st.latex(r"CPI = \frac{EV}{AC}")
-                st.caption("**CPI (Cost Performance Index):** Efficienza economica. Se $< 0.95$, si sta spendendo più del budget previsto.")
+                st.caption("**VAC (Variance At Completion)")    
+                st.latex(r"\text{EAC Risk-Adjusted} = EAC + \sum (\text{Budget}_\text{WBS} \times \text{Probabilità}_\text{Rischio} \times \text{Impatto}_\text{Rischio})")
+                st.caption("**Quanta liquidità manca al competamento in considerazione dei rischi nella loro probabilità e impatto")
             
-            st.latex(r"\text{EAC Risk-Adjusted} = EAC + \sum (\text{Budget}_\text{WBS} \times \text{Probabilità}_\text{Rischio} \times \text{Impatto}_\text{Rischio})")
-            st.caption("**Quanta liquidità manca al competamento in considerazione dei rischi nella loro probabilità e impatto")
             st.latex(r"CF_{netto} = \sum Entrate_{SAL} - \sum Uscite_{AC}")
             st.caption("**Cash Flow Netto:** Esposizione di cassa al netto dei pagamenti ricevuti.")
 
