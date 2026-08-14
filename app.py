@@ -489,6 +489,7 @@ with col_save:
             "obs": st.session_state.obs_data.copy(),
             "registro": st.session_state.registro_data.copy(),
             "capa": st.session_state.capa_data.copy()
+            "conflitti_ignorati": st.session_state.conflitti_ignorati.copy()
         }
         st.success("Salvato!")
         
@@ -536,7 +537,8 @@ with col_save:
             "obs": json.loads(st.session_state.obs_data.to_json(orient="records")),
             "registro": json.loads(st.session_state.registro_data.to_json(orient="records", date_format="iso")),
             "capa": json.loads(st.session_state.capa_data.to_json(orient="records", date_format="iso")),
-            "rischi": json.loads(st.session_state.rischi_data.to_json(orient="records"))
+            "rischi": json.loads(st.session_state.rischi_data.to_json(orient="records")),
+            "conflitti_ignorati": list(st.session_state.conflitti_ignorati)
         }
         json_string = json.dumps(progetto_export, indent=4)
         
@@ -580,6 +582,8 @@ with col_save:
                 if df_rischi.empty:
                     df_rischi = pd.DataFrame(columns=['ID_WBS_Rif', 'Descrizione_Rischio', 'Probabilità (1-5)', 'Impatto (1-5)', 'Stato'])
                 st.session_state.rischi_data = df_rischi
+
+                st.session_state.conflitti_ignorati = dati_caricati.get('conflitti_ignorati', [])
                 
                 for col in ['Inizio_Previsto', 'Fine_Prevista', 'Inizio_Effettivo', 'Fine_Effettiva']:
                     if col in st.session_state.wbs_data.columns:
@@ -700,6 +704,18 @@ with col_save:
                             st.session_state.conflitti_ignorati.append(c['ID_Univoco'])
                             st.rerun()
                             
+            # 5. NUOVO: Registro dei Conflitti Tollerati (Invisibili)
+            if st.session_state.conflitti_ignorati:
+                with st.expander(f"👁️ {len(st.session_state.conflitti_ignorati)} Conflitti Tollerati (Nascosti)"):
+                    st.markdown("Hai autorizzato le seguenti sovrapposizioni:")
+                    for conf_id in st.session_state.conflitti_ignorati:
+                        wbs_split = conf_id.split('_')
+                        st.markdown(f"- WBS **{wbs_split[0]}** + WBS **{wbs_split[1]}**")
+                        if st.button("🔄 Ripristina Allarme", key=f"ripristina_{conf_id}"):
+                            st.session_state.conflitti_ignorati.remove(conf_id)
+                            st.rerun()
+
+
 # ==========================================
 # COLONNA DI DESTRA (IL MOTORE DELL'APP)
 # ==========================================
