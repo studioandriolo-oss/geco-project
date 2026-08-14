@@ -2062,7 +2062,7 @@ with col_sviluppo:
                * *Uscite:* Registra fatture e costi reali associandoli alle WBS.
                * *Entrate:* Emetti e traccia i SAL certificati e pagati dalla committenza.
             5. **Tab 7 (Rischi & CAPA):** Gestisci il fondo imprevisti e apri azioni correttive (Non-Conformità) qualora qualcosa non rispetti gli standard qualitativi.
-            6. **Tab 5 & Radar (AI-Assist):** Monitora il cruscotto di controllo per verificare l'esposizione di cassa (Cash Flow) e le allerte di sovraccarico risorse.
+            6. **Tab 5 & Radar (GIANFRANCO CONSIGLIA):** Monitora il cruscotto di controllo per verificare l'esposizione di cassa (Cash Flow) e le allerte di sovraccarico risorse.
             """)
             
             import graphviz
@@ -2086,8 +2086,8 @@ with col_sviluppo:
 
             # Nodi Gestione Rischi e Controllo
             with diag_guida.subgraph(name='cluster_controllo') as c:
-                c.attr(label='FASE 3: DIREZIONE LAVORI & AI-ASSIST', style='dashed', color='gray')
-                c.node('RADAR', 'RADAR (AI-ASSIST)\n- Rilevamento Sovraccarichi\n- Gestione Deroghe / Ignora', fillcolor='#E1BEE7', color='#8E24AA', penwidth='2')
+                c.attr(label='FASE 3: DIREZIONE LAVORI & GIANFRANCO CONSIGLIA', style='dashed', color='gray')
+                c.node('RADAR', 'RADAR (GIANFRANCO CONSIGLIA)\n- Rilevamento Sovraccarichi\n- Gestione Deroghe / Ignora', fillcolor='#E1BEE7', color='#8E24AA', penwidth='2')
                 c.node('T8', 'TAB 8: MATRICE RISCHI\nHeatmap e Fondo Imprevisti', fillcolor='#FFCDD2', color='#E53935', penwidth='2')
                 c.node('T7', 'TAB 7: DIREZIONE & CAPA\n- Registro Non-Conformità\n- Blocco Qualità 99% WBS', fillcolor='#BBDEFB', color='#1E88E5', penwidth='2')
             
@@ -2110,12 +2110,43 @@ with col_sviluppo:
             
             st.markdown("""
             ### 📌 Legenda dei Flussi Automatici:
-            * **Da Tab 1, 2 a Radar (AI-Assist):** Il sistema controlla in tempo reale se la stessa risorsa è impegnata su più fronti nello stesso periodo, segnalando l'eventuale sovraccarico (con opzione di deroga).
+            * **Da Tab 1, 2 a Radar (GIANFRANCO CONSIGLIA):** Il sistema controlla in tempo reale se la stessa risorsa è impegnata su più fronti nello stesso periodo, segnalando l'eventuale sovraccarico (con opzione di deroga).
             * **Da Tab 7 a Tab 1 (Cancello di Qualità):** Se esiste una CAPA attiva su una WBS, il sistema impedisce matematicamente di certificarla al 100%, bloccandola al 99% finché il problema non viene chiuso.
             * **Da Tab 6 a Tab 5 (Cash Flow):** Le uscite (costi reali) e le entrate (SAL pagati) alimentano la curva cumulativa e l'indicatore di esposizione finanziaria netta.
             """)
 
-        # --- SEZIONE 2: FORMULARIO ---
+        # --- 2. GLOSSARIO EVM ---
+        st.divider()
+        st.subheader("2. Glossario EVM (Earned Value Management)")
+        
+        c_glos1, c_glos2 = st.columns(2)
+        with c_glos1:
+            with st.expander("Valori Base (I Pilastri)"):
+                st.markdown("""
+                * **BAC (Budget at Completion):** Il Budget totale pianificato per l'intero progetto o lavorazione.
+                * **PV (Planned Value):** Il valore del lavoro che *dovrebbe* essere stato completato fino ad oggi secondo il cronoprogramma. (Si calcola proiettando il BAC nel tempo).
+                * **EV (Earned Value):** Il valore del lavoro *effettivamente* completato fino ad oggi. È la metrica più importante: indica i soldi che il cantiere ha realmente "guadagnato" producendo.
+                * **AC (Actual Cost):** I costi reali effettivamente sostenuti per il lavoro svolto fino ad oggi (fatture, ore manodopera, materiali).
+                """)
+        with c_glos2:
+            with st.expander("Indicatori di Performance (KPI)"):
+                st.markdown("""
+                * **CV (Cost Variance):** Varianza dei costi. Se è negativa, stai spendendo più del previsto.
+                * **SV (Schedule Variance):** Varianza dei tempi. Se è negativa, sei in ritardo sul cronoprogramma.
+                * **CPI (Cost Performance Index):** Efficienza dei costi. Valore ideale: ≥ 1.0. Se vale 0.8, significa che per ogni Euro speso stai producendo solo 80 centesimi di valore.
+                * **SPI (Schedule Performance Index):** Efficienza dei tempi. Valore ideale: ≥ 1.0. Se vale 0.9, stai viaggiando al 90% della velocità prevista.
+                """)
+                
+        with st.expander("Previsioni e Rischio (Proiezioni)"):
+            st.markdown("""
+            * **EAC (Estimate At Completion):** Costo totale stimato a fine progetto, ricalcolato in base all'efficienza attuale (CPI). Ti dice quanto ti costerà davvero il cantiere se continui a lavorare come stai facendo oggi.
+            * **ETC (Estimate To Complete):** I fondi residui necessari per finire il lavoro da oggi in poi.
+            * **VAC (Variance At Completion):** Scostamento finale previsto (BAC - EAC). Se è negativo, il progetto si chiuderà in perdita rispetto al budget iniziale.
+            * **EMV (Expected Monetary Value):** Valore Monetario Atteso. Trasforma i punteggi di rischio in valuta, creando un *Fondo Imprevisti* dinamico.
+            * **EAC Risk-Adjusted:** L'EAC classico sommato al Fondo Imprevisti. È lo scenario finanziario più prudente.
+            """)
+            
+        # --- SEZIONE 3: FORMULARIO ---
         with t_sec2:
             st.subheader("Matematica e Indicatori di Performance (EVM)")
             st.markdown("Il motore calcola in tempo reale lo stato di salute del cantiere utilizzando le metriche standard internazionali dell'**Earned Value Management** e della finanza di progetto:")
@@ -2126,19 +2157,31 @@ with col_sviluppo:
                 st.markdown("#### ⏳ Tempi e Scadenze")
                 st.latex(r"SPI = \frac{EV}{PV}")
                 st.caption("**SPI (Schedule Performance Index):** Efficienza temporale. Se $< 0.95$, il cantiere è in ritardo rispetto al cronoprogramma.")
-                
+                st.latex(r"EAC = \frac{BAC}{CPI}")
+                st.caption("**EAC (Estimate At Completion)")
+                st.latex(r"ETC = EAC - AC")
+                st.caption("**ETC (Estimate To Complete)")
+                st.latex(r"VAC = BAC - EAC")
+                st.caption("**VAC (Variance At Completion)")
                 st.latex(r"CV = EV - AC")
                 st.caption("**CV (Cost Variance):** Variazione dei costi (Valore Guadagnato meno Costo Reale).")
 
             with col_f2:
                 st.markdown("#### 💸 Costi e Liquidità")
+                st.latex(r"EV = BAC \times \% \text{ Avanzamento Fisico}")
+                st.caption("**EV (Earned Value)")
+                st.latex(r"CV = EV - AC")
+                st.caption("**CV (Cost Variance)")
+                st.latex(r"SV = EV - PV")
+                st.caption("**SV (Schedule Variance)")
                 st.latex(r"CPI = \frac{EV}{AC}")
                 st.caption("**CPI (Cost Performance Index):** Efficienza economica. Se $< 0.95$, si sta spendendo più del budget previsto.")
-                
+                st.latex(r"\text{EAC Risk-Adjusted} = EAC + \sum (\text{Budget}_\text{WBS} \times \text{Probabilità}_\text{Rischio} \times \text{Impatto}_\text{Rischio})")
+
                 st.latex(r"CF_{netto} = \sum Entrate_{SAL} - \sum Uscite_{AC}")
                 st.caption("**Cash Flow Netto:** Esposizione di cassa al netto dei pagamenti ricevuti.")
 
-        # --- SEZIONE 3: CASISTICHE E FALSI INGHIPPI ---
+        # --- SEZIONE 4: CASISTICHE E FALSI INGHIPPI ---
         with t_sec3:
             st.subheader("🔍 Guida pratica ai 'Falsi Ingippi' e Blocchi di Sicurezza")
             st.markdown("In questa sezione spieghiamo i comportamenti automatizzati del software che potrebbero sembrare anomalie, ma che in realtà sono **controlli di sicurezza attivi**.")
@@ -2166,27 +2209,6 @@ with col_sviluppo:
                 * **Perché accade:** Due lavorazioni distinte assegnate alla stessa risorsa hanno date d'inizio e fine sovrapposte nel Tab 1.
                 * **La Soluzione:** Se la sovrapposizione è voluta (es. l'impresa ha più squadre che lavorano in contemporanea su stanze diverse), non devi modificare il calendario: ti basta cliccare il bottone **'👁️ Consenti Sovrapposizione'** sotto l'allarme per registrarla come eccezione autorizzata.
                 """)
-
-        # --- SEZIONE 4: GLOSSARIO ---
-        with t_sec4:
-            st.subheader("📚 Glossario dei Termini Tecnici")
-            
-            df_glossario = pd.DataFrame({
-                "Termine": ["WBS", "OBS", "BAC", "EV", "PV", "AC", "SPI", "CPI", "CAPA", "SAL"],
-                "Significato Esteso": [
-                    "Work Breakdown Structure (Scomposizione analitica del lavoro)",
-                    "Organizational Breakdown Structure (Struttura organizzativa / Risorse)",
-                    "Budget at Completion (Budget totale a fine lavorazione)",
-                    "Earned Value (Valore guadagnato in base all'avanzamento fisico)",
-                    "Planned Value (Valore pianificato da cronoprogramma)",
-                    "Actual Cost (Costo reale effettivamente sostenuto e registrato)",
-                    "Schedule Performance Index (Indice di prestazione dei tempi)",
-                    "Cost Performance Index (Indice di prestazione dei costi)",
-                    "Corrective And Preventive Action (Azione correttiva / Non-conformità)",
-                    "Stato Avanzamento Lavori (Certificazione contabile dei lavori eseguiti)"
-                ]
-            })
-            st.dataframe(df_glossario, use_container_width=True, hide_index=True)
 
         # --- SEZIONE 5: ROADMAP VERSIONE 2.0 ---
         with t_sec5:
