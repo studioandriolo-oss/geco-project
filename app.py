@@ -621,10 +621,10 @@ with col_save:
     st.caption("Versione 1.0")
 
    # ==========================================
-    # 🤖 GIANFRANCO SUGGERISCE 🤖
+    # 🤖 GIANFRY SUGGERISCE 🤖
     # ==========================================
     st.divider()
-    st.markdown("#### 🤖 GIANFRANCO SUGGERISCE")
+    st.markdown("#### 🤖 GIANFRY SUGGERISCE 🤖")
     
     # Inizializziamo la memoria delle eccezioni consentite dal DL
     if 'conflitti_ignorati' not in st.session_state:
@@ -2062,7 +2062,7 @@ with col_sviluppo:
                * *Uscite:* Registra fatture e costi reali associandoli alle WBS.
                * *Entrate:* Emetti e traccia i SAL certificati e pagati dalla committenza.
             5. **Tab 7 (Rischi & CAPA):** Gestisci il fondo imprevisti e apri azioni correttive (Non-Conformità) qualora qualcosa non rispetti gli standard qualitativi.
-            6. **Tab 5 & Radar (GIANFRANCO CONSIGLIA):** Monitora il cruscotto di controllo per verificare l'esposizione di cassa (Cash Flow) e le allerte di sovraccarico risorse.
+            6. **Tab 5 & Radar (GIANFRY CONSIGLIA):** Monitora il cruscotto di controllo per verificare l'esposizione di cassa (Cash Flow) e le allerte di sovraccarico risorse.
             """)
             
             import graphviz
@@ -2086,8 +2086,8 @@ with col_sviluppo:
 
             # Nodi Gestione Rischi e Controllo
             with diag_guida.subgraph(name='cluster_controllo') as c:
-                c.attr(label='FASE 3: DIREZIONE LAVORI & GIANFRANCO CONSIGLIA', style='dashed', color='gray')
-                c.node('RADAR', 'RADAR (GIANFRANCO CONSIGLIA)\n- Rilevamento Sovraccarichi\n- Gestione Deroghe / Ignora', fillcolor='#E1BEE7', color='#8E24AA', penwidth='2')
+                c.attr(label='FASE 3: DIREZIONE LAVORI & GIANFRY CONSIGLIA', style='dashed', color='gray')
+                c.node('RADAR', 'RADAR (GIANFRY CONSIGLIA)\n- Rilevamento Sovraccarichi\n- Gestione Deroghe / Ignora', fillcolor='#E1BEE7', color='#8E24AA', penwidth='2')
                 c.node('T8', 'TAB 8: MATRICE RISCHI\nHeatmap e Fondo Imprevisti', fillcolor='#FFCDD2', color='#E53935', penwidth='2')
                 c.node('T7', 'TAB 7: DIREZIONE & CAPA\n- Registro Non-Conformità\n- Blocco Qualità 99% WBS', fillcolor='#BBDEFB', color='#1E88E5', penwidth='2')
             
@@ -2110,7 +2110,7 @@ with col_sviluppo:
             
             st.markdown("""
             ### 📌 Legenda dei Flussi Automatici:
-            * **Da Tab 1, 2 a Radar (GIANFRANCO CONSIGLIA):** Il sistema controlla in tempo reale se la stessa risorsa è impegnata su più fronti nello stesso periodo, segnalando l'eventuale sovraccarico (con opzione di deroga).
+            * **Da Tab 1, 2 a Radar (GIANFRY CONSIGLIA):** Il sistema controlla in tempo reale se la stessa risorsa è impegnata su più fronti nello stesso periodo, segnalando l'eventuale sovraccarico (con opzione di deroga).
             * **Da Tab 7 a Tab 1 (Cancello di Qualità):** Se esiste una CAPA attiva su una WBS, il sistema impedisce matematicamente di certificarla al 100%, bloccandola al 99% finché il problema non viene chiuso.
             * **Da Tab 6 a Tab 5 (Cash Flow):** Le uscite (costi reali) e le entrate (SAL pagati) alimentano la curva cumulativa e l'indicatore di esposizione finanziaria netta.
             """)
