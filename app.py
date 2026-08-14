@@ -593,6 +593,50 @@ with col_save:
     st.divider()
     st.caption("Versione 1.0")
 
+    # ==========================================
+    # 🤖 RADAR DIREZIONALE (AI-ASSIST)
+    # ==========================================
+    st.divider()
+    st.markdown("#### 🤖 AI-Assist")
+    
+    df_ai = get_foglie(st.session_state.wbs_data)
+    soglia_allerta = 0.95
+    
+    if df_ai.empty or df_ai['BAC_Budget'].sum() == 0:
+        st.info("In attesa di dati.")
+    else:
+        # Rilevamento criticità EVM
+        critici_costo = df_ai[df_ai['CPI'] < soglia_allerta]
+        critici_tempo = df_ai[df_ai['SPI'] < soglia_allerta]
+        
+        # Rilevamento Rischi Attivi
+        df_rischi_ai = st.session_state.rischi_data
+        rischi_attivi = pd.DataFrame()
+        if not df_rischi_ai.empty:
+            rischi_attivi = df_rischi_ai[df_rischi_ai['Stato'].isin(['Attivo ▾', 'Monitorato ▾'])]
+            
+        if critici_costo.empty and critici_tempo.empty and rischi_attivi.empty:
+            st.success("✅ **Progetto in salute!** Nessuna azione richiesta.")
+        else:
+            # 1. Allarmi di Schedulazione (Tempi)
+            if not critici_tempo.empty:
+                for _, row in critici_tempo.iterrows():
+                    with st.expander(f"⏳ WBS {row['ID_WBS']}: Ritardo"):
+                        st.markdown(f"**Situazione:** Efficienza tempi al **{row['SPI']*100:.0f}%**.<br>**Azione:** Usa il Simulatore (*Tab 7*) per testare un *Crashing* (iniettare costi extra per recuperare giorni) oppure scala le date in *Tab 1*.", unsafe_allow_html=True)
+            
+            # 2. Allarmi Finanziari (Costi)
+            if not critici_costo.empty:
+                for _, row in critici_costo.iterrows():
+                    with st.expander(f"💸 WBS {row['ID_WBS']}: Over-Budget"):
+                        st.markdown(f"**Situazione:** Efficienza costi a **{row['CPI']:.2f}**.<br>**Azione:** Verifica le spese nel *Tab 6*. Se la spesa è irreversibile, apri una CAPA in *Tab 7* per autorizzare formalmente lo sforamento.", unsafe_allow_html=True)
+                        
+            # 3. Allarmi Rischio (Scudo)
+            if not rischi_attivi.empty:
+                with st.expander(f"⚠️ {len(rischi_attivi)} Rischi Attivi"):
+                    st.markdown("**Situazione:** Capitale di garanzia congelato nel Fondo Imprevisti.<br>**Azione:** Metti in atto le mitigazioni di cantiere. Poi chiudi l'Azione in *Tab 7* per far sbloccare i fondi in automatico al sistema.", unsafe_allow_html=True)
+
+    st.divider()
+
 # ==========================================
 # COLONNA DI DESTRA (IL MOTORE DELL'APP)
 # ==========================================
@@ -1258,20 +1302,6 @@ with col_sviluppo:
         with col_LEGENDA:
             st.subheader("Legenda EVM")
             st.markdown("* **CPI:** Efficienza costi (<1 sforamento budget)\n* **SPI:** Efficienza tempi (<1 in ritardo)\n* **CV:** Varianza Costi Assoluta")
-            
-        st.divider()
-        st.subheader("🤖 Analizzatore Direzionale (AI-Assist)")
-        soglia_allerta = 0.95
-        critici_costo = df_evm[df_evm['CPI'] < soglia_allerta]
-        critici_tempo = df_evm[df_evm['SPI'] < soglia_allerta]
-        if df_evm.empty: st.info("Aggiungi lavorazioni.")
-        elif critici_costo.empty and critici_tempo.empty: st.success("✅ **Progetto in Salute**")
-        else:
-            st.warning("⚠️ **Attenzione: Rilevati scostamenti.**")
-            for _, row in critici_tempo.iterrows():
-                st.error(f"⏳ **Ritardo Schedulazione su '{row['Attività']}':** (SPI = {row['SPI']:.2f})")
-            for _, row in critici_costo.iterrows():
-                st.error(f"💸 **Sforamento Budget su '{row['Attività']}':** (CPI = {row['CPI']:.2f})")
             
     # --- TAB 6: REGISTRO CONTABILE ---
     with tab6:
