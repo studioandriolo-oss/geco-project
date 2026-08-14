@@ -454,10 +454,6 @@ st.session_state.wbs_data = aggiorna_gerarchia(st.session_state.wbs_data)
 st.session_state.wbs_data = calcola_evm(st.session_state.wbs_data, pd.Timestamp.today().date())
 
 # ==========================================
-# IMPOSTAZIONE GRAFICA (COLONNE E SCHERMO)
-# ==========================================
-
-# ==========================================
 # IMPOSTAZIONE GRAFICA E LARGHEZZA DINAMICA
 # ==========================================
 
@@ -473,9 +469,7 @@ col_save, col_sviluppo = st.columns([st.session_state.pannello_sx, 10])
 # ==========================================
 with col_save:
     # 3. Il cursore che comanda la larghezza in tempo reale!
-    st.slider("↔️ Regola Pannello", min_value=0.5, max_value=5.0, step=0.1, key="pannello_sx", help="Trascina per allargare o restringere la colonna")
-    
-    st.markdown("### 📂 Progetto")
+    st.slider("↔️ Regola Pannello", min_value=1.0, max_value=5.0, step=0.1, key="pannello_sx", help="Trascina per allargare o restringere la colonna")
 
 # ==========================================
 # COLONNA DI SINISTRA (PANNELLO DI CONTROLLO)
