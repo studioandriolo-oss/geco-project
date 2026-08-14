@@ -1513,6 +1513,70 @@ with col_sviluppo:
                 st.success("✅ Registro Incassi aggiornato con successo!")
                 st.rerun()
 
+    # ========================================================
+        # GRAFICO: ANDAMENTO FLUSSI DI CASSA (CUMULATIVO)
+        # ========================================================
+        st.divider()
+        st.subheader("📊 Cash Flow ")
+        
+        df_grafico_uscite = st.session_state.registro_data.copy()
+        df_grafico_entrate = st.session_state.sal_data.copy()
+        
+        # 1. Preparazione Dati Uscite (Spese Cumulative)
+        if not df_grafico_uscite.empty:
+            df_grafico_uscite['Data'] = pd.to_datetime(df_grafico_uscite['Data'], errors='coerce')
+            df_grafico_uscite = df_grafico_uscite.dropna(subset=['Data', 'Importo_Euro'])
+            df_grafico_uscite = df_grafico_uscite.sort_values('Data')
+            df_grafico_uscite['Cumulato'] = df_grafico_uscite['Importo_Euro'].cumsum()
+            
+        # 2. Preparazione Dati Entrate (Solo SAL Pagati, Cumulativi)
+        if not df_grafico_entrate.empty:
+            df_grafico_entrate = df_grafico_entrate[df_grafico_entrate['Stato_Pagamento'] == 'Pagato ▾'].copy()
+            df_grafico_entrate['Data_Emissione'] = pd.to_datetime(df_grafico_entrate['Data_Emissione'], errors='coerce')
+            df_grafico_entrate = df_grafico_entrate.dropna(subset=['Data_Emissione', 'Importo_Euro'])
+            df_grafico_entrate = df_grafico_entrate.sort_values('Data_Emissione')
+            df_grafico_entrate['Cumulato'] = df_grafico_entrate['Importo_Euro'].cumsum()
+            
+        # 3. Disegno del Grafico
+        if df_grafico_uscite.empty and df_grafico_entrate.empty:
+            st.info("Aggiungi spese o incassi per visualizzare il grafico del Cash Flow.")
+        else:
+            fig_cf = go.Figure()
+            
+            # Traccia Costi (Rossa)
+            if not df_grafico_uscite.empty:
+                fig_cf.add_trace(go.Scatter(
+                    x=df_grafico_uscite['Data'],
+                    y=df_grafico_uscite['Cumulato'],
+                    mode='lines+markers',
+                    name='Uscite Cumulate (AC)',
+                    line=dict(color='#D32F2F', width=3, shape='hv'), # 'hv' crea l'effetto a gradini
+                    fill='tozeroy',
+                    fillcolor='rgba(211, 47, 47, 0.1)'
+                ))
+                
+            # Traccia Incassi (Verde)
+            if not df_grafico_entrate.empty:
+                fig_cf.add_trace(go.Scatter(
+                    x=df_grafico_entrate['Data_Emissione'],
+                    y=df_grafico_entrate['Cumulato'],
+                    mode='lines+markers',
+                    name='Incassi Cumulati (SAL)',
+                    line=dict(color='#4CAF50', width=3, shape='hv'),
+                    fill='tozeroy',
+                    fillcolor='rgba(76, 175, 80, 0.1)'
+                ))
+                
+            fig_cf.update_layout(
+                xaxis_title="Linea Temporale",
+                yaxis_title="Importo Cumulato (€)",
+                hovermode="x unified",
+                height=400,
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, bgcolor="rgba(255,255,255,0.8)")
+            )
+            
+            st.plotly_chart(fig_cf, use_container_width=True)
+
     # --- TAB 7: DIREZIONE LAVORI, CAPA & REPORTISTICA ---
     with tab7:
         st.header("Direzione Lavori: Interventi (CAPA) e Simulazioni")
