@@ -2045,7 +2045,7 @@ with col_sviluppo:
             "🧭 Flusso di Lavoro", 
             "📚 Glossario Tecnico",
             "📐 Formulario EVM & Finanza", 
-            "⚠️ Casi Studio & Falsi Ingippi", 
+            "⚠️ FAQ & Falsi Ingippi", 
             "🛠️ Roadmap Versione 2.0"
         ])
 
@@ -2208,25 +2208,46 @@ with col_sviluppo:
                 * **La Soluzione:** Se la sovrapposizione è voluta (es. l'impresa ha più squadre che lavorano in contemporanea su stanze diverse), non devi modificare il calendario: ti basta cliccare il bottone **'👁️ Consenti Sovrapposizione'** sotto l'allarme per registrarla come eccezione autorizzata.
                 """)
                 
-            with st.expander("⏳ 10. Il percorso critico (CPM) non evidenzia i ritardi corretti"):
+            with st.expander("⏳ 4. Il percorso critico (CPM) non evidenzia i ritardi corretti"):
                 st.markdown("""
                 * **La Situazione:** Un'attività subisce un ritardo notevole, ma il Tab 3 (Grafo e Matrice) non la contrassegna come parte del percorso critico o non sposta la data di fine progetto.
                 * **Perché accade:** Le dipendenze (*Predecessori*) non sono state collegate correttamente tramite gli ID WBS (es. manca il legame logico di fine-inizio tra le lavorazioni propedeutiche). Senza la catena dei predecessori, il motore considera le attività slegate e parallele.
                 * **La Soluzione:** Verifica nel Tab 1 che ogni attività successiva abbia il proprio ID predecessore correttamente indicato (es. `2.1` come propedeutica alla `2.2`), in modo da permettere all'algoritmo CPM di ricalcolare la catena critica.
                 """)
 
-            with st.expander("📊 11. Valore Pianificato (PV) a zero nonostante le date inserite"):
+            with st.expander("📊 5. Valore Pianificato (PV) a zero nonostante le date inserite"):
                 st.markdown("""
                 * **La Situazione:** Il cruscotto dell'Earned Value (Tab 5) mostra un PV (Planned Value) pari a zero o incoerente con la data odierna di controllo.
                 * **Perché accade:** Il budget (`BAC_Budget`) è stato assegnato solo alle attività di sintesi (i capitoli padre) anziché alle singole attività "foglia" esecutive, oppure le date di inizio e fine previste non rientrano nell'intervallo temporale analizzato.
                 * **La Soluzione:** Assegna sempre i budget di spesa esclusivamente ai nodi foglia dell'albero WBS e assicurati che il cronoprogramma copra correttamente la linea del tempo corrente.
                 """)
 
-            with st.expander("🔄 12. Modifiche strutturali dell'albero e perdita dei dati associati"):
+            with st.expander("🔄 6. Modifiche strutturali dell'albero e perdita dei dati associati"):
                 st.markdown("""
                 * **La Situazione:** Spostando, eliminando o riorganizzando i rami della WBS, alcune registrazioni contabili o assegnazioni di risorse sembrano svanire o non puntano più alla voce corretta.
                 * **Perché accade:** Poiché il database relaziona costi (Tab 6), rischi (Tab 8) e CAPA (Tab 7) agli ID WBS specifici, la cancellazione o la modifica drastica di un codice ID interrompe la chiave di collegamento esterna.
                 * **La Soluzione:** Prima di procedere con ristrutturazioni profonde dell'albero WBS (tramite la funzione di rinumerazione), esporta sempre un backup preventivo del file JSON del progetto per sicurezza.
+                """)
+
+            with st.expander("📉 7. L'indice SPI o CPI mostra valori anomali (> 2.0 o NaN)"):
+                st.markdown("""
+                * **La Situazione:** Nel cruscotto EVM (Tab 5) gli indicatori di performance temporale (SPI) o economica (CPI) assumono valori assurdi, pari a zero, o restituiscono un errore di calcolo.
+                * **Perché accade:** L'Earned Value (EV) si calcola moltiplicando il Budget (`BAC`) per la percentuale di completamento. Se un'attività ha un budget pari a zero (`BAC = 0`) ma un avanzamento del 100%, o viceversa, la divisione matematica va in crisi per assenza di denominatore.
+                * **La Soluzione:** Assicurati che **tutte** le attività abbiano un budget (`BAC_Budget`) maggiore di zero prima di iniziare a certificarne l'avanzamento fisico.
+                """)
+
+            with st.expander("🗂️ 8. Duplicazione o sfasamento dei file JSON caricati"):
+                st.markdown("""
+                * **La Situazione:** Caricando un vecchio file di progetto salvato in formato `.json`, noti che alcune tabelle (come OBS o i Rischi) si azzerano o non corrispondono più.
+                * **Perché accade:** Stai tentando di caricare un file JSON generato da una versione precedente dell'applicazione che non conteneva ancora le chiavi dei nuovi database (es. i campi `sal` o `conflitti_ignorati`).
+                * **La Soluzione:** Quando aggiorni l'applicazione con nuove sezioni, ricordati di esportare un nuovo file di progetto master "pulito" in modo che includa la struttura dati aggiornata di tutti i tab.
+                """)
+
+            with st.expander("⚠️ 9. Il Fondo Imprevisti del Tab 8 non copre i rischi attivi"):
+                st.markdown("""
+                * **La Situazione:** Hai inserito diversi rischi nella Matrice (Tab 8) con punteggi di impatto elevati, ma il budget di riserva calcolato non varia o sembra disallineato.
+                * **Perché accade:** Il calcolo del fondo imprevisti si basa sullo stato di mitigazione e sul valore economico associato ai singoli rischi. Se i campi d'importo dei rischi sono stati lasciati a zero, il motore di rischio li considera solo come eventi qualitativi senza impatto di cassa.
+                * **La Soluzione:** Compila sempre la stima economica dell'impatto all'interno della scheda di rischio nel Tab 8 per permettere al sistema di dimensionare correttamente le risorse di riserva.
                 """)
 
         # --- SEZIONE 5: ROADMAP VERSIONE 2.0 ---
