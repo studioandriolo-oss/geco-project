@@ -98,7 +98,10 @@ if 'rischi_data' not in st.session_state:
     st.session_state.rischi_data = pd.DataFrame(columns=[
         'ID_WBS_Rif', 'Descrizione_Rischio', 'Probabilità (1-5)', 'Impatto (1-5)', 'Stato'
     ])
-    
+
+if 'sal_data' not in st.session_state:
+    st.session_state.sal_data = pd.DataFrame(columns=['Data_Emissione', 'Descrizione_SAL', 'Importo_Euro', 'Stato_Pagamento'])
+
 if 'archivio_progetti' not in st.session_state:
     st.session_state.archivio_progetti = {}
 if 'nome_progetto_attivo' not in st.session_state:
@@ -489,6 +492,7 @@ with col_save:
             "obs": st.session_state.obs_data.copy(),
             "registro": st.session_state.registro_data.copy(),
             "capa": st.session_state.capa_data.copy(),
+            "sal": st.session_state.sal_data.copy(),
             "conflitti_ignorati": st.session_state.conflitti_ignorati.copy()
         }
         st.success("Salvato!")
@@ -499,7 +503,8 @@ with col_save:
             "wbs": st.session_state.wbs_data.copy(),
             "obs": st.session_state.obs_data.copy(),
             "registro": st.session_state.registro_data.copy(),
-            "capa": st.session_state.capa_data.copy()
+            "capa": st.session_state.capa_data.copy(),
+            "sal": st.session_state.sal_data.copy()
         }
         st.session_state.nome_progetto_attivo = nuovo_nome
         st.rerun()
@@ -538,7 +543,9 @@ with col_save:
             "registro": json.loads(st.session_state.registro_data.to_json(orient="records", date_format="iso")),
             "capa": json.loads(st.session_state.capa_data.to_json(orient="records", date_format="iso")),
             "rischi": json.loads(st.session_state.rischi_data.to_json(orient="records")),
-            "conflitti_ignorati": list(st.session_state.conflitti_ignorati)
+            "sal": json.loads(st.session_state.sal_data.to_json(orient="records", date_format="iso")),
+            "conflitti_ignorati": list(st.session_state.conflitti_ignorati),
+            
         }
         json_string = json.dumps(progetto_export, indent=4)
         
@@ -582,6 +589,11 @@ with col_save:
                 if df_rischi.empty:
                     df_rischi = pd.DataFrame(columns=['ID_WBS_Rif', 'Descrizione_Rischio', 'Probabilità (1-5)', 'Impatto (1-5)', 'Stato'])
                 st.session_state.rischi_data = df_rischi
+
+                df_sal = pd.DataFrame(dati_caricati.get('sal', []))
+                if df_sal.empty:
+                    df_sal = pd.DataFrame(columns=['Data_Emissione', 'Descrizione_SAL', 'Importo_Euro', 'Stato_Pagamento'])
+                st.session_state.sal_data = df_sal
 
                 st.session_state.conflitti_ignorati = dati_caricati.get('conflitti_ignorati', [])
                 
@@ -745,15 +757,15 @@ with col_sviluppo:
 
     # --- CREAZIONE TAB ---
     tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs([
-        "🗂️ WBS (Lavorazioni)", 
-        "👥 OBS (Risorse)", 
-        "🕸️ Nodi & Matrice", 
-        "📅 Cronoprogramma", 
-        "📈 Earned Value & Cash Flow",
-        "🧾 Reg. Contabile",
-        "🛠️ Direzione & CAPA",
-        "⚠️ Matrice Rischi",
-        "📚 Guida & Glossario"
+        "🗂️ 1-WBS (Lavorazioni)", 
+        "👥 2-OBS (Risorse)", 
+        "🕸️ 3-Nodi & Matrice", 
+        "📅 4-Cronoprogramma", 
+        "📈 5-Earned Value & Cash Flow",
+        "🧾 6-Reg. Contabile",
+        "🛠️ 7-Direzione & CAPA",
+        "⚠️ 8-Matrice Rischi",
+        "📚 9-Guida & Glossario"
     ])
         
     # --- TAB 1: SETUP WBS ---
@@ -1303,7 +1315,36 @@ with col_sviluppo:
                 c4, c5 = st.columns(2)
                 c4.metric("CPI (Costi)", f"{cpi_globale:.2f}", delta="Over-budget" if cpi_globale < 1 else "Under-budget", delta_color="inverse")
         
-        # --- SCUDO FINANZIARIO (IL NUOVO BOX) ---
+        # ========================================================
+        # CRUSCOTTO CASH FLOW NETTO
+        # ========================================================
+        st.divider()
+        st.markdown("### 💶 Esposizione Finanziaria - Cash Flow Netto")
+        
+        tot_uscite_ac = ac_globale  # Valore globale già calcolato in alto dal motore EVM
+        
+        # Sommiamo le entrate SOLO se i SAL sono stati effettivamente incassati
+        df_sal_calcolo = st.session_state.sal_data
+        tot_entrate_sal = 0.0
+        if not df_sal_calcolo.empty:
+            sal_pagati = df_sal_calcolo[df_sal_calcolo['Stato_Pagamento'] == 'Pagato ▾']
+            tot_entrate_sal = pd.to_numeric(sal_pagati['Importo_Euro'], errors='coerce').fillna(0).sum()
+            
+        cash_flow_netto = tot_entrate_sal - tot_uscite_ac
+        
+        c_cf1, c_cf2, c_cf3 = st.columns(3)
+        c_cf1.metric("Totale Uscite Sostenute (AC)", f"€ {tot_uscite_ac:,.0f}")
+        c_cf2.metric("Totale Incassi (SAL Pagati)", f"€ {tot_entrate_sal:,.0f}")
+        c_cf3.metric("Cash Flow Netto (Liquidità)", f"€ {cash_flow_netto:,.0f}", 
+                     delta="Esposizione Negativa!" if cash_flow_netto < 0 else "Liquidità Positiva", 
+                     delta_color="normal" if cash_flow_netto >= 0 else "inverse")
+                     
+        if cash_flow_netto < 0:
+            st.error(f"⚠️ **ALLERTA LIQUIDITÀ:** L'esposizione finanziaria del cantiere è negativa per **€ {abs(cash_flow_netto):,.0f}**. Stai anticipando capitale rispetto a quanto incassato. Valuta l'emissione immediata di un nuovo SAL per ripristinare il flusso di cassa.")
+        elif cash_flow_netto > 0:
+            st.success(f"✅ **LIQUIDITÀ ATTIVA:** Il cantiere si sta autofinanziando correttamente. Hai un margine di cassa positivo di **€ {cash_flow_netto:,.0f}**.")
+        
+        # --- SCUDO FINANZIARIO  ---
 
         st.divider()
         # 1. Motore di calcolo EMV (Expected Monetary Value)
@@ -1413,49 +1454,63 @@ with col_sviluppo:
             st.subheader("Legenda EVM")
             st.markdown("* **CPI:** Efficienza costi (<1 sforamento budget)\n* **SPI:** Efficienza tempi (<1 in ritardo)\n* **CV:** Varianza Costi Assoluta")
             
-    # --- TAB 6: REGISTRO CONTABILE ---
+    # --- TAB 6: GESTIONE FINANZIARIA E CASH FLOW ---
     with tab6:
-        st.header("Registro Contabile")
+        st.header("Gestione Finanziaria e Liquidità")
         
-        df_reg = st.session_state.registro_data.copy()
-        if not df_reg.empty:
-            df_reg['Data'] = pd.to_datetime(df_reg['Data'], errors='coerce').dt.date
-            df_reg['Importo_Netto'] = pd.to_numeric(df_reg['Importo_Netto'], errors='coerce')
-        else:
-            df_reg['Data'], df_reg['Importo_Netto'] = pd.Series(dtype='object'), pd.Series(dtype='float64')
-        st.session_state.registro_data = df_reg
+        tab_uscite, tab_entrate = st.tabs(["💸 Uscite (Costi Reali - AC)", "💰 Entrate (SAL Certificati)"])
         
-        leaf_wbs = get_foglie(st.session_state.wbs_data)
-        wbs_options = [f"{row['ID_WBS']} - {row['Attività']}" for _, row in leaf_wbs.iterrows()]
-        obs_options = [""] + [f"{row['ID_OBS']} - {row['Risorsa']}" for _, row in st.session_state.obs_data.iterrows() if pd.notna(row['ID_OBS'])]
-        
-        colonne_reg_base = ['Data', 'N_Doc', 'Fornitore', 'Voce_WBS', 'Importo_Netto', 'Descrizione']
-        if st.session_state.registro_data.empty and len(st.session_state.registro_data.columns) == 0:
-            st.session_state.registro_data = pd.DataFrame(columns=colonne_reg_base)
+        with tab_uscite:
+            st.subheader("Brogliaccio Spese e Fatture Fornitori")
+            st.markdown("Le spese registrate qui alimentano il Costo Reale (AC) delle singole WBS.")
             
-        edited_registro = st.data_editor(
-            st.session_state.registro_data, num_rows="dynamic", use_container_width=True, hide_index=True,
-            column_config={
-                "Data": st.column_config.DateColumn("Data Registrazione"),
-                "N_Doc": st.column_config.TextColumn("N° Doc/Fattura"),
-                "Fornitore": st.column_config.SelectboxColumn("Fornitore (OBS) ▾", options=obs_options),
-                "Descrizione": st.column_config.TextColumn("Descrizione / Note"),
-                "Importo_Netto": st.column_config.NumberColumn("Importo Netto (€)", format="€ %.2f", min_value=0.0),
-                "Voce_WBS": st.column_config.SelectboxColumn("Attività WBS ▾", options=wbs_options)
-            }
-        )
-        
-        st.divider()
-        st.warning("⚠️ **Ricordati di cliccare il tasto rosso qui sotto dopo aver inserito i dati!**")
-        if st.button("💾 SALVA REGISTRO E AGGIORNA COSTI", type="primary", use_container_width=True):
-            st.session_state.registro_data = edited_registro
-            aggiorna_costi_reali()
-            # Elimina le visualizzazioni vecchie
-            for k in list(st.session_state.keys()):
-                if k.startswith("editor_wbs_"):
-                    del st.session_state[k]
-            st.success("✅ Dati contabili salvati e costi aggiornati!")
-            st.rerun() # Forza ricaricamento pagina visivo
+            df_reg = st.session_state.registro_data.copy()
+            if not df_reg.empty:
+                df_reg['Data'] = pd.to_datetime(df_reg['Data'], errors='coerce').dt.date
+            else:
+                df_reg['Data'] = pd.Series(dtype='object')
+            st.session_state.registro_data = df_reg
+            
+            leaf_wbs_reg = get_foglie(st.session_state.wbs_data)
+            wbs_options = [f"{row['ID_WBS']} - {row['Attività']}" for _, row in leaf_wbs_reg.iterrows()]
+            
+            edited_registro = st.data_editor(
+                st.session_state.registro_data, num_rows="dynamic", use_container_width=True, hide_index=True,
+                column_config={
+                    "Data": st.column_config.DateColumn("Data Fattura / Spesa"),
+                    "ID_WBS_Rif": st.column_config.SelectboxColumn("Attività WBS (Rif.)", options=wbs_options),
+                    "Descrizione_Costo": st.column_config.TextColumn("Descrizione", width="medium"),
+                    "Importo_Euro": st.column_config.NumberColumn("Importo (€)", format="€ %.2f")
+                }
+            )
+            if st.button("💾 SALVA REGISTRO USCITE", type="primary", use_container_width=True):
+                st.session_state.registro_data = edited_registro
+                st.success("✅ Registro Spese salvato e costi riallineati!")
+                st.rerun()
+
+        with tab_entrate:
+            st.subheader("Emissione SAL e Incassi Committenza")
+            st.markdown("Registra gli Stati Avanzamento Lavori emessi e pagati. Solo i SAL in stato **'Pagato'** concorreranno al calcolo della liquidità attiva (Cash Flow).")
+            
+            df_sal = st.session_state.sal_data.copy()
+            if not df_sal.empty:
+                df_sal['Data_Emissione'] = pd.to_datetime(df_sal['Data_Emissione'], errors='coerce').dt.date
+            else:
+                df_sal['Data_Emissione'] = pd.Series(dtype='object')
+            
+            edited_sal = st.data_editor(
+                df_sal, num_rows="dynamic", use_container_width=True, hide_index=True,
+                column_config={
+                    "Data_Emissione": st.column_config.DateColumn("Data SAL"),
+                    "Descrizione_SAL": st.column_config.TextColumn("Riferimento / Note", width="medium"),
+                    "Importo_Euro": st.column_config.NumberColumn("Importo (€)", format="€ %.2f", min_value=0.0),
+                    "Stato_Pagamento": st.column_config.SelectboxColumn("Stato", options=["Emesso ▾", "Pagato ▾"])
+                }
+            )
+            if st.button("💾 SALVA REGISTRO ENTRATE (SAL)", type="primary", use_container_width=True):
+                st.session_state.sal_data = edited_sal
+                st.success("✅ Registro Incassi aggiornato con successo!")
+                st.rerun()
 
     # --- TAB 7: DIREZIONE LAVORI, CAPA & REPORTISTICA ---
     with tab7:
