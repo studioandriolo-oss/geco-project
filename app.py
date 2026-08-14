@@ -1321,7 +1321,8 @@ with col_sviluppo:
         st.divider()
         st.markdown("### 💶 Esposizione Finanziaria - Cash Flow Netto")
         
-        tot_uscite_ac = ac_globale  # Valore globale già calcolato in alto dal motore EVM
+        # Calcolo sicuro delle uscite totali leggendo direttamente la colonna Actual Cost (AC)
+        tot_uscite_ac = df_evm['AC_Costo_Reale'].sum() if not df_evm.empty else 0.0
         
         # Sommiamo le entrate SOLO se i SAL sono stati effettivamente incassati
         df_sal_calcolo = st.session_state.sal_data
