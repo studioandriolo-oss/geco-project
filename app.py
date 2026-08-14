@@ -2207,6 +2207,27 @@ with col_sviluppo:
                 * **Perché accade:** Due lavorazioni distinte assegnate alla stessa risorsa hanno date d'inizio e fine sovrapposte nel Tab 1.
                 * **La Soluzione:** Se la sovrapposizione è voluta (es. l'impresa ha più squadre che lavorano in contemporanea su stanze diverse), non devi modificare il calendario: ti basta cliccare il bottone **'👁️ Consenti Sovrapposizione'** sotto l'allarme per registrarla come eccezione autorizzata.
                 """)
+                
+            with st.expander("⏳ 10. Il percorso critico (CPM) non evidenzia i ritardi corretti"):
+                st.markdown("""
+                * **La Situazione:** Un'attività subisce un ritardo notevole, ma il Tab 3 (Grafo e Matrice) non la contrassegna come parte del percorso critico o non sposta la data di fine progetto.
+                * **Perché accade:** Le dipendenze (*Predecessori*) non sono state collegate correttamente tramite gli ID WBS (es. manca il legame logico di fine-inizio tra le lavorazioni propedeutiche). Senza la catena dei predecessori, il motore considera le attività slegate e parallele.
+                * **La Soluzione:** Verifica nel Tab 1 che ogni attività successiva abbia il proprio ID predecessore correttamente indicato (es. `2.1` come propedeutica alla `2.2`), in modo da permettere all'algoritmo CPM di ricalcolare la catena critica.
+                """)
+
+            with st.expander("📊 11. Valore Pianificato (PV) a zero nonostante le date inserite"):
+                st.markdown("""
+                * **La Situazione:** Il cruscotto dell'Earned Value (Tab 5) mostra un PV (Planned Value) pari a zero o incoerente con la data odierna di controllo.
+                * **Perché accade:** Il budget (`BAC_Budget`) è stato assegnato solo alle attività di sintesi (i capitoli padre) anziché alle singole attività "foglia" esecutive, oppure le date di inizio e fine previste non rientrano nell'intervallo temporale analizzato.
+                * **La Soluzione:** Assegna sempre i budget di spesa esclusivamente ai nodi foglia dell'albero WBS e assicurati che il cronoprogramma copra correttamente la linea del tempo corrente.
+                """)
+
+            with st.expander("🔄 12. Modifiche strutturali dell'albero e perdita dei dati associati"):
+                st.markdown("""
+                * **La Situazione:** Spostando, eliminando o riorganizzando i rami della WBS, alcune registrazioni contabili o assegnazioni di risorse sembrano svanire o non puntano più alla voce corretta.
+                * **Perché accade:** Poiché il database relaziona costi (Tab 6), rischi (Tab 8) e CAPA (Tab 7) agli ID WBS specifici, la cancellazione o la modifica drastica di un codice ID interrompe la chiave di collegamento esterna.
+                * **La Soluzione:** Prima di procedere con ristrutturazioni profonde dell'albero WBS (tramite la funzione di rinumerazione), esporta sempre un backup preventivo del file JSON del progetto per sicurezza.
+                """)
 
         # --- SEZIONE 5: ROADMAP VERSIONE 2.0 ---
         with t_sec5:
