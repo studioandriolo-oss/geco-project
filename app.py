@@ -1513,72 +1513,88 @@ with col_sviluppo:
                 st.success("✅ Registro Incassi aggiornato con successo!")
                 st.rerun()
 
-    # ========================================================
+        # ========================================================
         # GRAFICO: ANDAMENTO FLUSSI DI CASSA (CUMULATIVO)
         # ========================================================
         st.divider()
-        st.subheader("📊 Cash Flow ")
+        st.subheader("📊 Andamento Flussi di Cassa (Cash Flow Storico)")
         
         df_grafico_uscite = st.session_state.registro_data.copy()
         df_grafico_entrate = st.session_state.sal_data.copy()
         
-        # 1. Preparazione Dati Uscite (Spese Cumulative) - VERSIONE BLINDATA
+        oggi = pd.Timestamp.today().normalize()
+        
+        # 1. Preparazione Dati Uscite (Spese Cumulative) - ORA RICONOSCE "Importo_Netto"
         if not df_grafico_uscite.empty:
-            # Trova dinamicamente la colonna degli importi (nei vecchi file poteva chiamarsi diversamente)
-            col_imp_uscite = 'Importo_Euro' if 'Importo_Euro' in df_grafico_uscite.columns else ('Costo' if 'Costo' in df_grafico_uscite.columns else 'Importo')
+            # Creiamo una lista di tutti i possibili nomi che hai usato per i costi
+            possibili_nomi_costo = ['Importo_Netto', 'Importo_Euro', 'Costo', 'Importo']
+            col_imp_uscite = next((col for col in possibili_nomi_costo if col in df_grafico_uscite.columns), None)
             
-            if 'Data' in df_grafico_uscite.columns and col_imp_uscite in df_grafico_uscite.columns:
-                df_grafico_uscite['Data'] = pd.to_datetime(df_grafico_uscite['Data'], errors='coerce')
-                # Forza la conversione in numero per evitare errori matematici
+            # Stessa cosa per la data
+            possibili_nomi_data = ['Data', 'Data Fattura / Spesa', 'Data_Fattura']
+            col_data_uscite = next((col for col in possibili_nomi_data if col in df_grafico_uscite.columns), None)
+            
+            if col_data_uscite and col_imp_uscite:
+                df_grafico_uscite['Data_Grafico'] = pd.to_datetime(df_grafico_uscite[col_data_uscite], errors='coerce')
                 df_grafico_uscite[col_imp_uscite] = pd.to_numeric(df_grafico_uscite[col_imp_uscite], errors='coerce').fillna(0)
-                
-                df_grafico_uscite = df_grafico_uscite.dropna(subset=['Data'])
-                df_grafico_uscite = df_grafico_uscite.sort_values('Data')
+                df_grafico_uscite = df_grafico_uscite.dropna(subset=['Data_Grafico'])
+                df_grafico_uscite = df_grafico_uscite.sort_values('Data_Grafico')
                 df_grafico_uscite['Cumulato'] = df_grafico_uscite[col_imp_uscite].cumsum()
             else:
-                df_grafico_uscite = pd.DataFrame() # Se mancano le colonne chiave, svuota la tabella per non crashare
+                df_grafico_uscite = pd.DataFrame()
             
-        # 2. Preparazione Dati Entrate (Solo SAL Pagati, Cumulativi) - VERSIONE BLINDATA
+        # 2. Preparazione Dati Entrate (Solo SAL Pagati, Cumulativi)
         if not df_grafico_entrate.empty and 'Stato_Pagamento' in df_grafico_entrate.columns:
             df_grafico_entrate = df_grafico_entrate[df_grafico_entrate['Stato_Pagamento'] == 'Pagato ▾'].copy()
             col_imp_entrate = 'Importo_Euro' if 'Importo_Euro' in df_grafico_entrate.columns else 'Importo'
             
             if 'Data_Emissione' in df_grafico_entrate.columns and col_imp_entrate in df_grafico_entrate.columns:
-                df_grafico_entrate['Data_Emissione'] = pd.to_datetime(df_grafico_entrate['Data_Emissione'], errors='coerce')
+                df_grafico_entrate['Data_Grafico'] = pd.to_datetime(df_grafico_entrate['Data_Emissione'], errors='coerce')
                 df_grafico_entrate[col_imp_entrate] = pd.to_numeric(df_grafico_entrate[col_imp_entrate], errors='coerce').fillna(0)
-                
-                df_grafico_entrate = df_grafico_entrate.dropna(subset=['Data_Emissione'])
-                df_grafico_entrate = df_grafico_entrate.sort_values('Data_Emissione')
+                df_grafico_entrate = df_grafico_entrate.dropna(subset=['Data_Grafico'])
+                df_grafico_entrate = df_grafico_entrate.sort_values('Data_Grafico')
                 df_grafico_entrate['Cumulato'] = df_grafico_entrate[col_imp_entrate].cumsum()
             else:
                 df_grafico_entrate = pd.DataFrame()
-                
+
         # 3. Disegno del Grafico
         if df_grafico_uscite.empty and df_grafico_entrate.empty:
-            st.info("Aggiungi spese o incassi per visualizzare il grafico del Cash Flow.")
+            st.info("Aggiungi spese o incassi (e ricordati di cliccare SALVA) per visualizzare il grafico.")
         else:
             fig_cf = go.Figure()
             
             # Traccia Costi (Rossa)
             if not df_grafico_uscite.empty:
+                # Estensione linea fino a oggi per continuità visiva
+                ultima_data_u = df_grafico_uscite['Data_Grafico'].max()
+                if ultima_data_u < oggi:
+                    nuova_riga = pd.DataFrame({'Data_Grafico': [oggi], 'Cumulato': [df_grafico_uscite['Cumulato'].iloc[-1]]})
+                    df_grafico_uscite = pd.concat([df_grafico_uscite, nuova_riga], ignore_index=True)
+                    
                 fig_cf.add_trace(go.Scatter(
-                    x=df_grafico_uscite['Data'],
+                    x=df_grafico_uscite['Data_Grafico'],
                     y=df_grafico_uscite['Cumulato'],
                     mode='lines+markers',
                     name='Uscite Cumulate (AC)',
-                    line=dict(color='#D32F2F', width=3, shape='hv'), # 'hv' crea l'effetto a gradini
+                    line=dict(color='#D32F2F', width=3, shape='hv'), # 'hv' = a gradini
                     fill='tozeroy',
                     fillcolor='rgba(211, 47, 47, 0.1)'
                 ))
                 
             # Traccia Incassi (Verde)
             if not df_grafico_entrate.empty:
+                # Estensione linea fino a oggi per continuità visiva
+                ultima_data_e = df_grafico_entrate['Data_Grafico'].max()
+                if ultima_data_e < oggi:
+                    nuova_riga = pd.DataFrame({'Data_Grafico': [oggi], 'Cumulato': [df_grafico_entrate['Cumulato'].iloc[-1]]})
+                    df_grafico_entrate = pd.concat([df_grafico_entrate, nuova_riga], ignore_index=True)
+
                 fig_cf.add_trace(go.Scatter(
-                    x=df_grafico_entrate['Data_Emissione'],
+                    x=df_grafico_entrate['Data_Grafico'],
                     y=df_grafico_entrate['Cumulato'],
                     mode='lines+markers',
                     name='Incassi Cumulati (SAL)',
-                    line=dict(color='#4CAF50', width=3, shape='hv'),
+                    line=dict(color='#4CAF50', width=3, shape='hv'), # 'hv' = a gradini
                     fill='tozeroy',
                     fillcolor='rgba(76, 175, 80, 0.1)'
                 ))
@@ -1592,7 +1608,7 @@ with col_sviluppo:
             )
             
             st.plotly_chart(fig_cf, use_container_width=True)
-
+            
     # --- TAB 7: DIREZIONE LAVORI, CAPA & REPORTISTICA ---
     with tab7:
         st.header("Direzione Lavori: Interventi (CAPA) e Simulazioni")
