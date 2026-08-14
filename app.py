@@ -488,7 +488,7 @@ with col_save:
             "wbs": st.session_state.wbs_data.copy(),
             "obs": st.session_state.obs_data.copy(),
             "registro": st.session_state.registro_data.copy(),
-            "capa": st.session_state.capa_data.copy()
+            "capa": st.session_state.capa_data.copy(),
             "conflitti_ignorati": st.session_state.conflitti_ignorati.copy()
         }
         st.success("Salvato!")
