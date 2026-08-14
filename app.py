@@ -2176,8 +2176,9 @@ with col_sviluppo:
                 st.caption("**SV (Schedule Variance)")
                 st.latex(r"CPI = \frac{EV}{AC}")
                 st.caption("**CPI (Cost Performance Index):** Efficienza economica. Se $< 0.95$, si sta spendendo più del budget previsto.")
-                st.latex(r"\text{EAC Risk-Adjusted} = EAC + \sum (\text{Budget}_\text{WBS} \times \text{Probabilità}_\text{Rischio} \times \text{Impatto}_\text{Rischio})")
-
+            
+            st.latex(r"\text{EAC Risk-Adjusted} = EAC + \sum (\text{Budget}_\text{WBS} \times \text{Probabilità}_\text{Rischio} \times \text{Impatto}_\text{Rischio})")
+            st.caption("**Quanta liquidità manca al competamento in considerazione dei rischi nella loro probabilità e impatto")
             st.latex(r"CF_{netto} = \sum Entrate_{SAL} - \sum Uscite_{AC}")
             st.caption("**Cash Flow Netto:** Esposizione di cassa al netto dei pagamenti ricevuti.")
 
