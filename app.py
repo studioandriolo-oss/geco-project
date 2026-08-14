@@ -885,30 +885,11 @@ with col_sviluppo:
         st.divider()
         st.warning("⚠️ **Hai aggiunto nuove lavorazioni nelle tabelle?** Clicca il tasto qui sotto per far assegnare al sistema la numerazione definitiva e riallineare l'albero WBS.")
         if st.button("💾 SALVA INSERIMENTI E RICALCOLA ALBERO", type="primary", use_container_width=True, key="btn_salva_mega_wbs"):
-            
-            # --- INNESTO CAPA  ---
-            df_capa_check = st.session_state.capa_data
-            wbs_bloccate = []
-            if not df_capa_check.empty and 'ID_WBS_Rif' in df_capa_check.columns and 'Stato' in df_capa_check.columns:
-                capa_attive = df_capa_check[df_capa_check['Stato'].isin(['Aperto ▾', 'In Lavorazione ▾'])]
-                if not capa_attive.empty:
-                    wbs_bloccate = capa_attive['ID_WBS_Rif'].astype(str).apply(lambda x: x.split(' - ')[0].strip()).unique().tolist()
-            
-            allarmi_blocco = []
-            for idx, row in discendenti_modificati.iterrows():
-                wbs_id = str(row.get('ID_WBS', '')).strip()
-                try:
-                    completamento = float(row.get('%_Completamento', 0))
-                except:
-                    completamento = 0.0
-                    
-                if wbs_id in wbs_bloccate and completamento >= 100:
-                    discendenti_modificati.at[idx, '%_Completamento'] = 99.0
-                    allarmi_blocco.append(wbs_id)
-            
-            if allarmi_blocco:
-                st.error(f"🚧 BLOCCO QUALITÀ: WBS {', '.join(allarmi_blocco)} bloccate al 99% per CAPA aperte.")
-            # --- FINE INNESTO CAPA (SOTTO CONTINUA IL TUO CODICE NORMALE) ---
+            st.session_state.wbs_data = df_aggiornato
+            for k in list(st.session_state.keys()):
+                if k.startswith("editor_wbs_"):
+                    del st.session_state[k]
+            modifica_struttura('1', 'rinumera')
             
     # --- TAB 2: SETUP OBS ---
     with tab2:
