@@ -2116,38 +2116,38 @@ with col_sviluppo:
             """)
 
         # --- 2. GLOSSARIO EVM ---
-        st.divider()
-        st.subheader("2. Glossario EVM (Earned Value Management)")
+        with t_sec2:
+            st.subheader("2. Glossario EVM (Earned Value Management)")
         
-        c_glos1, c_glos2 = st.columns(2)
-        with c_glos1:
-            with st.expander("Valori Base (I Pilastri)"):
-                st.markdown("""
-                * **BAC (Budget at Completion):** Il Budget totale pianificato per l'intero progetto o lavorazione.
-                * **PV (Planned Value):** Il valore del lavoro che *dovrebbe* essere stato completato fino ad oggi secondo il cronoprogramma. (Si calcola proiettando il BAC nel tempo).
-                * **EV (Earned Value):** Il valore del lavoro *effettivamente* completato fino ad oggi. È la metrica più importante: indica i soldi che il cantiere ha realmente "guadagnato" producendo.
-                * **AC (Actual Cost):** I costi reali effettivamente sostenuti per il lavoro svolto fino ad oggi (fatture, ore manodopera, materiali).
-                """)
-        with c_glos2:
-            with st.expander("Indicatori di Performance (KPI)"):
-                st.markdown("""
-                * **CV (Cost Variance):** Varianza dei costi. Se è negativa, stai spendendo più del previsto.
-                * **SV (Schedule Variance):** Varianza dei tempi. Se è negativa, sei in ritardo sul cronoprogramma.
-                * **CPI (Cost Performance Index):** Efficienza dei costi. Valore ideale: ≥ 1.0. Se vale 0.8, significa che per ogni Euro speso stai producendo solo 80 centesimi di valore.
-                * **SPI (Schedule Performance Index):** Efficienza dei tempi. Valore ideale: ≥ 1.0. Se vale 0.9, stai viaggiando al 90% della velocità prevista.
-                """)
+            c_glos1, c_glos2 = st.columns(2)
+            with c_glos1:
+                with st.expander("Valori Base (I Pilastri)"):
+                    st.markdown("""
+                    * **BAC (Budget at Completion):** Il Budget totale pianificato per l'intero progetto o lavorazione.
+                    * **PV (Planned Value):** Il valore del lavoro che *dovrebbe* essere stato completato fino ad oggi secondo il cronoprogramma. (Si calcola proiettando il BAC nel tempo).
+                    * **EV (Earned Value):** Il valore del lavoro *effettivamente* completato fino ad oggi. È la metrica più importante: indica i soldi che il cantiere ha realmente "guadagnato" producendo.
+                    * **AC (Actual Cost):** I costi reali effettivamente sostenuti per il lavoro svolto fino ad oggi (fatture, ore manodopera, materiali).
+                    """)
+            with c_glos2:
+                with st.expander("Indicatori di Performance (KPI)"):
+                    st.markdown("""
+                    * **CV (Cost Variance):** Varianza dei costi. Se è negativa, stai spendendo più del previsto.
+                    * **SV (Schedule Variance):** Varianza dei tempi. Se è negativa, sei in ritardo sul cronoprogramma.
+                    * **CPI (Cost Performance Index):** Efficienza dei costi. Valore ideale: ≥ 1.0. Se vale 0.8, significa che per ogni Euro speso stai producendo solo 80 centesimi di valore.
+                    * **SPI (Schedule Performance Index):** Efficienza dei tempi. Valore ideale: ≥ 1.0. Se vale 0.9, stai viaggiando al 90% della velocità prevista.
+                    """)
                 
-        with st.expander("Previsioni e Rischio (Proiezioni)"):
-            st.markdown("""
-            * **EAC (Estimate At Completion):** Costo totale stimato a fine progetto, ricalcolato in base all'efficienza attuale (CPI). Ti dice quanto ti costerà davvero il cantiere se continui a lavorare come stai facendo oggi.
-            * **ETC (Estimate To Complete):** I fondi residui necessari per finire il lavoro da oggi in poi.
-            * **VAC (Variance At Completion):** Scostamento finale previsto (BAC - EAC). Se è negativo, il progetto si chiuderà in perdita rispetto al budget iniziale.
-            * **EMV (Expected Monetary Value):** Valore Monetario Atteso. Trasforma i punteggi di rischio in valuta, creando un *Fondo Imprevisti* dinamico.
-            * **EAC Risk-Adjusted:** L'EAC classico sommato al Fondo Imprevisti. È lo scenario finanziario più prudente.
-            """)
+            with st.expander("Previsioni e Rischio (Proiezioni)"):
+                st.markdown("""
+                * **EAC (Estimate At Completion):** Costo totale stimato a fine progetto, ricalcolato in base all'efficienza attuale (CPI). Ti dice quanto ti costerà davvero il cantiere se continui a lavorare come stai facendo oggi.
+                * **ETC (Estimate To Complete):** I fondi residui necessari per finire il lavoro da oggi in poi.
+                * **VAC (Variance At Completion):** Scostamento finale previsto (BAC - EAC). Se è negativo, il progetto si chiuderà in perdita rispetto al budget iniziale.
+                * **EMV (Expected Monetary Value):** Valore Monetario Atteso. Trasforma i punteggi di rischio in valuta, creando un *Fondo Imprevisti* dinamico.
+                * **EAC Risk-Adjusted:** L'EAC classico sommato al Fondo Imprevisti. È lo scenario finanziario più prudente.
+                """)
             
         # --- SEZIONE 3: FORMULARIO ---
-        with t_sec2:
+        with t_sec3:
             st.subheader("Matematica e Indicatori di Performance (EVM)")
             st.markdown("Il motore calcola in tempo reale lo stato di salute del cantiere utilizzando le metriche standard internazionali dell'**Earned Value Management** e della finanza di progetto:")
 
@@ -2183,7 +2183,7 @@ with col_sviluppo:
             st.caption("**Cash Flow Netto:** Esposizione di cassa al netto dei pagamenti ricevuti.")
 
         # --- SEZIONE 4: CASISTICHE E FALSI INGHIPPI ---
-        with t_sec3:
+        with t_sec4:
             st.subheader("🔍 Guida pratica ai 'Falsi Ingippi' e Blocchi di Sicurezza")
             st.markdown("In questa sezione spieghiamo i comportamenti automatizzati del software che potrebbero sembrare anomalie, ma che in realtà sono **controlli di sicurezza attivi**.")
 
