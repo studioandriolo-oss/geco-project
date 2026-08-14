@@ -621,10 +621,10 @@ with col_save:
     st.caption("Versione 1.0")
 
    # ==========================================
-    # 🤖 RADAR DIREZIONALE (AI-ASSIST)
+    # 🤖 GIANFRANCO SUGGERISCE
     # ==========================================
     st.divider()
-    st.markdown("#### 🤖 AI-Assist")
+    st.markdown("#### 🤖 GIANFRANCO SUGGERISCE")
     
     # Inizializziamo la memoria delle eccezioni consentite dal DL
     if 'conflitti_ignorati' not in st.session_state:
@@ -885,13 +885,8 @@ with col_sviluppo:
         st.divider()
         st.warning("⚠️ **Hai aggiunto nuove lavorazioni nelle tabelle?** Clicca il tasto qui sotto per far assegnare al sistema la numerazione definitiva e riallineare l'albero WBS.")
         if st.button("💾 SALVA INSERIMENTI E RICALCOLA ALBERO", type="primary", use_container_width=True, key="btn_salva_mega_wbs"):
-            st.session_state.wbs_data = df_aggiornato
-            for k in list(st.session_state.keys()):
-                if k.startswith("editor_wbs_"):
-                    del st.session_state[k]
-            modifica_struttura('1', 'rinumera')
-
-        # --- INIZIO INNESTO CAPA ---
+            
+            # --- 1. INIZIO INNESTO CAPA (Agisce su df_aggiornato) ---
             df_capa_check = st.session_state.capa_data
             wbs_bloccate = []
             if not df_capa_check.empty and 'ID_WBS_Rif' in df_capa_check.columns and 'Stato' in df_capa_check.columns:
@@ -900,7 +895,7 @@ with col_sviluppo:
                     wbs_bloccate = capa_attive['ID_WBS_Rif'].astype(str).apply(lambda x: x.split(' - ')[0].strip()).unique().tolist()
             
             allarmi_blocco = []
-            for idx, row in discendenti_modificati.iterrows():
+            for idx, row in df_aggiornato.iterrows():
                 wbs_id = str(row.get('ID_WBS', '')).strip()
                 try:
                     completamento = float(row.get('%_Completamento', 0))
@@ -908,14 +903,29 @@ with col_sviluppo:
                     completamento = 0.0
                     
                 if wbs_id in wbs_bloccate and completamento >= 100:
-                    discendenti_modificati.at[idx, '%_Completamento'] = 99.0
+                    df_aggiornato.at[idx, '%_Completamento'] = 99.0
                     allarmi_blocco.append(wbs_id)
-            
-            if allarmi_blocco:
-                st.error(f"🚧 BLOCCO QUALITÀ: WBS {', '.join(allarmi_blocco)} bloccate al 99% per CAPA aperte.")
             # --- FINE INNESTO CAPA ---
 
-    
+            # 2. Salvataggio del dataframe corretto
+            st.session_state.wbs_data = df_aggiornato
+            
+            # 3. Pulizia della cache di Streamlit
+            for k in list(st.session_state.keys()):
+                if k.startswith("editor_wbs_"):
+                    del st.session_state[k]
+                    
+            # 4. Ricalcolo struttura
+            modifica_struttura('1', 'rinumera')
+            
+            # 5. Feedback a schermo
+            if allarmi_blocco:
+                st.error(f"🚧 BLOCCO QUALITÀ: WBS {', '.join(allarmi_blocco)} bloccate al 99% per CAPA aperte.")
+            else:
+                st.success("✅ Dati salvati e albero ricalcolato!")
+                
+            st.rerun()
+
     # --- TAB 2: SETUP OBS ---
     with tab2:
         st.header("OBS - Organization Breakdown Structure")
