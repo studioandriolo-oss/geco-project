@@ -1075,7 +1075,11 @@ with col_sviluppo:
                 df_esec = df_gantt.dropna(subset=['Inizio_Effettivo']).copy()
                 if not df_esec.empty:
                     # Uniamo i dati EVM per estrarre l'SPI su ogni lavorazione
-                    df_esec = df_esec.merge(df_evm_gantt[['ID_WBS', 'SPI', '%_Completamento']], on='ID_WBS', how='left')
+                    # Forziamo il formato testo per evitare mancati incroci
+                    df_esec['ID_WBS'] = df_esec['ID_WBS'].astype(str).str.strip()
+                    df_evm_clean = df_evm_gantt[['ID_WBS', 'SPI', '%_Completamento']].copy()
+                    df_evm_clean['ID_WBS'] = df_evm_clean['ID_WBS'].astype(str).str.strip()
+                    df_esec = df_esec.merge(df_evm_clean, on='ID_WBS', how='left')
                     
                     def colora_gantt(row):
                         spi = row['SPI']
