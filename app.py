@@ -457,8 +457,25 @@ st.session_state.wbs_data = calcola_evm(st.session_state.wbs_data, pd.Timestamp.
 # IMPOSTAZIONE GRAFICA (COLONNE E SCHERMO)
 # ==========================================
 
-# --- DIVISIONE DELLO SCHERMO ---
-col_save, col_sviluppo = st.columns([1, 10]) # Rapporto 1 a 10 (Sinistra strettissima!)
+# ==========================================
+# IMPOSTAZIONE GRAFICA E LARGHEZZA DINAMICA
+# ==========================================
+
+# 1. Creiamo una "memoria" per la larghezza del pannello (default 1.2)
+if 'pannello_sx' not in st.session_state:
+    st.session_state.pannello_sx = 1.2
+
+# 2. Le colonne ora "respirano" in base al valore del cursore
+col_save, col_sviluppo = st.columns([st.session_state.pannello_sx, 10])
+
+# ==========================================
+# COLONNA DI SINISTRA (PANNELLO DI CONTROLLO)
+# ==========================================
+with col_save:
+    # 3. Il cursore che comanda la larghezza in tempo reale!
+    st.slider("↔️ Regola Pannello", min_value=0.5, max_value=5.0, step=0.1, key="pannello_sx", help="Trascina per allargare o restringere la colonna")
+    
+    st.markdown("### 📂 Progetto")
 
 # ==========================================
 # COLONNA DI SINISTRA (PANNELLO DI CONTROLLO)
