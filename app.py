@@ -2176,9 +2176,8 @@ with col_sviluppo:
                 st.caption("**VAC (Variance At Completion)")    
                 st.latex(r"\text{EAC Risk-Adjusted} = EAC + \sum (\text{Budget}_\text{WBS} \times \text{Probabilità}_\text{Rischio} \times \text{Impatto}_\text{Rischio})")
                 st.caption("**Quanta liquidità manca al competamento in considerazione dei rischi nella loro probabilità e impatto")
-            
-            st.latex(r"CF_{netto} = \sum Entrate_{SAL} - \sum Uscite_{AC}")
-            st.caption("**Cash Flow Netto:** Esposizione di cassa al netto dei pagamenti ricevuti.")
+                st.latex(r"CF_{netto} = \sum Entrate_{SAL} - \sum Uscite_{AC}")
+                st.caption("**Cash Flow Netto:** Esposizione di cassa al netto dei pagamenti ricevuti.")
 
         # --- SEZIONE 4: CASISTICHE E FALSI INGHIPPI ---
         with t_sec4:
