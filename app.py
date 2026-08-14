@@ -1074,11 +1074,15 @@ with col_sviluppo:
             if vista in ["Esecuzione (Esecutivo)", "Comparativa"]:
                 df_esec = df_gantt.dropna(subset=['Inizio_Effettivo']).copy()
                 if not df_esec.empty:
-                    # Uniamo i dati EVM per estrarre l'SPI su ogni lavorazione
                     # Forziamo il formato testo per evitare mancati incroci
                     df_esec['ID_WBS'] = df_esec['ID_WBS'].astype(str).str.strip()
                     df_evm_clean = df_evm_gantt[['ID_WBS', 'SPI', '%_Completamento']].copy()
                     df_evm_clean['ID_WBS'] = df_evm_clean['ID_WBS'].astype(str).str.strip()
+                    
+                    # CANCELLIAMO LE VECCHIE COLONNE PER EVITARE I DOPPIONI (_x e _y)
+                    df_esec = df_esec.drop(columns=['SPI', '%_Completamento'], errors='ignore')
+                    
+                    # Ora uniamo i dati puliti
                     df_esec = df_esec.merge(df_evm_clean, on='ID_WBS', how='left')
                     
                     def colora_gantt(row):
