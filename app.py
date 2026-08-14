@@ -604,13 +604,17 @@ with col_save:
     st.divider()
     st.caption("Versione 1.0")
 
-    # ==========================================
+   # ==========================================
     # 🤖 RADAR DIREZIONALE (AI-ASSIST)
     # ==========================================
     st.divider()
     st.markdown("#### 🤖 AI-Assist")
     
-    df_ai = get_foglie(st.session_state.wbs_data)
+    # Inizializziamo la memoria delle eccezioni consentite dal DL
+    if 'conflitti_ignorati' not in st.session_state:
+        st.session_state.conflitti_ignorati = []
+    
+    df_ai = get_foglie(st.session_state.wbs_data).copy()
     soglia_allerta = 0.95
     
     if df_ai.empty or df_ai['BAC_Budget'].sum() == 0:
@@ -626,28 +630,76 @@ with col_save:
         if not df_rischi_ai.empty:
             rischi_attivi = df_rischi_ai[df_rischi_ai['Stato'].isin(['Attivo ▾', 'Monitorato ▾'])]
             
-        if critici_costo.empty and critici_tempo.empty and rischi_attivi.empty:
+        # ===================================================
+        # RILEVAMENTO CONFLITTI RISORSE (CON "IGNORE BUTTON")
+        # ===================================================
+        conflitti_risorse = []
+        df_res = df_ai.dropna(subset=['Inizio_Previsto', 'Fine_Prevista']).copy()
+        df_res = df_res[df_res['ID_OBS_Assegnato'].astype(str).str.strip().astype(bool)]
+        df_res = df_res[~df_res['ID_OBS_Assegnato'].astype(str).isin(['None', 'nan'])]
+        
+        if not df_res.empty:
+            df_res['Inizio_Previsto'] = pd.to_datetime(df_res['Inizio_Previsto'])
+            df_res['Fine_Prevista'] = pd.to_datetime(df_res['Fine_Prevista'])
+            
+            for obs_val, group in df_res.groupby('ID_OBS_Assegnato'):
+                tasks = group.to_dict('records')
+                for i in range(len(tasks)):
+                    for j in range(i + 1, len(tasks)):
+                        t1, t2 = tasks[i], tasks[j]
+                        inizio1, fine1 = t1['Inizio_Previsto'], t1['Fine_Prevista']
+                        inizio2, fine2 = t2['Inizio_Previsto'], t2['Fine_Prevista']
+                        
+                        if (inizio1 <= fine2) and (inizio2 <= fine1):
+                            # Creiamo una "Targa" univoca per questa sovrapposizione (es. "2.1_2.2")
+                            conflitto_id = f"{t1['ID_WBS']}_{t2['ID_WBS']}"
+                            
+                            # Aggiungiamo all'allarme SOLO se non è stato ignorato dal DL
+                            if conflitto_id not in st.session_state.conflitti_ignorati:
+                                nome_risorsa = str(obs_val).split(' - ')[1] if ' - ' in str(obs_val) else str(obs_val)
+                                sovrapposizione_inizio = max(inizio1, inizio2).strftime('%d/%m')
+                                sovrapposizione_fine = min(fine1, fine2).strftime('%d/%m')
+                                
+                                conflitti_risorse.append({
+                                    'ID_Univoco': conflitto_id,
+                                    'Risorsa': nome_risorsa,
+                                    'WBS1': f"{t1['ID_WBS']} ({t1['Attività']})",
+                                    'WBS2': f"{t2['ID_WBS']} ({t2['Attività']})",
+                                    'Date': f"dal {sovrapposizione_inizio} al {sovrapposizione_fine}"
+                                })
+
+        # --- GESTIONE DEGLI ALLARMI ---
+        if critici_costo.empty and critici_tempo.empty and rischi_attivi.empty and not conflitti_risorse:
             st.success("✅ **Progetto in salute!** Nessuna azione richiesta.")
         else:
             # 1. Allarmi di Schedulazione (Tempi)
             if not critici_tempo.empty:
                 for _, row in critici_tempo.iterrows():
                     with st.expander(f"⏳ WBS {row['ID_WBS']}: Ritardo"):
-                        st.markdown(f"**Situazione:** Efficienza tempi al **{row['SPI']*100:.0f}%**.<br>**Azione:** Usa il Simulatore (*Tab 7*) per testare un *Crashing* (iniettare costi extra per recuperare giorni) oppure scala le date in *Tab 1*.", unsafe_allow_html=True)
+                        st.markdown(f"**Situazione:** Efficienza tempi al **{row['SPI']*100:.0f}%**.<br>**Azione:** Usa il Simulatore (*Tab 7*) per testare un *Crashing* oppure scala le date in *Tab 1*.", unsafe_allow_html=True)
             
             # 2. Allarmi Finanziari (Costi)
             if not critici_costo.empty:
                 for _, row in critici_costo.iterrows():
                     with st.expander(f"💸 WBS {row['ID_WBS']}: Over-Budget"):
-                        st.markdown(f"**Situazione:** Efficienza costi a **{row['CPI']:.2f}**.<br>**Azione:** Verifica le spese nel *Tab 6*. Se la spesa è irreversibile, apri una CAPA in *Tab 7* per autorizzare formalmente lo sforamento.", unsafe_allow_html=True)
+                        st.markdown(f"**Situazione:** Efficienza costi a **{row['CPI']:.2f}**.<br>**Azione:** Verifica le spese nel *Tab 6*. Se la spesa è irreversibile, apri una CAPA in *Tab 7*.", unsafe_allow_html=True)
                         
             # 3. Allarmi Rischio (Scudo)
             if not rischi_attivi.empty:
                 with st.expander(f"⚠️ {len(rischi_attivi)} Rischi Attivi"):
-                    st.markdown("**Situazione:** Capitale di garanzia congelato nel Fondo Imprevisti.<br>**Azione:** Metti in atto le mitigazioni di cantiere. Poi chiudi l'Azione in *Tab 7* per far sbloccare i fondi in automatico al sistema.", unsafe_allow_html=True)
-
-    st.divider()
-
+                    st.markdown("**Situazione:** Capitale congelato nel Fondo Imprevisti.<br>**Azione:** Metti in atto le mitigazioni di cantiere e chiudi l'Azione in *Tab 7* per sbloccare i fondi.", unsafe_allow_html=True)
+                    
+            # 4. Allarmi Sovraccarico Risorse (Conflitti)
+            if conflitti_risorse:
+                with st.expander(f"👷 {len(conflitti_risorse)} Conflitti Risorse"):
+                    st.markdown("**Situazione:** Una risorsa è stata assegnata a lavorazioni sovrapposte.")
+                    for c in conflitti_risorse:
+                        st.error(f"**{c['Risorsa']}** lavora su:\n* {c['WBS1']}\n* {c['WBS2']}\n*(Accavallamento: {c['Date']})*")
+                        # IL BOTTONE PER IGNORARE!
+                        if st.button("👁️ Consenti Sovrapposizione", key=f"ignora_{c['ID_Univoco']}", help="Nascondi questo allarme: accetto che lavorino in contemporanea."):
+                            st.session_state.conflitti_ignorati.append(c['ID_Univoco'])
+                            st.rerun()
+                            
 # ==========================================
 # COLONNA DI DESTRA (IL MOTORE DELL'APP)
 # ==========================================
