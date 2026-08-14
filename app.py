@@ -1522,21 +1522,37 @@ with col_sviluppo:
         df_grafico_uscite = st.session_state.registro_data.copy()
         df_grafico_entrate = st.session_state.sal_data.copy()
         
-        # 1. Preparazione Dati Uscite (Spese Cumulative)
+        # 1. Preparazione Dati Uscite (Spese Cumulative) - VERSIONE BLINDATA
         if not df_grafico_uscite.empty:
-            df_grafico_uscite['Data'] = pd.to_datetime(df_grafico_uscite['Data'], errors='coerce')
-            df_grafico_uscite = df_grafico_uscite.dropna(subset=['Data', 'Importo_Euro'])
-            df_grafico_uscite = df_grafico_uscite.sort_values('Data')
-            df_grafico_uscite['Cumulato'] = df_grafico_uscite['Importo_Euro'].cumsum()
+            # Trova dinamicamente la colonna degli importi (nei vecchi file poteva chiamarsi diversamente)
+            col_imp_uscite = 'Importo_Euro' if 'Importo_Euro' in df_grafico_uscite.columns else ('Costo' if 'Costo' in df_grafico_uscite.columns else 'Importo')
             
-        # 2. Preparazione Dati Entrate (Solo SAL Pagati, Cumulativi)
-        if not df_grafico_entrate.empty:
+            if 'Data' in df_grafico_uscite.columns and col_imp_uscite in df_grafico_uscite.columns:
+                df_grafico_uscite['Data'] = pd.to_datetime(df_grafico_uscite['Data'], errors='coerce')
+                # Forza la conversione in numero per evitare errori matematici
+                df_grafico_uscite[col_imp_uscite] = pd.to_numeric(df_grafico_uscite[col_imp_uscite], errors='coerce').fillna(0)
+                
+                df_grafico_uscite = df_grafico_uscite.dropna(subset=['Data'])
+                df_grafico_uscite = df_grafico_uscite.sort_values('Data')
+                df_grafico_uscite['Cumulato'] = df_grafico_uscite[col_imp_uscite].cumsum()
+            else:
+                df_grafico_uscite = pd.DataFrame() # Se mancano le colonne chiave, svuota la tabella per non crashare
+            
+        # 2. Preparazione Dati Entrate (Solo SAL Pagati, Cumulativi) - VERSIONE BLINDATA
+        if not df_grafico_entrate.empty and 'Stato_Pagamento' in df_grafico_entrate.columns:
             df_grafico_entrate = df_grafico_entrate[df_grafico_entrate['Stato_Pagamento'] == 'Pagato ▾'].copy()
-            df_grafico_entrate['Data_Emissione'] = pd.to_datetime(df_grafico_entrate['Data_Emissione'], errors='coerce')
-            df_grafico_entrate = df_grafico_entrate.dropna(subset=['Data_Emissione', 'Importo_Euro'])
-            df_grafico_entrate = df_grafico_entrate.sort_values('Data_Emissione')
-            df_grafico_entrate['Cumulato'] = df_grafico_entrate['Importo_Euro'].cumsum()
+            col_imp_entrate = 'Importo_Euro' if 'Importo_Euro' in df_grafico_entrate.columns else 'Importo'
             
+            if 'Data_Emissione' in df_grafico_entrate.columns and col_imp_entrate in df_grafico_entrate.columns:
+                df_grafico_entrate['Data_Emissione'] = pd.to_datetime(df_grafico_entrate['Data_Emissione'], errors='coerce')
+                df_grafico_entrate[col_imp_entrate] = pd.to_numeric(df_grafico_entrate[col_imp_entrate], errors='coerce').fillna(0)
+                
+                df_grafico_entrate = df_grafico_entrate.dropna(subset=['Data_Emissione'])
+                df_grafico_entrate = df_grafico_entrate.sort_values('Data_Emissione')
+                df_grafico_entrate['Cumulato'] = df_grafico_entrate[col_imp_entrate].cumsum()
+            else:
+                df_grafico_entrate = pd.DataFrame()
+                
         # 3. Disegno del Grafico
         if df_grafico_uscite.empty and df_grafico_entrate.empty:
             st.info("Aggiungi spese o incassi per visualizzare il grafico del Cash Flow.")
