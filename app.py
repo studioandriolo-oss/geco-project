@@ -2153,8 +2153,8 @@ with col_sviluppo:
             with st.expander("Valori Base (I Pilastri)"):
                 st.latex(r"EV = BAC \times \% \text{ Avanzamento Fisico}")
                 st.caption("**EV (Earned Value)")
-                st.markdown(Planned Value: *sono i costi definiti da progetto/computo, compilati manualmente in WBS*)
-                st.markdown(BAC (Budget at Completion): *Il Budget totale pianificato*)
+                st.markdown("Planned Value: *sono i costi definiti da progetto/computo, compilati manualmente in WBS*")
+                st.markdown("BAC (Budget at Completion): *Il Budget totale pianificato*")
                 
                 
             with st.expander("Indicatori di Performance (KPI)"):
