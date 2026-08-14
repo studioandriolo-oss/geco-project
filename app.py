@@ -2043,9 +2043,9 @@ with col_sviluppo:
         # Sotto-sezioni del manuale per massima pulizia visiva
         t_sec1, t_sec2, t_sec3, t_sec4, t_sec5 = st.tabs([
             "🧭 Flusso di Lavoro", 
+            "📚 Glossario Tecnico",
             "📐 Formulario EVM & Finanza", 
             "⚠️ Casi Studio & Falsi Ingippi", 
-            "📚 Glossario Tecnico", 
             "🛠️ Roadmap Versione 2.0"
         ])
 
