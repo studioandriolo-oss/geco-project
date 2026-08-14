@@ -621,7 +621,7 @@ with col_save:
     st.caption("Versione 1.0")
 
    # ==========================================
-    # 🤖 GIANFRANCO SUGGERISCE
+    # 🤖 GIANFRANCO SUGGERISCE 🤖
     # ==========================================
     st.divider()
     st.markdown("#### 🤖 GIANFRANCO SUGGERISCE")
@@ -2033,137 +2033,119 @@ with col_sviluppo:
         else:
             st.info("ℹ️ Compila i valori numerici (da 1 a 5) nella colonna Probabilità e Impatto della tabella qui sopra per generare la matrice.")
 
-# --- TAB 9: GUIDA, GLOSSARIO E FORMULARIO ---
+# ========================================================
+    # --- TAB 9: MANUALE OPERATIVO, FORMULARIO & FAQ V.2.0 ---
+    # ========================================================
     with tab9:
-        st.header("Manuale d'Uso e Fondamenti di Project Management")
-        st.markdown("Questa sezione illustra il funzionamento dell'ecosistema gestionale, guidando l'utente dalla fase di setup fino al controllo avanzato dei rischi e all'emissione dei verbali.")
-        
-        # --- 1. IL CICLO DI VITA DELL'ECOSISTEMA (DIAGRAMMA) ---
-        st.subheader("1. L'Ecosistema Gestionale (Architettura dei Dati)")
-        st.markdown("Il software è progettato in modo che le informazioni viaggino automaticamente tra le varie sezioni, creando un ciclo continuo di pianificazione, misurazione, allerta e correzione.")
-        
-        diag_guida = graphviz.Digraph(engine='dot')
-        diag_guida.attr(rankdir='LR', splines='ortho', nodesep='0.8', ranksep='1.2')
-        diag_guida.attr('node', shape='box', style='rounded,filled', fontname='Helvetica', fontsize='11', margin='0.2')
-        
-        # Nodi Input Base (Grigi)
-        with diag_guida.subgraph(name='cluster_input') as c:
-            c.attr(label='FASE 1: INPUT DATI', style='dashed', color='gray')
-            c.node('T1', 'TAB 1: WBS (Lavorazioni)\nCreazione Struttura, Budget\nDate Previste ed Effettive', fillcolor='#F5F5F5')
-            c.node('T2', 'TAB 2: OBS (Risorse)\nAnagrafiche e Contratti', fillcolor='#F5F5F5')
-            c.node('T6', 'TAB 6: REGISTRO CONTABILE\nInserimento Fatture, Spese\ne Costi Reali (AC)', fillcolor='#F5F5F5')
+        st.header("📖 Manuale Operativo & Knowledge Base (Versione 2.0)")
+        st.markdown("Benvenuto nella centrale di controllo della documentazione di cantiere. Questo manuale guida l'utente attraverso l'architettura dei dati, le formule matematiche e le logiche di automazione integrate nell'applicazione.")
 
-        # Nodi Motore e Output (Colorati)
-        with diag_guida.subgraph(name='cluster_analisi') as c:
-            c.attr(label='FASE 2: ANALISI E PREVISIONI', style='dashed', color='gray')
-            c.node('T3', 'TAB 3: GRAFO E MATRICE\nCalcolo Percorso Critico (CPM)\nMargini e Allarmi Visivi', fillcolor='#FFE0B2', color='#FBC02D', penwidth='2')
-            c.node('T4', 'TAB 4: GANTT\nCronoprogramma\nBaseline vs Esecutivo', fillcolor='#FFE0B2', color='#FBC02D', penwidth='2')
-            c.node('T5', 'TAB 5: EVM & CASH FLOW\n- Indicatori di Salute (CPI/SPI)\n- Curva ad S e Proiezioni\n- Scudo Finanziario', fillcolor='#C8E6C9', color='#43A047', penwidth='2')
+        # Sotto-sezioni del manuale per massima pulizia visiva
+        t_sec1, t_sec2, t_sec3, t_sec4, t_sec5 = st.tabs([
+            "🧭 Flusso di Lavoro", 
+            "📐 Formulario EVM & Finanza", 
+            "⚠️ Casi Studio & Falsi Ingippi", 
+            "📚 Glossario Tecnico", 
+            "🛠️ Roadmap Versione 2.0"
+        ])
 
-        # Nodi Gestione Rischi e Controllo
-        with diag_guida.subgraph(name='cluster_controllo') as c:
-            c.attr(label='FASE 3: DIREZIONE LAVORI', style='dashed', color='gray')
-            c.node('T8', 'TAB 8: MATRICE RISCHI\nHeatmap e Calcolo Punteggio\n(Probabilità x Impatto)', fillcolor='#FFCDD2', color='#E53935', penwidth='2')
-            c.node('T7', 'TAB 7: DIREZIONE & CAPA\n- Registro Interventi Correttivi\n- Simulatore Crashing (Costi/Tempi)\n- Stampa Verbale PDF', fillcolor='#BBDEFB', color='#1E88E5', penwidth='2')
-            c.node('AUTO', 'PILOTA AUTOMATICO', shape='ellipse', fillcolor='#E1BEE7', style='filled,dashed')
-        
-        # Archi Relazionali (Frecce)
-        diag_guida.edge('T2', 'T1', ' Assegnazione', color='gray')
-        diag_guida.edge('T1', 'T3', ' Predecessori', color='gray')
-        diag_guida.edge('T1', 'T4', ' Schedulazione', color='gray')
-        diag_guida.edge('T1', 'T5', ' Budget (BAC) & Valore (EV)', color='gray')
-        diag_guida.edge('T6', 'T5', ' Costo Reale (AC)', color='gray')
-        
-        # Archi Rischio e CAPA (Colorati)
-        diag_guida.edge('T8', 'T3', ' Allerta Visiva Nodi', color='#E53935', fontcolor='#E53935')
-        diag_guida.edge('T8', 'T5', ' Genera Fondo Imprevisti', color='#E53935', fontcolor='#E53935')
-        diag_guida.edge('T8', 'T7', ' Richiede Mitigazione', color='#E53935', fontcolor='#E53935')
-        diag_guida.edge('T7', 'T5', ' Impatto Simulato', color='#1E88E5', fontcolor='#1E88E5', style='dotted')
-        diag_guida.edge('T7', 'AUTO', ' Se Azione = CHIUSA', color='#1E88E5', fontcolor='#1E88E5', style='bold')
-        diag_guida.edge('AUTO', 'T8', ' Auto-Mitigazione Rischio\n(Sblocca Budget)', color='#43A047', fontcolor='#43A047', style='bold')
-        
-        st.graphviz_chart(diag_guida, use_container_width=True)
-        
-        # --- 2. GLOSSARIO EVM ---
-        st.divider()
-        st.subheader("2. Glossario EVM (Earned Value Management)")
-        
-        c_glos1, c_glos2 = st.columns(2)
-        with c_glos1:
-            with st.expander("Valori Base (I Pilastri)"):
-                st.markdown("""
-                * **BAC (Budget at Completion):** Il Budget totale pianificato per l'intero progetto o lavorazione.
-                * **PV (Planned Value):** Il valore del lavoro che *dovrebbe* essere stato completato fino ad oggi secondo il cronoprogramma. (Si calcola proiettando il BAC nel tempo).
-                * **EV (Earned Value):** Il valore del lavoro *effettivamente* completato fino ad oggi. È la metrica più importante: indica i soldi che il cantiere ha realmente "guadagnato" producendo.
-                * **AC (Actual Cost):** I costi reali effettivamente sostenuti per il lavoro svolto fino ad oggi (fatture, ore manodopera, materiali).
-                """)
-        with c_glos2:
-            with st.expander("Indicatori di Performance (KPI)"):
-                st.markdown("""
-                * **CV (Cost Variance):** Varianza dei costi. Se è negativa, stai spendendo più del previsto.
-                * **SV (Schedule Variance):** Varianza dei tempi. Se è negativa, sei in ritardo sul cronoprogramma.
-                * **CPI (Cost Performance Index):** Efficienza dei costi. Valore ideale: ≥ 1.0. Se vale 0.8, significa che per ogni Euro speso stai producendo solo 80 centesimi di valore.
-                * **SPI (Schedule Performance Index):** Efficienza dei tempi. Valore ideale: ≥ 1.0. Se vale 0.9, stai viaggiando al 90% della velocità prevista.
-                """)
-                
-        with st.expander("Previsioni e Rischio (Proiezioni)"):
+        # --- SEZIONE 1: FLUSSO DI LAVORO ---
+        with t_sec1:
+            st.subheader("Il Ciclo di Vita del Progetto nell'App")
+            st.markdown("Per una gestione impeccabile della commessa, si consiglia di seguire rigorosamente questa sequenza operativa nei vari Tab:")
+            
             st.markdown("""
-            * **EAC (Estimate At Completion):** Costo totale stimato a fine progetto, ricalcolato in base all'efficienza attuale (CPI). Ti dice quanto ti costerà davvero il cantiere se continui a lavorare come stai facendo oggi.
-            * **ETC (Estimate To Complete):** I fondi residui necessari per finire il lavoro da oggi in poi.
-            * **VAC (Variance At Completion):** Scostamento finale previsto (BAC - EAC). Se è negativo, il progetto si chiuderà in perdita rispetto al budget iniziale.
-            * **EMV (Expected Monetary Value):** Valore Monetario Atteso. Trasforma i punteggi di rischio in valuta, creando un *Fondo Imprevisti* dinamico.
-            * **EAC Risk-Adjusted:** L'EAC classico sommato al Fondo Imprevisti. È lo scenario finanziario più prudente.
+            1. **Tab 2 (OBS & Risorse):** Inserisci le imprese, le maestranze e le attrezzature disponibili. Sono i soggetti che animeranno il cantiere.
+            2. **Tab 1 (WBS - Lavorazioni):** Struttura l'albero delle attività. Assegna i budget (BAC), i predecessori e collega ciascuna lavorazione alla risorsa responsabile (OBS) e alle date previste.
+            3. **Tab 4 (Gantt & Monitoraggio):** Controlla l'allineamento temporale. Le barre si coloreranno automaticamente in base all'efficienza (SPI).
+            4. **Tab 6 (Gestione Finanziaria):** 
+               * *Uscite:* Registra fatture e costi reali associandoli alle WBS.
+               * *Entrate:* Emetti e traccia i SAL certificati e pagati dalla committenza.
+            5. **Tab 7 (Rischi & CAPA):** Gestisci il fondo imprevisti e apri azioni correttive (Non-Conformità) qualora qualcosa non rispetti gli standard qualitativi.
+            6. **Tab 5 & Radar (AI-Assist):** Monitora il cruscotto di controllo per verificare l'esposizione di cassa (Cash Flow) e le allerte di sovraccarico risorse.
             """)
 
-        # --- 3. FORMULARIO MATEMATICO ---
-        st.divider()
-        st.subheader("3. Formulario Matematico")
-        
-        st.markdown("Il motore del software utilizza queste equazioni standard internazionali per calcolare in tempo reale lo stato di salute del progetto.")
-        
-        col_form1, col_form2 = st.columns(2)
-        with col_form1:
-            st.latex(r"EV = BAC \times \% \text{ Avanzamento Fisico}")
-            st.latex(r"CV = EV - AC")
-            st.latex(r"SV = EV - PV")
-            st.latex(r"CPI = \frac{EV}{AC}")
-        with col_form2:
-            st.latex(r"SPI = \frac{EV}{PV}")
-            st.latex(r"EAC = \frac{BAC}{CPI}")
-            st.latex(r"ETC = EAC - AC")
-            st.latex(r"VAC = BAC - EAC")
-            
-        st.latex(r"\text{EAC Risk-Adjusted} = EAC + \sum (\text{Budget}_\text{WBS} \times \text{Probabilità}_\text{Rischio} \times \text{Impatto}_\text{Rischio})")
+        # --- SEZIONE 2: FORMULARIO ---
+        with t_sec2:
+            st.subheader("Matematica e Indicatori di Performance (EVM)")
+            st.markdown("Il motore calcola in tempo reale lo stato di salute del cantiere utilizzando le metriche standard internazionali dell'**Earned Value Management** e della finanza di progetto:")
 
-        # --- 4. MANUALE OPERATIVO ---
-        st.divider()
-        st.subheader("4. Manuale Operativo (Workflow Consigliato)")
-        st.markdown("Segui questi passaggi per gestire un progetto da zero fino alla chiusura:")
-        
-        st.info("**STEP 1: Impostazione del Progetto (Pianificazione)**\n\n"
-                "1. Usa il **Pannello di Sinistra** per dare un nome al progetto.\n"
-                "2. Vai nel **TAB 2 (OBS)** e inserisci le anagrafiche dei tuoi fornitori, subappalti e professionisti.\n"
-                "3. Vai nel **TAB 1 (WBS)** e crea l'albero delle lavorazioni. Per ogni voce compila:\n"
-                "   - *Predecessori* (per creare le dipendenze temporali)\n"
-                "   - *Risorsa OBS*\n"
-                "   - *Date di Inizio e Fine Prevista*\n"
-                "   - *Budget (BAC)*\n\n"
-                "*A questo punto il tuo progetto è configurato. Nel Tab 3 e 4 vedrai già disegnato il percorso logico (CPM) e il Gantt di base.*")
-        
-        st.success("**STEP 2: Rilevamento Avanzamento (Esecuzione)**\n\n"
-                "Una volta iniziati i lavori, l'aggiornamento va fatto periodicamente (es. ogni settimana o mese):\n"
-                "1. Vai nel **TAB 1 (WBS)**: per le attività in corso, inserisci la *Data Inizio Effettivo* e la percentuale di *Avanzamento* attuale. Se un'attività è finita, inserisci la *Data Fine Effettiva* e 100%.\n"
-                "2. Vai nel **TAB 6 (Reg. Contabile)**: ogni volta che ti arriva una fattura o certifichi un costo (SAL), registralo qui assegnandolo alla giusta voce WBS. Questo alimenterà automaticamente i costi reali (AC) nel sistema.")
-        
-        st.warning("**STEP 3: Mappatura Rischi e Allarmi (Controllo)**\n\n"
-                "1. Vai nel **TAB 8 (Rischi)** e inserisci gli imprevisti noti (es. maltempo, ritardo forniture, varianti in corso d'opera) assegnando Probabilità e Impatto.\n"
-                "2. Osserva il **TAB 3 (Nodi & Matrice)**: le attività con un rischio elevato saranno circondate da un bordo rosso/arancione e avranno l'icona ⚠️.\n"
-                "3. Apri il **TAB 5 (EVM)** e verifica il *Fondo Imprevisti* dello Scudo Finanziario: il sistema avrà temporaneamente accantonato del capitale per far fronte a questi rischi.")
-        
-        st.error("**STEP 4: Direzione Lavori e Chiusura (Correzione)**\n\n"
-                "Se i KPI del Tab 5 sono negativi o se c'è un rischio critico da gestire:\n"
-                "1. Vai nel **TAB 7 (CAPA)** per emettere un ordine o un'Azione Correttiva.\n"
-                "2. Usa l'area *Ambiente di Simulazione* per capire se vale la pena iniettare costi extra (es. pagare straordinari) per recuperare giorni di ritardo, bilanciando costi diretti e indiretti.\n"
-                "3. Quando emetti un'azione CAPA, ricordati di collegarla al rischio corrispondente tramite l'apposita tendina.\n"
-                "4. Quando i lavori di mitigazione finiscono, cambia lo stato dell'azione in *Chiuso*. **Il Pilota Automatico abbatterà il Rischio nel Tab 8**, farà svanire gli allarmi nel Tab 3 e libererà il capitale dal Fondo Imprevisti nel Tab 5.\n"
-                "5. Stampa il **Verbale di Direzione Lavori (PDF)** in fondo al Tab 7 per far firmare le disposizioni ai responsabili.")
+            col_f1, col_f2 = st.columns(2)
+            
+            with col_f1:
+                st.markdown("#### ⏳ Tempi e Scadenze")
+                st.latex(r"SPI = \frac{EV}{PV}")
+                st.caption("**SPI (Schedule Performance Index):** Efficienza temporale. Se $< 0.95$, il cantiere è in ritardo rispetto al cronoprogramma.")
+                
+                st.latex(r"CV = EV - AC")
+                st.caption("**CV (Cost Variance):** Variazione dei costi (Valore Guadagnato meno Costo Reale).")
+
+            with col_f2:
+                st.markdown("#### 💸 Costi e Liquidità")
+                st.latex(r"CPI = \frac{EV}{AC}")
+                st.caption("**CPI (Cost Performance Index):** Efficienza economica. Se $< 0.95$, si sta spendendo più del budget previsto.")
+                
+                st.latex(r"CF_{netto} = \sum Entrate_{SAL} - \sum Uscite_{AC}")
+                st.caption("**Cash Flow Netto:** Esposizione di cassa al netto dei pagamenti ricevuti.")
+
+        # --- SEZIONE 3: CASISTICHE E FALSI INGHIPPI ---
+        with t_sec3:
+            st.subheader("🔍 Guida pratica ai 'Falsi Ingippi' e Blocchi di Sicurezza")
+            st.markdown("In questa sezione spieghiamo i comportamenti automatizzati del software che potrebbero sembrare anomalie, ma che in realtà sono **controlli di sicurezza attivi**.")
+
+            with st.expander("🚧 1. Il mistero del '99%' (Blocco Qualità CAPA)"):
+                st.markdown("""
+                * **La Situazione:** Hai impostato una lavorazione al `100%` nel Tab 1, ma il sistema la corregge d'ufficio al `99%` e ti mostra un errore rosso.
+                * **Perché accade:** C'è una **CAPA (Non-Conformità) aperta o in lavorazione** nel Tab 7 associata a quella specifica WBS. 
+                * **La Logica:** Il software impedisce al Direttore Lavori di chiudere contabilmente un'attività finché il problema di qualità o sicurezza non è stato formalmente risolto.
+                * **Come sbloccarlo:** Vai nel Tab 7, verifica l'azione correttiva e imposta lo stato su **'Chiuso'**. Torna nel Tab 1 e potrai finalmente certificare il 100%.
+                """)
+
+            with st.expander("📉 2. Il grafico del Cash Flow non si aggiorna o mostra solo un punto"):
+                st.markdown("""
+                * **La Situazione:** Hai inserito i SAL nel Tab 6, ma il grafico a gradoni non mostra le linee o la curva delle uscite è piatta.
+                * **Perché accade:** 
+                  1. Nel Tab 6 (Entrate), hai digitato i dati ma **non hai cliccato il bottone rosso di salvataggio** (verifica la presenza di eventuali triangolini rossi o scritte `None` nelle celle).
+                  2. Le uscite non appaiono perché non sono state registrate nella sezione *Uscite* del Tab 6 con una data e una colonna di importo valide (`Importo_Netto`), ma sono state lasciate come semplici stime di budget.
+                * **Come risolverlo:** Clicca sempre i bottoni di salvataggio dedicati e compila le date puntuali nel registro contabile.
+                """)
+
+            with st.expander("👷 3. Allarmi di Sovraccarico Risorse nel Radar"):
+                st.markdown("""
+                * **La Situazione:** Il Radar di sinistra urla che l'Impresa X è in sovraccarico.
+                * **Perché accade:** Due lavorazioni distinte assegnate alla stessa risorsa hanno date d'inizio e fine sovrapposte nel Tab 1.
+                * **La Soluzione:** Se la sovrapposizione è voluta (es. l'impresa ha più squadre che lavorano in contemporanea su stanze diverse), non devi modificare il calendario: ti basta cliccare il bottone **'👁️ Consenti Sovrapposizione'** sotto l'allarme per registrarla come eccezione autorizzata.
+                """)
+
+        # --- SEZIONE 4: GLOSSARIO ---
+        with t_sec4:
+            st.subheader("📚 Glossario dei Termini Tecnici")
+            
+            df_glossario = pd.DataFrame({
+                "Termine": ["WBS", "OBS", "BAC", "EV", "PV", "AC", "SPI", "CPI", "CAPA", "SAL"],
+                "Significato Esteso": [
+                    "Work Breakdown Structure (Scomposizione analitica del lavoro)",
+                    "Organizational Breakdown Structure (Struttura organizzativa / Risorse)",
+                    "Budget at Completion (Budget totale a fine lavorazione)",
+                    "Earned Value (Valore guadagnato in base all'avanzamento fisico)",
+                    "Planned Value (Valore pianificato da cronoprogramma)",
+                    "Actual Cost (Costo reale effettivamente sostenuto e registrato)",
+                    "Schedule Performance Index (Indice di prestazione dei tempi)",
+                    "Cost Performance Index (Indice di prestazione dei costi)",
+                    "Corrective And Preventive Action (Azione correttiva / Non-conformità)",
+                    "Stato Avanzamento Lavori (Certificazione contabile dei lavori eseguiti)"
+                ]
+            })
+            st.dataframe(df_glossario, use_container_width=True, hide_index=True)
+
+        # --- SEZIONE 5: ROADMAP VERSIONE 2.0 ---
+        with t_sec5:
+            st.subheader("🚀 Prossimi Sviluppi (Roadmap v2.0)")
+            st.markdown("Ecco le funzioni di livello Enterprise che verranno integrate nelle prossime release autonome:")
+            
+            st.info("""
+            * **📥 Importatore Nativo PriMus (.csv / .xls):** Integrazione diretta per mappare i computi metrici estimativi di ACCA software direttamente sull'albero WBS e sui budget di cantiere.
+            * **🌐 Viewer BIM 4D / SLAM integrato:** Collegamento delle nuvole di punti 3D e dei virtual tour laser scanner direttamente alle singole voci di stato d'avanzamento.
+            * **📄 Generatore Automatico del Giornale dei Lavori:** Esportazione in PDF impaginata con loghi, verbali di cantiere, firme e grafici di cash flow pronti per la DL.
+            * **📊 Modulo Finanziario Immobiliare Avanzato:** Calcolo automatico del VAN (Valore Attivo Netto) e del TIR (Tasso Interno di Rendimento) per operazioni di sviluppo immobiliare.
+            """)
