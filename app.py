@@ -924,7 +924,7 @@ with col_sviluppo:
             else:
                 st.success("✅ Dati WBS salvati e albero ricalcolato correttamente!")
             
-        st.rerun())
+            st.rerun()
             
     # --- TAB 2: SETUP OBS ---
     with tab2:
