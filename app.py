@@ -1036,7 +1036,8 @@ with col_sviluppo:
 
     # --- TAB 4: CRONOPROGRAMMA (GANTT) ---
     with tab4:
-        st.header("Cronoprogramma Lavori")
+        st.header("Cronoprogramma Lavori (Gantt EVM-Aware)")
+        st.markdown("Le barre della fase esecutiva cambiano automaticamente colore in base alle performance reali (Indice SPI).")
         
         c1, c2, c3 = st.columns([1, 1, 1])
         vista = c1.selectbox("Seleziona Vista", ["Progetto (Baseline)", "Esecuzione (Esecutivo)", "Comparativa"])
@@ -1052,39 +1053,65 @@ with col_sviluppo:
             df_gantt['Fine_Effettiva'] = pd.to_datetime(df_gantt['Fine_Effettiva']).fillna(pd.to_datetime(data_status_gantt))
             
             cpm_data = calcola_cpm(st.session_state.wbs_data)
+            # Calcoliamo l'EVM in background per avere gli indici di performance aggiornati a questa data
+            df_evm_gantt = calcola_evm(get_foglie(st.session_state.wbs_data), data_status_gantt)
+            
             fig = go.Figure()
             
+            # 1. TRACCIA BASELINE (Azzurra)
             if vista in ["Progetto (Baseline)", "Comparativa"]:
                 fig.add_trace(go.Bar(
                     x=(df_gantt['Fine_Prevista'] - df_gantt['Inizio_Previsto'] + pd.Timedelta(days=1)).dt.total_seconds() * 1000, 
                     y=df_gantt['ID_WBS'].astype(str) + " - " + df_gantt['Attività'], 
                     base=df_gantt['Inizio_Previsto'], 
                     orientation='h', 
-                    name='Baseline', 
+                    name='Baseline (Pianificato)', 
                     width=0.4, 
-                    marker=dict(color='rgba(0, 0, 255, 0.4)' if vista == "Comparativa" else 'blue')
+                    marker=dict(color='rgba(30, 136, 229, 0.4)' if vista == "Comparativa" else '#1E88E5')
                 ))
                 
+            # 2. TRACCIA ESECUTIVA "PARLANTE"
             if vista in ["Esecuzione (Esecutivo)", "Comparativa"]:
                 df_esec = df_gantt.dropna(subset=['Inizio_Effettivo']).copy()
                 if not df_esec.empty:
+                    # Uniamo i dati EVM per estrarre l'SPI su ogni lavorazione
+                    df_esec = df_esec.merge(df_evm_gantt[['ID_WBS', 'SPI', '%_Completamento']], on='ID_WBS', how='left')
+                    
+                    def colora_gantt(row):
+                        spi = row['SPI']
+                        if pd.isna(spi) or row['%_Completamento'] == 0: return '#9E9E9E' # Grigio se non ancora valutabile
+                        if spi >= 1.0: return '#4CAF50' # Verde (In anticipo/Puntuale)
+                        if spi >= 0.90: return '#FF9800' # Arancione (Lieve ritardo)
+                        return '#D32F2F' # Rosso (Ritardo grave)
+                        
+                    colori_barre = df_esec.apply(colora_gantt, axis=1).tolist()
+                    testi_hover = df_esec['SPI'].apply(lambda x: f"SPI: {x:.2f}" if pd.notna(x) else "").tolist()
+
                     fig.add_trace(go.Bar(
                         x=(df_esec['Fine_Effettiva'] - df_esec['Inizio_Effettivo'] + pd.Timedelta(days=1)).dt.total_seconds() * 1000, 
                         y=df_esec['ID_WBS'].astype(str) + " - " + df_esec['Attività'], 
                         base=df_esec['Inizio_Effettivo'], 
                         orientation='h', 
-                        name='Esecutivo', 
-                        width=0.2, 
-                        marker=dict(color='red')
+                        name='Esecutivo',
+                        text=testi_hover,
+                        textposition='inside',
+                        insidetextanchor='middle',
+                        textfont=dict(color='white', size=11, family='Arial Black'),
+                        width=0.4 if vista == "Esecuzione (Esecutivo)" else 0.2, 
+                        marker=dict(color=colori_barre)
                     ))
                     
-            # --- AGGIUNTA FRECCE DI DIPENDENZA LOGICA (GANTT LINKS) ---
+                    # Tracce fantasma per creare la legenda dei colori
+                    fig.add_trace(go.Scatter(x=[None], y=[None], mode='markers', marker=dict(size=12, color='#4CAF50', symbol='square'), name='🟢 Puntuale/Anticipo (SPI ≥ 1)'))
+                    fig.add_trace(go.Scatter(x=[None], y=[None], mode='markers', marker=dict(size=12, color='#FF9800', symbol='square'), name='🟠 Lieve Ritardo (SPI 0.9-1.0)'))
+                    fig.add_trace(go.Scatter(x=[None], y=[None], mode='markers', marker=dict(size=12, color='#D32F2F', symbol='square'), name='🔴 Ritardo Grave (SPI < 0.9)'))
+                    
+            # 3. FRECCE DIPENDENZE
             if mostra_frecce:
                 for _, row in df_gantt.iterrows():
                     wbs_id = str(row['ID_WBS']).strip()
                     succ_y = wbs_id + " - " + str(row['Attività'])
                     
-                    # Scegliamo la data di INIZIO in base alla vista selezionata
                     if vista == "Esecuzione (Esecutivo)" and pd.notna(row['Inizio_Effettivo']):
                         succ_start = row['Inizio_Effettivo']
                     else:
@@ -1100,8 +1127,6 @@ with col_sviluppo:
                             if not pred_row.empty:
                                 pred_y = p_id + " - " + str(pred_row.iloc[0]['Attività'])
                                 
-                                # IL FIX È QUI: +1 Giorno sposta la coda della freccia esattamente alla fine visiva della barra!
-                                # Inoltre scegliamo la data di FINE in base alla vista
                                 if vista == "Esecuzione (Esecutivo)" and pd.notna(pred_row.iloc[0]['Fine_Effettiva']):
                                     pred_end = pred_row.iloc[0]['Fine_Effettiva'] + pd.Timedelta(days=1)
                                 else:
@@ -1110,20 +1135,17 @@ with col_sviluppo:
                                 is_critical = cpm_data.get(wbs_id, {}).get('is_critical', False)
                                 pred_is_critical = cpm_data.get(p_id, {}).get('is_critical', False)
                                 
-                                # Freccia rossa se entrambi sono sul percorso critico, altrimenti arancione
-                                arrow_color = '#D32F2F' if (is_critical and pred_is_critical) else '#FF9800'
+                                arrow_color = '#D32F2F' if (is_critical and pred_is_critical) else '#9E9E9E'
                                 
                                 fig.add_annotation(
-                                    x=succ_start, y=succ_y,      # Punta della freccia (Inizio Successore)
-                                    ax=pred_end, ay=pred_y,      # Coda della freccia (Fine Predecessore)
+                                    x=succ_start, y=succ_y, ax=pred_end, ay=pred_y,
                                     xref='x', yref='y', axref='x', ayref='y',
                                     showarrow=True, arrowhead=2, arrowsize=1, arrowwidth=1.5,
                                     arrowcolor=arrow_color, opacity=0.8,
-                                    standoff=2, startstandoff=2  # Distanzia leggermente la freccia per non "bucare" la barra
+                                    standoff=2, startstandoff=2
                                 )
             
-            # Altezza dinamica per evitare che le barre si schiaccino se hai tante lavorazioni
-            altezza_dinamica = max(500, len(df_gantt) * 40)
+            altezza_dinamica = max(500, len(df_gantt) * 45)
             
             fig.update_layout(
                 barmode='overlay', 
@@ -1132,7 +1154,8 @@ with col_sviluppo:
                 xaxis_title="Linea Temporale", 
                 yaxis_title="Lavorazioni (WBS)", 
                 yaxis={'autorange': 'reversed'}, 
-                xaxis_type='date'
+                xaxis_type='date',
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, bgcolor="rgba(255,255,255,0.8)")
             )
             st.plotly_chart(fig, use_container_width=True)
         else:
