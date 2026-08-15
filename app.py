@@ -624,7 +624,7 @@ with col_save:
     # 🤖 GIANFRY SUGGERISCE 🤖
     # ==========================================
     st.divider()
-    st.markdown("#### 🤖 GIANFRY SUGGERISCE 🤖")
+    st.markdown("#### 🤖 GIANFRY SUGGERISCE 🤖🤖🤖🤖")
     
     # Inizializziamo la memoria delle eccezioni consentite dal DL
     if 'conflitti_ignorati' not in st.session_state:
@@ -647,26 +647,22 @@ with col_save:
             rischi_attivi = df_rischi_ai[df_rischi_ai['Stato'].isin(['Attivo ▾', 'Monitorato ▾'])]
 
         # ========================================================
-        # RADAR Gianfry: ALLARMI COMBINATI (RITARDO + RISCHI)
+        # RADAR AI-ASSIST: ALLARMI COMBINATI (RITARDO + RISCHI)
         # ========================================================
-        df_wbs_radar = st.session_state.wbs_data.copy()
-        
-        # Inizializziamo in modo sicuro la tabella rischi
-        if 'rischi_data' in st.session_state and not st.session_state.rischi_data.empty:
-            df_rischi_radar = st.session_state.rischi_data.copy()
-        else:
-            df_rischi_radar = pd.DataFrame()
+        df_wbs_radar = st.session_state.wbs_data.copy() if 'wbs_data' in st.session_state else pd.DataFrame()
+        df_rischi_radar = st.session_state.rischi_data.copy() if 'rischi_data' in st.session_state else pd.DataFrame()
 
         allarmi_combinati = []
         oggi_radar = pd.Timestamp.today().normalize()
         
         if not df_wbs_radar.empty and not df_rischi_radar.empty:
-            # Assicuriamoci che esistano le colonne necessarie nei Rischi
-            col_wbs_rischio = 'ID_WBS_Rif' if 'ID_WBS_Rif' in df_rischi_radar.columns else None
-            col_impatto = 'Impatto' if 'Impatto' in df_rischi_radar.columns else None
-            col_stato_r = 'Stato' if 'Stato' in df_rischi_radar.columns else None
+            # 🎯 Identificazione flessibile (Bulletproof) delle colonne
+            col_wbs_rischio = next((c for c in df_rischi_radar.columns if 'WBS' in c), None)
+            col_stato_r = next((c for c in df_rischi_radar.columns if 'Stato' in c), None)
+            col_impatto = next((c for c in df_rischi_radar.columns if 'Impatto' in c), None)
+            col_desc = next((c for c in df_rischi_radar.columns if 'Descrizione' in c or 'Rischio' in c), None)
             
-            if col_wbs_rischio and col_impatto:
+            if col_wbs_rischio and col_stato_r:
                 for _, row_w in df_wbs_radar.iterrows():
                     wbs_id = str(row_w.get('ID_WBS', '')).strip()
                     
@@ -675,37 +671,39 @@ with col_save:
                     except:
                         completamento = 0.0
                         
-                    # Calcolo di un ritardo evidente
-                    fine_prev = pd.to_datetime(row_w.get('Fine_Prevista', None), errors='coerce')
+                    fine_prev = pd.to_datetime(row_w.get('Fine_Prevista', None), errors='coerce', dayfirst=True)
                     
-                    in_ritardo_cronico = False
-                    if pd.notnull(fine_prev) and fine_prev < oggi_radar and completamento < 100:
-                        in_ritardo_cronico = True
+                    in_ritardo = False
+                    # Se la data fine è superata e non siamo al 100%
+                    if pd.notnull(fine_prev) and fine_prev < oggi_radar and completamento < 100.0:
+                        in_ritardo = True
                         
-                    # Se l'attività è in ritardo, interroghiamo la Matrice Rischi
-                    if in_ritardo_cronico:
-                        rischi_associati = df_rischi_radar[df_rischi_radar[col_wbs_rischio].astype(str).str.startswith(wbs_id)]
+                    if in_ritardo:
+                        # Estrae "2.1.1" da "2.1.1 - demolizioni serramenti"
+                        df_rischi_radar['wbs_clean'] = df_rischi_radar[col_wbs_rischio].astype(str).apply(lambda x: str(x).split(' - ')[0].strip())
+                        rischi_associati = df_rischi_radar[df_rischi_radar['wbs_clean'] == wbs_id]
                         
                         for _, rischio in rischi_associati.iterrows():
-                            impatto_val = str(rischio.get(col_impatto, '')).lower()
-                            stato_val = str(rischio.get(col_stato_r, 'aperto')).lower()
+                            stato_val = str(rischio.get(col_stato_r, '')).lower()
+                            impatto_val = str(rischio.get(col_impatto, 'Non specificato'))
                             
-                            # Identifichiamo se il rischio è ancora attivo e ha un peso alto
-                            if stato_val != 'chiuso' and ('alto' in impatto_val or 'critico' in impatto_val or impatto_val in ['4', '5']):
-                                desc_rischio = rischio.get('Descrizione', rischio.get('Attività', 'Rischio Critico Generico'))
+                            # Se lo stato NON è chiuso (quindi è Attivo, Aperto, in lavorazione, ecc.)
+                            if 'chiuso' not in stato_val and stato_val != 'nan' and stato_val != '':
+                                desc_rischio = rischio.get(col_desc, 'Rischio generico') if col_desc else 'Rischio generico'
                                 allarmi_combinati.append({
                                     'wbs': wbs_id,
                                     'nome_wbs': row_w.get('Attività', ''),
-                                    'rischio': desc_rischio
+                                    'rischio': desc_rischio,
+                                    'impatto': impatto_val
                                 })
 
-        # Stampa a schermo SOLO se ci sono criticità (modalità Stealth)
+        # Stampa a schermo SOLO se ci sono criticità (Stealth mode)
         if allarmi_combinati:
             st.divider()
-            st.markdown("### 🚨 Radar Gianfry: Criticità Combinate")
+            st.markdown("### 🚨 Radar AI-Assist: Criticità Combinate")
             for allarme in allarmi_combinati:
-                st.error(f"⚠️ **INTERVENTO RUP RICHIESTO:** L'attività **{allarme['wbs']} - {allarme['nome_wbs']}** è in ritardo cronico e ha innescato un rischio ad alto impatto: *{allarme['rischio']}*. Verificare immediatamente le contromisure nel Tab 8!")
-        
+                st.error(f"⚠️ **INTERVENTO RUP:** L'attività **{allarme['wbs']} - {allarme['nome_wbs']}** è in ritardo cronico e ha un rischio attivo associato: *{allarme['rischio']}* (Impatto: {allarme['impatto']}). Intervenire o mitigare il rischio nel Tab 8.")
+                
         # ===================================================
         # RILEVAMENTO CONFLITTI RISORSE (CON "IGNORE BUTTON")
         # ===================================================
