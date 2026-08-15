@@ -647,10 +647,10 @@ with col_save:
             rischi_attivi = df_rischi_ai[df_rischi_ai['Stato'].isin(['Attivo ▾', 'Monitorato ▾'])]
 
         # ========================================================
-        # RADAR AI-ASSIST: ALLARMI COMBINATI (RITARDO + RISCHI)
+        # RADAR Gianfry: ALLARMI COMBINATI (RITARDO + RISCHI)
         # ========================================================
         st.divider()
-        st.markdown("### 🚨 Radar AI-Assist: Criticità Combinate")
+        st.markdown("### 🚨 Radar Gianfry: Criticità Combinate")
         
         df_wbs_radar = st.session_state.wbs_data.copy()
         
@@ -703,7 +703,7 @@ with col_save:
                                     'rischio': desc_rischio
                                 })
 
-        # Stampa a schermo dei risultati dell'AI-Assist
+        # Stampa a schermo dei risultati dell'Gianfry
         if allarmi_combinati:
             for allarme in allarmi_combinati:
                 st.error(f"⚠️ **INTERVENTO RUP RICHIESTO:** L'attività **{allarme['wbs']} - {allarme['nome_wbs']}** è in ritardo cronico e ha innescato un rischio ad alto impatto: *{allarme['rischio']}*. Verificare immediatamente le contromisure nel Tab 8!")
@@ -2313,6 +2313,15 @@ with col_sviluppo:
                 * **La Situazione:** Hai inserito diversi rischi nella Matrice (Tab 8) con punteggi di impatto elevati, ma il budget di riserva calcolato non varia o sembra disallineato.
                 * **Perché accade:** Il calcolo del fondo imprevisti si basa sullo stato di mitigazione e sul valore economico associato ai singoli rischi. Se i campi d'importo dei rischi sono stati lasciati a zero, il motore di rischio li considera solo come eventi qualitativi senza impatto di cassa.
                 * **La Soluzione:** Compila sempre la stima economica dell'impatto all'interno della scheda di rischio nel Tab 8 per permettere al sistema di dimensionare correttamente le risorse di riserva.
+                """)
+
+            with st.expander("🚨 10. Allarme Critico Combinato nel Radar (Intervento RUP Richiesto)"):
+                st.markdown("""
+                * **La Situazione:** Nel cruscotto del Radar compare un vistoso messaggio di errore rosso che richiede l'intervento immediato del RUP, indicando che una specifica lavorazione è in ritardo e citando testualmente un rischio associato.
+                * **Perché accade:** Non è un errore del programma, ma il **motore di controllo incrociato (AI-Assist)** in azione. L'app ha scansionato l'intero progetto e ha rilevato una "tempesta perfetta": 
+                  1. Un'attività nel Tab 1 ha superato la sua data di *Fine Prevista* ma non è ancora certificata al 100% (ritardo cronico sul campo).
+                  2. Questa stessa attività è collegata a un evento nella Matrice dei Rischi (Tab 8) che è classificato con impatto *Alto* o *Critico* e risulta ancora nello stato *Aperto*.
+                * **La Soluzione:** Il sistema ti sta avvisando che un rischio grave si sta materializzando a causa di un ritardo esecutivo. Per far rientrare l'allarme, il Direttore Lavori o il RUP devono adottare le misure di mitigazione previste; dopodiché basterà andare nel Tab 8 e commutare lo stato di quel rischio su **'Chiuso'**, oppure aggiornare l'effettivo completamento della WBS al 100% nel Tab 1.
                 """)
 
         # --- SEZIONE 5: ROADMAP VERSIONE 2.0 ---
