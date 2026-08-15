@@ -2760,12 +2760,12 @@ with col_sviluppo:
              6. **Tab 5 & Radar (GIANFRY CONSIGLIA):** Monitora il cruscotto di controllo per verificare l'esposizione di cassa (Cash Flow) e le allerte di sovraccarico risorse.
              """)
         
-         with st.expander(" 📌 Legenda dei Flussi Automatici"):
-              st.markdown("""
-              * **Da Tab 1, 2 a Radar (GIANFRY CONSIGLIA):** Il sistema controlla in tempo reale se la stessa risorsa è impegnata su più fronti nello stesso periodo, segnalando l'eventuale sovraccarico (con opzione di deroga).
-              * **Da Tab 7 a Tab 1 (Cancello di Qualità):** Se esiste una CAPA attiva su una WBS, il sistema impedisce matematicamente di certificarla al 100%, bloccandola al 99% finché il problema non viene chiuso.
-              * **Da Tab 6 a Tab 5 (Cash Flow):** Le uscite (costi reali) e le entrate (SAL pagati) alimentano la curva cumulativa e l'indicatore di esposizione finanziaria netta.
-              """)
+        with st.expander(" 📌 Legenda dei Flussi Automatici"):
+             st.markdown("""
+             * **Da Tab 1, 2 a Radar (GIANFRY CONSIGLIA):** Il sistema controlla in tempo reale se la stessa risorsa è impegnata su più fronti nello stesso periodo, segnalando l'eventuale sovraccarico (con opzione di deroga).
+             * **Da Tab 7 a Tab 1 (Cancello di Qualità):** Se esiste una CAPA attiva su una WBS, il sistema impedisce matematicamente di certificarla al 100%, bloccandola al 99% finché il problema non viene chiuso.
+             * **Da Tab 6 a Tab 5 (Cash Flow):** Le uscite (costi reali) e le entrate (SAL pagati) alimentano la curva cumulativa e l'indicatore di esposizione finanziaria netta.
+             """)
 
         # --- 2. GLOSSARIO EVM ---
         with t_sec2:
