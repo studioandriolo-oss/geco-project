@@ -1970,15 +1970,15 @@ with col_sviluppo:
             leaf_wbs_reg = get_foglie(st.session_state.wbs_data)
             wbs_options = [f"{row['ID_WBS']} - {row['Attività']}" for _, row in leaf_wbs_reg.iterrows()]
             
-                edited_registro = st.data_editor(
-                st.session_state.registro_data, num_rows="dynamic", use_container_width=True, hide_index=True,
-                column_config={
-                    "Data": st.column_config.DateColumn("Data Fattura / Spesa"),
-                    "Voce_WBS": st.column_config.SelectboxColumn("Attività WBS (Rif.)", options=wbs_options), # NOME CORRETTO
-                    "Descrizione": st.column_config.TextColumn("Descrizione", width="medium"), # NOME CORRETTO
-                    "Importo_Netto": st.column_config.NumberColumn("Importo (€)", format="€ %.2f") # NOME CORRETTO
-                }
-            )
+            edited_registro = st.data_editor(
+            st.session_state.registro_data, num_rows="dynamic", use_container_width=True, hide_index=True,
+            column_config={
+                "Data": st.column_config.DateColumn("Data Fattura / Spesa"),
+                "Voce_WBS": st.column_config.SelectboxColumn("Attività WBS (Rif.)", options=wbs_options), # NOME CORRETTO
+                "Descrizione": st.column_config.TextColumn("Descrizione", width="medium"), # NOME CORRETTO
+                "Importo_Netto": st.column_config.NumberColumn("Importo (€)", format="€ %.2f") # NOME CORRETTO
+            }
+        )
             if st.button("💾 SALVA REGISTRO USCITE", type="primary", use_container_width=True):
                 st.session_state.registro_data = edited_registro
                 st.success("✅ Registro Spese salvato e costi riallineati!")
