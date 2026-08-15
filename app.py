@@ -941,26 +941,6 @@ with col_save:
                                     st.rerun()
         # ===================================================
 
-        # ===================================================
-        # ALLERTA FINANZIARIA: VARIANTI NON QUANTIFICATE
-        # ===================================================
-        if 'tickets_data' in st.session_state and not st.session_state.tickets_data.empty:
-            if 'Variazione_Costi' in st.session_state.tickets_data.columns and 'Variazione_Tempi' in st.session_state.tickets_data.columns:
-                for _, ticket in st.session_state.tickets_data.iterrows():
-                    if ticket.get('Tipologia') == 'Richiesta di Variante' and ticket.get('Stato') == 'Approvato ✅':
-                        
-                        # Convertiamo in numero per scovare le celle lasciate vuote ("")
-                        costo_val = pd.to_numeric(ticket.get('Variazione_Costi'), errors='coerce')
-                        tempi_val = pd.to_numeric(ticket.get('Variazione_Tempi'), errors='coerce')
-                        
-                        # LOGICA CORRETTA: L'allarme scatta SOLO se ENTRAMBI i campi sono vuoti
-                        if pd.isna(costo_val) and pd.isna(tempi_val):
-                            t_id = str(ticket.get('ID_Ticket', ''))
-                            wbs_rif = str(ticket.get('ID_WBS_Rif', ''))
-                            with st.expander(f"🚨 WBS {wbs_rif}: Variante {t_id} Vuota", expanded=True):
-                                st.error(f"Hai approvato la Variante **{t_id}** ma non hai inserito né Costi né Tempi. Compilane almeno uno nel Tab 9 per aggiornare l'EVM!")
-        # ===================================================
-
 # ==========================================
 # COLONNA DI DESTRA (IL MOTORE DELL'APP)
 # ==========================================
@@ -1044,7 +1024,7 @@ with col_sviluppo:
                 
                 if not da_compilare.empty:
                     wbs_sospese = da_compilare['ID_WBS_Rif'].astype(str).tolist()
-                    st.error(f"🚨 **ALLERTA FINANZIARIA (GIANFRY):** Hai approvato una Variante per le WBS **{', '.join(wbs_sospese)}** senza quantificarne l'impatto! Vai nel Tab 9 e compila 'Variazione Costi' e/o 'Variazione Tempi' per ricalibrare il motore EVM.")
+                    st.error(f"🚨 **ALLERTA FINANZIARIA (GIANFRY):** Hai approvato una Variante per le WBS **{', '.join(wbs_sospese)}** senza quantificarne l'impatto! Vai nel Tab 9 e compila 'Variazione Costi' o 'Variazione Tempi' per ricalibrare il motore EVM.")
         # ======================================================
         
         # ======================================================
@@ -1722,11 +1702,7 @@ with col_sviluppo:
         else:
             st.info("⚠️ Il cronoprogramma è vuoto. Inserisci le date di Inizio e Fine nel Tab 1.")
             
-    # --- TAB 5: EVM E CASH FLOW ---
-    with tab5:
-        st.header("Controllo Costi e Analisi EVM")
-
-        # ======================================================
+    # ======================================================
         # ALLERTA FINANZIARIA GIANFRY: VARIANTI DA QUANTIFICARE
         if 'tickets_data' in st.session_state and not st.session_state.tickets_data.empty:
             df_t_alert = st.session_state.tickets_data
@@ -1745,7 +1721,7 @@ with col_sviluppo:
                 
                 if not da_compilare.empty:
                     wbs_sospese = da_compilare['ID_WBS_Rif'].astype(str).tolist()
-                    st.error(f"🚨 **ALLERTA FINANZIARIA (GIANFRY):** Hai approvato una Variante per le WBS **{', '.join(wbs_sospese)}** senza quantificarne l'impatto! Vai nel Tab 9 e compila 'Variazione Costi' e/o 'Variazione Tempi' per ricalibrare il motore EVM.")
+                    st.error(f"🚨 **ALLERTA FINANZIARIA (GIANFRY):** Hai approvato una Variante per le WBS **{', '.join(wbs_sospese)}** senza quantificarne l'impatto! Vai nel Tab 9 e compila 'Variazione Costi' o 'Variazione Tempi' per ricalibrare il motore EVM.")
         # ======================================================
         
         data_status_evm = st.date_input("📅 Data di Stato (Status Date):", value=pd.Timestamp.today().date())
@@ -2615,28 +2591,31 @@ with col_sviluppo:
             
             if st.button("💾 Registra Risposte RUP"):
                 import datetime
+                # Salvataggio di sicurezza per leggere le colonne nascoste
+                df_tickets_original = st.session_state.tickets_data.copy()
+                
                 for idx, row in edited_tickets.iterrows():
                     # 1. Chiusura Temporale
-                    if row['Stato'] != 'In attesa ⏳' and pd.isna(row['Data_Chiusura']):
+                    if row['Stato'] != 'In attesa ⏳' and pd.isna(row.get('Data_Chiusura')):
                         edited_tickets.at[idx, 'Data_Chiusura'] = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
                     elif row['Stato'] == 'In attesa ⏳':
                         edited_tickets.at[idx, 'Data_Chiusura'] = None
                         
                     # 2. INNESTO MATEMATICO SUL MOTORE EVM
-                    if row['Tipologia'] == 'Richiesta di Variante' and row['Stato'] == 'Approvato ✅':
-                        costo_val = pd.to_numeric(row.get('Variazione_Costi'), errors='coerce')
-                        tempi_val = pd.to_numeric(row.get('Variazione_Tempi'), errors='coerce')
+                    if row.get('Tipologia') == 'Richiesta di Variante' and row.get('Stato') == 'Approvato ✅':
+                        c_val = pd.to_numeric(row.get('Variazione_Costi'), errors='coerce')
+                        t_val = pd.to_numeric(row.get('Variazione_Tempi'), errors='coerce')
                         
-                        val_app = row.get('Variante_Applicata', False)
-                        # Decodificatore a prova di bomba per il JSON
+                        # Recupero la vera flag dal database originale per aggirare il taglio dell'editor
+                        val_app = df_tickets_original.at[idx, 'Variante_Applicata'] if 'Variante_Applicata' in df_tickets_original.columns else False
                         applicata = val_app if isinstance(val_app, bool) else str(val_app).strip().lower() in ['true', '1', 't', 'y', 'yes']
                         
+                        costo_clean = float(c_val) if pd.notna(c_val) else 0.0
+                        tempi_clean = int(t_val) if pd.notna(t_val) else 0
+                        
                         # Basta che sia compilato ALMENO UNO dei due valori e che non sia già stata applicata
-                        if (pd.notna(costo_val) or pd.notna(tempi_val)) and not applicata:
-                            costo_clean = float(costo_val) if pd.notna(costo_val) else 0.0
-                            tempi_clean = int(tempi_val) if pd.notna(tempi_val) else 0
-                            
-                            wbs_target = str(row['ID_WBS_Rif']).strip()
+                        if (costo_clean != 0 or tempi_clean != 0) and not applicata:
+                            wbs_target = str(row.get('ID_WBS_Rif', '')).strip()
                             wbs_idx = st.session_state.wbs_data.index[st.session_state.wbs_data['ID_WBS'].astype(str).str.strip() == wbs_target].tolist()
                             
                             if wbs_idx:
@@ -2644,45 +2623,35 @@ with col_sviluppo:
                                 
                                 # A) Aggiorna il Budget (BAC)
                                 if costo_clean != 0:
-                                    budget_attuale = pd.to_numeric(st.session_state.wbs_data.at[i_w, 'BAC_Budget'], errors='coerce')
-                                    st.session_state.wbs_data.at[i_w, 'BAC_Budget'] = (budget_attuale if pd.notna(budget_attuale) else 0.0) + costo_clean
+                                    b_att = pd.to_numeric(st.session_state.wbs_data.loc[i_w, 'BAC_Budget'], errors='coerce')
+                                    st.session_state.wbs_data.loc[i_w, 'BAC_Budget'] = (b_att if pd.notna(b_att) else 0.0) + costo_clean
                                 
-                                # B) Aggiorna i Tempi (Data Fine Prevista)
+                                # B) Aggiorna i Tempi
                                 if tempi_clean != 0:
-                                    fine_attuale = pd.to_datetime(st.session_state.wbs_data.at[i_w, 'Fine_Prevista'], errors='coerce')
-                                    if pd.notna(fine_attuale):
-                                        st.session_state.wbs_data.at[i_w, 'Fine_Prevista'] = (fine_attuale + pd.Timedelta(days=tempi_clean)).date()
+                                    f_att = pd.to_datetime(st.session_state.wbs_data.loc[i_w, 'Fine_Prevista'], errors='coerce')
+                                    if pd.notna(f_att):
+                                        st.session_state.wbs_data.loc[i_w, 'Fine_Prevista'] = (f_att + pd.Timedelta(days=tempi_clean)).date()
                                 
                                 # C) Blocca il ticket
                                 edited_tickets.at[idx, 'Variante_Applicata'] = True
-                                st.toast(f"✅ Variante applicata su WBS {wbs_target}: {costo_clean}€ aggiunti al BAC!", icon="⚙️")
-                            
-                            if wbs_idx:
-                                i_w = wbs_idx[0]
-                                
-                                # A) Aggiorna il Budget (BAC)
-                                if costo_val != 0:
-                                    budget_attuale = pd.to_numeric(st.session_state.wbs_data.at[i_w, 'BAC_Budget'], errors='coerce')
-                                    st.session_state.wbs_data.at[i_w, 'BAC_Budget'] = (budget_attuale if pd.notna(budget_attuale) else 0.0) + costo_val
-                                
-                                # B) Aggiorna i Tempi (Data Fine Prevista)
-                                if tempi_val != 0:
-                                    fine_attuale = pd.to_datetime(st.session_state.wbs_data.at[i_w, 'Fine_Prevista'], errors='coerce')
-                                    if pd.notna(fine_attuale):
-                                        st.session_state.wbs_data.at[i_w, 'Fine_Prevista'] = (fine_attuale + pd.Timedelta(days=tempi_val)).date()
-                                
-                                # C) Blocca il ticket: non sommerà mai più questi valori in futuro
-                                edited_tickets.at[idx, 'Variante_Applicata'] = True
+                                st.toast(f"✅ INNESTO COMPLETATO: WBS {wbs_target} aggiornata!", icon="⚙️")
                         
-                st.session_state.tickets_data = edited_tickets
-                # Ricalcola padri, figli e indici dopo l'innesto
+                # Salvataggio globale e ricalcolo
+                if 'Variante_Applicata' in edited_tickets.columns:
+                    st.session_state.tickets_data = edited_tickets
+                else:
+                    # Se Streamlit l'ha nascosta, la rimettiamo a forza prima di salvare
+                    st.session_state.tickets_data = edited_tickets.copy()
+                    st.session_state.tickets_data['Variante_Applicata'] = df_tickets_original['Variante_Applicata']
+                    
                 st.session_state.wbs_data = aggiorna_gerarchia(st.session_state.wbs_data)
                 
+                # Svuota cache visiva
                 for k in list(st.session_state.keys()):
                     if k.startswith("editor_wbs_"):
                         del st.session_state[k]
                         
-                st.success("✅ Registro aggiornato! Se i valori erano compilati, sono stati innestati nel motore WBS.")
+                st.success("✅ Registro aggiornato! Il motore EVM è stato riallineato.")
                 import time
                 time.sleep(2)
                 st.rerun()
