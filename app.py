@@ -835,6 +835,17 @@ with col_sviluppo:
     # --- TAB 1: SETUP WBS ---
     with tab1:
         st.header("WBS - Work Breakdown Structure")
+        
+        # ======================================================
+        # INIZIO INNESTO: MEMORIA BUROCRATICA PERSISTENTE
+        if 'memoria_burocratica' not in st.session_state:
+            st.session_state.memoria_burocratica = set()
+
+        if st.session_state.memoria_burocratica:
+            st.error(f"🛑 **PROMEMORIA BLOCCHI AMMINISTRATIVI:** Hai tentato di avviare le lavorazioni **{', '.join(st.session_state.memoria_burocratica)}** senza le dovute autorizzazioni. Ottieni il documento e metti la spunta su 'Vincolo Assolto' per sbloccarle e far sparire questo avviso!")
+        # FINE INNESTO MEMORIA BUROCRATICA
+        # ======================================================
+        
         st.markdown('*I numeri ID sono bloccati per garantire l\'integrità. Usa i pulsanti sotto ogni capitolo per spostare e rientrare le voci.*')
         
         st.subheader("🔀 Organizzatore Capitoli")
@@ -929,34 +940,38 @@ with col_sviluppo:
                     if val_id in ['', 'None', 'nan']:
                         discendenti_modificati.at[i_row, 'ID_WBS'] = f"{id_radice}.999{i_row}"# --- INNESTO IN TEMPO REALE: CANCELLO AMMINISTRATIVO ---
                 
-                # =====================================================================
                 # --- INNESTO IN TEMPO REALE: CANCELLO AMMINISTRATIVO ---
                 allarmi_locali = []
                 for i_row, row_mod in discendenti_modificati.iterrows():
                     vincolo = str(row_mod.get('Vincolo_Burocratico', '')).strip()
+                    nome_wbs = str(row_mod.get('ID_WBS', ''))
                     
-                    # 1. Lettura Spunta (a prova di bomba)
                     spunta = row_mod.get('Vincolo_Assolto', False)
                     sbloccato = True if str(spunta).strip().lower() in ['true', '1', 't', 'y', 'yes'] else False
                     
-                    # 2. Lettura Data (intercetta qualsiasi formato di tempo, testo o vuoto)
                     inizio = row_mod.get('Inizio_Effettivo')
                     has_inizio = False
                     if inizio is not None and pd.notna(inizio) and str(inizio).strip().lower() not in ['', 'nat', 'nan', 'none']:
                         has_inizio = True
                     
-                    # 3. La Trappola Burocratica
-                    if vincolo not in ['Nessuno', '', 'nan', 'None'] and not sbloccato and has_inizio:
-                        # Svuotiamo la data dalla memoria (sparirà visivamente quando si clicca Salva)
-                        discendenti_modificati.at[i_row, 'Inizio_Effettivo'] = pd.NaT 
-                        nome_wbs = str(row_mod.get('ID_WBS', ''))
-                        allarmi_locali.append(nome_wbs)
+                    # Logica della Memoria Persistente
+                    stringa_memoria = f"{nome_wbs} ({vincolo})"
+                    
+                    if vincolo not in ['Nessuno', '', 'nan', 'None']:
+                        if not sbloccato and has_inizio:
+                            # 1. Cancella la data
+                            discendenti_modificati.at[i_row, 'Inizio_Effettivo'] = pd.NaT 
+                            allarmi_locali.append(nome_wbs)
+                            # 2. Scrive il promemoria incancellabile
+                            st.session_state.memoria_burocratica.add(stringa_memoria)
                         
-                # 4. Feedback Immediato e Invasivo
+                        elif sbloccato and stringa_memoria in st.session_state.memoria_burocratica:
+                            # 3. Se l'utente FINALMENTE mette la spunta, cancella l'allarme dalla memoria!
+                            st.session_state.memoria_burocratica.remove(stringa_memoria)
+                            
                 if allarmi_locali:
-                    msg = f"BLOCCO AMMINISTRATIVO: Hai inserito l'Inizio per la WBS {', '.join(allarmi_locali)} senza spuntare il Vincolo Assolto. La data NON verrà salvata!"
-                    st.error(f"🛑 **{msg}**")
-                    st.toast(msg, icon='🚨') # Popup dinamico nell'angolo dello schermo!
+                    msg = f"Hai inserito l'Inizio per la WBS {', '.join(allarmi_locali)} senza spuntare il Vincolo Assolto. La data è stata annullata."
+                    st.toast(msg, icon='🚨')
                 # =====================================================================
  
                 df_aggiornato = pd.concat([df_aggiornato, pd.DataFrame([radice]), discendenti_modificati], ignore_index=True)
