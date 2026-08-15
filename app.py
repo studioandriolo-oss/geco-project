@@ -184,9 +184,10 @@ def modifica_struttura(id_target, azione):
             st.session_state.wbs_data = df.drop(columns=['Livello'])
             st.session_state['tracker_id'] = None
             for k in list(st.session_state.keys()):
-                if k.startswith("editor_wbs_"): 
+                if k.startswith("editor_wbs_"):
                     del st.session_state[k]
-            st.rerun()
+            if azione != 'rinumera':
+                st.rerun()
             
     elif azione in ['su', 'giu', 'destra', 'sinistra']:
         ids = df['ID_WBS'].astype(str).tolist()
@@ -583,7 +584,6 @@ with col_save:
             "memoria_capa": list(st.session_state.memoria_capa),
             "memoria_ticket": list(st.session_state.memoria_ticket),
             "tickets": json.loads(st.session_state.tickets_data.to_json(orient="records", date_format="iso")),
-            "tickets": json.loads(st.session_state.tickets_data.to_json(orient="records", date_format="iso")),
             
         }
         json_string = json.dumps(progetto_export, indent=4)
@@ -653,12 +653,12 @@ with col_save:
                 
                 for col in ['Inizio_Previsto', 'Fine_Prevista', 'Inizio_Effettivo', 'Fine_Effettiva']:
                     if col in st.session_state.wbs_data.columns:
-                        st.session_state.wbs_data[col] = pd.to_datetime(st.session_state.wbs_data[col], errors='coerce').dt.date
+                        st.session_state.wbs_data[col] = pd.to_datetime(st.session_state.wbs_data[col], errors='coerce').apply(lambda x: x.date() if pd.notna(x) else None)
                 if 'Data' in st.session_state.registro_data.columns:
-                    st.session_state.registro_data['Data'] = pd.to_datetime(st.session_state.registro_data['Data'], errors='coerce').dt.date
+                    st.session_state.registro_data['Data'] = pd.to_datetime(st.session_state.registro_data['Data'], errors='coerce').apply(lambda x: x.date() if pd.notna(x) else None)
                 if 'Data_Apertura' in st.session_state.capa_data.columns:
-                    st.session_state.capa_data['Data_Apertura'] = pd.to_datetime(st.session_state.capa_data['Data_Apertura'], errors='coerce').dt.date
-                
+                    st.session_state.capa_data['Data_Apertura'] = pd.to_datetime(st.session_state.capa_data['Data_Apertura'], errors='coerce').apply(lambda x: x.date() if pd.notna(x) else None)
+                    
                 st.session_state.wbs_data = aggiorna_gerarchia(st.session_state.wbs_data)
                 st.session_state.nome_progetto_attivo = uploaded_file.name.replace(".json", "")
                 st.session_state.ultimo_file_caricato = uploaded_file.file_id
@@ -845,14 +845,13 @@ with col_save:
         if 'imprevisti_ignorati' not in st.session_state:
             st.session_state.imprevisti_ignorati = []
             
-        # Assicuriamoci che sia una lista (per evitare crash se caricato da vecchi JSON)
         if isinstance(st.session_state.imprevisti_ignorati, set):
             st.session_state.imprevisti_ignorati = list(st.session_state.imprevisti_ignorati)
 
         if 'tickets_data' in st.session_state and not st.session_state.tickets_data.empty:
             if 'Tipologia' in st.session_state.tickets_data.columns and 'Stato' in st.session_state.tickets_data.columns:
                 
-                # Filtriamo SOLO i ticket "Imprevisto" che sono ancora "In attesa"
+                # Filtriamo i ticket "Imprevisto" che sono in attesa
                 imprevisti = st.session_state.tickets_data[
                     (st.session_state.tickets_data['Tipologia'] == 'Segnalazione Imprevisto/Ostacolo') & 
                     (st.session_state.tickets_data['Stato'] == 'In attesa ⏳')
@@ -862,16 +861,24 @@ with col_save:
                     t_id = str(ticket.get('ID_Ticket', ''))
                     wbs_rif = str(ticket.get('ID_WBS_Rif', ''))
                     
-                    if t_id not in st.session_state.imprevisti_ignorati and t_id.strip() != "":
-                        with st.expander(f"🧩 WBS {wbs_rif}: Imprevisto Segnalato", expanded=True):
-                            st.markdown(f"Dal campo è arrivata una **Segnalazione di Imprevisto/Ostacolo** (Ticket {t_id}).")
-                            st.warning("💡 **Suggerimento:** Vai nel Tab 8 per mappare questo ostacolo come Rischio e calcolare l'impatto sul Fondo Imprevisti.")
-                            
-                            if st.button("👁️ Non è un rischio (Ignora)", key=f"ignora_imp_{t_id}", help="Nascondi definitivamente questo suggerimento."):
-                                st.session_state.imprevisti_ignorati.append(t_id)
-                                st.rerun()
+                    if t_id.strip() != "":
+                        if t_id in st.session_state.imprevisti_ignorati:
+                            # FIX 4: Se Ignorato, lascia il riquadro ma lo colora di verde (Success)
+                            with st.expander(f"✅ WBS {wbs_rif}: Imprevisto {t_id} (Risolto)"):
+                                st.success(f"La segnalazione {t_id} è stata contrassegnata come 'Non è un rischio'. L'allarme è silenziato.")
+                                if st.button("🔄 Ripristina Allarme", key=f"ripristina_imp_{t_id}"):
+                                    st.session_state.imprevisti_ignorati.remove(t_id)
+                                    st.rerun()
+                        else:
+                            # Altrimenti mostra l'allarme standard
+                            with st.expander(f"🧩 WBS {wbs_rif}: Imprevisto Segnalato", expanded=True):
+                                st.markdown(f"Dal campo è arrivata una **Segnalazione di Imprevisto/Ostacolo** (Ticket {t_id}).")
+                                st.warning("💡 **Suggerimento:** Vai nel Tab 8 per mappare questo ostacolo come Rischio e calcolare l'impatto sul Fondo Imprevisti.")
+                                
+                                if st.button("👁️ Non è un rischio (Ignora)", key=f"ignora_imp_{t_id}"):
+                                    st.session_state.imprevisti_ignorati.append(t_id)
+                                    st.rerun()
         # ===================================================
-
 # ==========================================
 # COLONNA DI DESTRA (IL MOTORE DELL'APP)
 # ==========================================
@@ -1253,9 +1260,11 @@ with col_sviluppo:
                 
             if not bloccato_qualcosa:
                 st.success("✅ Dati salvati e albero ricalcolato!")
+                import time
+                time.sleep(1.0)
             else:
                 import time
-                time.sleep(3.5) # Congela lo schermo per far leggere gli avvisi al RUP
+                time.sleep(3.5)
                 
             st.rerun()
 
@@ -1345,9 +1354,6 @@ with col_sviluppo:
             if df_wp_reali.empty or len(valid_wbs_ids) == 0:
                 graph.node("Vuoto", label="Nessuna lavorazione inserita.", shape="rect")
                 
-            # --- AGGIORNAMENTO GRAFO: INTEGRAZIONE RISCHI ---
-            df_rischi = st.session_state.rischi_data
-            
             # --- AGGIORNAMENTO GRAFO: INTEGRAZIONE RISCHI ---
             df_rischi = st.session_state.rischi_data
             
