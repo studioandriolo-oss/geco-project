@@ -2878,7 +2878,7 @@ with col_sviluppo:
             with st.expander("📝 Flusso di Lavoro (Input Dati)"):
                 st.markdown("""
                  1. **Tab 2 (OBS & Risorse):** Inserisci le imprese, le maestranze e le attrezzature disponibili. Sono i soggetti che animeranno il cantiere.
-                 2. **Tab 1 (WBS - Lavorazioni):** Struttura l'albero delle attività. Assegna i budget (BAC), le date, i predecessori, la risorsa responsabile e imposta gli eventuali **Vincoli Burocratici** (es. Genio Civile).
+                 2. **Tab 1 (WBS - Lavorazioni):** Struttura l'''albero delle attività. Assegna i budget (BAC), le date, i predecessori, la risorsa responsabile e imposta gli eventuali **Vincoli Burocratici** (es. Genio Civile).
                  3. **Tab 8 (Gestione Rischi):** Mappa i rischi di cantiere, assegnando probabilità e impatto per calcolare matematicamente il fondo imprevisti.
                  4. **Tab 4 (Gantt & Scadenzario):** Controlla l'allineamento temporale (Gantt EVM) e monitora le scadenze amministrative per non bloccare il cantiere.
                  5. **Tab 6 (Gestione Finanziaria):** 
