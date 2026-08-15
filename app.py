@@ -97,7 +97,7 @@ if 'registro_data' not in st.session_state:
 if 'tickets_data' not in st.session_state:
     st.session_state.tickets_data = pd.DataFrame(columns=[
         'ID_Ticket', 'ID_WBS_Rif', 'Autore', 'Data_Apertura',
-        'Tipologia', 'Descrizione', 'Stato', 'Risposta_RUP', 'Data_Chiusura'
+        'Tipologia', 'Descrizione', 'Stato', 'Risposta_RUP', 'Data_Chiusura', 'Variazione_Costi', 'Variazione_Tempi', 'Variante_Applicata'
     ])
 
 if 'capa_data' not in st.session_state:
@@ -634,9 +634,10 @@ with col_save:
                 df_tickets = pd.DataFrame(dati_caricati.get('tickets', []))
                 if df_tickets.empty:
                     df_tickets = pd.DataFrame(columns=[
-                        'ID_Ticket', 'ID_WBS_Rif', 'Autore', 'Data_Apertura',
-                        'Tipologia', 'Descrizione', 'Stato', 'Risposta_RUP', 'Data_Chiusura'
-                    ])
+                    'ID_Ticket', 'ID_WBS_Rif', 'Autore', 'Data_Apertura',
+                    'Tipologia', 'Descrizione', 'Stato', 'Risposta_RUP', 'Data_Chiusura',
+                    'Variazione_Costi', 'Variazione_Tempi', 'Variante_Applicata'
+                ])
                 st.session_state.tickets_data = df_tickets
                 # ------------------------------------
 
@@ -879,6 +880,19 @@ with col_sviluppo:
     # --- TAB 1: SETUP WBS ---
     with tab1:
         st.header("WBS - Work Breakdown Structure")
+
+        # ======================================================
+        # ALLERTA FINANZIARIA GIANFRY: VARIANTI DA QUANTIFICARE
+        if 'tickets_data' in st.session_state and not st.session_state.tickets_data.empty:
+            da_compilare = st.session_state.tickets_data[
+                (st.session_state.tickets_data['Stato'] == 'Approvato ✅') & 
+                (st.session_state.tickets_data['Tipologia'] == 'Richiesta di Variante') & 
+                (st.session_state.tickets_data['Variazione_Costi'].isna() | st.session_state.tickets_data['Variazione_Tempi'].isna())
+            ]
+            if not da_compilare.empty:
+                wbs_sospese = da_compilare['ID_WBS_Rif'].astype(str).tolist()
+                st.error(f"🚨 **ALLERTA FINANZIARIA (GIANFRY):** Hai approvato una Variante per le WBS **{', '.join(wbs_sospese)}** senza quantificarne l'impatto! Vai nel Tab 9 e compila 'Variazione Costi' e 'Variazione Tempi' per ricalibrare il motore EVM.")
+        # ======================================================
         
         # ======================================================
         # INIZIO INNESTO: MEMORIA PERSISTENTE (AMMINISTRATIVA E QUALITÀ)
@@ -1559,6 +1573,19 @@ with col_sviluppo:
     # --- TAB 5: EVM E CASH FLOW ---
     with tab5:
         st.header("Controllo Costi e Analisi EVM")
+
+        # ======================================================
+        # ALLERTA FINANZIARIA GIANFRY: VARIANTI DA QUANTIFICARE
+        if 'tickets_data' in st.session_state and not st.session_state.tickets_data.empty:
+            da_compilare = st.session_state.tickets_data[
+                (st.session_state.tickets_data['Stato'] == 'Approvato ✅') & 
+                (st.session_state.tickets_data['Tipologia'] == 'Richiesta di Variante') & 
+                (st.session_state.tickets_data['Variazione_Costi'].isna() | st.session_state.tickets_data['Variazione_Tempi'].isna())
+            ]
+            if not da_compilare.empty:
+                wbs_sospese = da_compilare['ID_WBS_Rif'].astype(str).tolist()
+                st.error(f"🚨 **ALLERTA FINANZIARIA (GIANFRY):** Hai approvato una Variante per le WBS **{', '.join(wbs_sospese)}** senza quantificarne l'impatto! Vai nel Tab 9 e compila 'Variazione Costi' e 'Variazione Tempi' per ricalibrare il motore EVM.")
+        # ======================================================
         
         data_status_evm = st.date_input("📅 Data di Stato (Status Date):", value=pd.Timestamp.today().date())
         df_evm = calcola_evm(get_foglie(st.session_state.wbs_data), data_status_evm)
@@ -2349,6 +2376,9 @@ with col_sviluppo:
                             'Stato': 'In attesa ⏳',
                             'Risposta_RUP': '',
                             'Data_Chiusura': None
+                            'Variazione_Costi': None,
+                            'Variazione_Tempi': None,
+                            'Variante_Applicata': False
                         }
                         
                         st.session_state.tickets_data = pd.concat([st.session_state.tickets_data, pd.DataFrame([nuovo_ticket])], ignore_index=True)
@@ -2363,36 +2393,67 @@ with col_sviluppo:
         if not st.session_state.tickets_data.empty:
             df_tickets = st.session_state.tickets_data.copy()
             
-            # BLOCCAGGIO INCORRUTTIBILE: il RUP non può manomettere chi, cosa e quando ha scritto.
-            colonne_bloccate = ['ID_Ticket', 'ID_WBS_Rif', 'Autore', 'Data_Apertura', 'Tipologia', 'Descrizione', 'Data_Chiusura']
+            # BLOCCAGGIO INCORRUTTIBILE: Variante_Applicata viene nascosta all'utente
+            colonne_bloccate = ['ID_Ticket', 'ID_WBS_Rif', 'Autore', 'Data_Apertura', 'Tipologia', 'Descrizione', 'Data_Chiusura', 'Variante_Applicata']
             
             edited_tickets = st.data_editor(
                 df_tickets,
                 disabled=colonne_bloccate,
-                num_rows="dynamic", # <--- RIGA PER ATTIVA/DISATTIVARE IL CESTINO 🗑️ NATIVO DI STREAMLIT - CANCELLANDO QUESTA RIGA SI TOGLIE IL 🗑️
+                num_rows="dynamic", 
                 use_container_width=True,
                 hide_index=True,
                 column_config={
                     "Stato": st.column_config.SelectboxColumn("Stato Richiesta", options=["In attesa ⏳", "Approvato ✅", "Respinto ❌"], required=True),
-                    "Risposta_RUP": st.column_config.TextColumn("Prescrizioni / Risposta RUP")
+                    "Risposta_RUP": st.column_config.TextColumn("Prescrizioni / Risposta RUP"),
+                    "Variazione_Costi": st.column_config.NumberColumn("Variazione Costi (€)", format="€ %.2f", help="Aggiunge o sottrae budget alla WBS"),
+                    "Variazione_Tempi": st.column_config.NumberColumn("Variazione Tempi (gg)", help="Sposta la Fine Prevista della WBS"),
+                    "Variante_Applicata": None # Nasconde la colonna di sistema
                 }
             )
             
-            # Pulsante indipendente per salvare le risposte del RUP
             if st.button("💾 Registra Risposte RUP"):
                 import datetime
                 for idx, row in edited_tickets.iterrows():
-                    # Se lo stato viene cambiato da 'In attesa' a qualcos'altro, registra il Timestamp di chiusura
+                    # 1. Chiusura Temporale
                     if row['Stato'] != 'In attesa ⏳' and pd.isna(row['Data_Chiusura']):
                         edited_tickets.at[idx, 'Data_Chiusura'] = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
-                    # Se il RUP lo rimette "In attesa", cancella la data di chiusura
                     elif row['Stato'] == 'In attesa ⏳':
                         edited_tickets.at[idx, 'Data_Chiusura'] = None
                         
+                    # 2. INNESTO MATEMATICO SUL MOTORE EVM
+                    if row['Tipologia'] == 'Richiesta di Variante' and row['Stato'] == 'Approvato ✅':
+                        costo = row['Variazione_Costi']
+                        tempi = row['Variazione_Tempi']
+                        applicata = row.get('Variante_Applicata', False)
+                        
+                        # Se il RUP ha compilato i numeri e la variante non è mai stata processata prima
+                        if pd.notna(costo) and pd.notna(tempi) and not applicata:
+                            wbs_target = str(row['ID_WBS_Rif']).strip()
+                            # Trova l'indice della riga nel database originale WBS
+                            wbs_idx = st.session_state.wbs_data.index[st.session_state.wbs_data['ID_WBS'].astype(str) == wbs_target].tolist()
+                            
+                            if wbs_idx:
+                                i_w = wbs_idx[0]
+                                
+                                # A) Aggiorna il Budget (BAC)
+                                budget_attuale = pd.to_numeric(st.session_state.wbs_data.at[i_w, 'BAC_Budget'], errors='coerce')
+                                st.session_state.wbs_data.at[i_w, 'BAC_Budget'] = (budget_attuale if pd.notna(budget_attuale) else 0.0) + float(costo)
+                                
+                                # B) Aggiorna i Tempi (Data Fine Prevista)
+                                fine_attuale = pd.to_datetime(st.session_state.wbs_data.at[i_w, 'Fine_Prevista'], errors='coerce')
+                                if pd.notna(fine_attuale):
+                                    st.session_state.wbs_data.at[i_w, 'Fine_Prevista'] = (fine_attuale + pd.Timedelta(days=int(tempi))).date()
+                                
+                                # C) Blocca il ticket: non sommerà mai più questi valori in futuro
+                                edited_tickets.at[idx, 'Variante_Applicata'] = True
+                        
                 st.session_state.tickets_data = edited_tickets
-                st.success("✅ Registro aggiornato e storicizzato!")
+                # Ricalcola padri, figli e indici dopo l'innesto
+                st.session_state.wbs_data = aggiorna_gerarchia(st.session_state.wbs_data)
+                
+                st.success("✅ Registro aggiornato! Se i valori erano compilati, sono stati innestati nel motore WBS.")
                 import time
-                time.sleep(1.5)
+                time.sleep(2)
                 st.rerun()
         else:
             st.info("Nessuna comunicazione o variante registrata.")
