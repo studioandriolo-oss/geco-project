@@ -2748,7 +2748,7 @@ with col_sviluppo:
         
         st.graphviz_chart(diag_guida, use_container_width=True)
 
-            with st.expander("Input dati")
+            with st.expander("Input dati"):
             st.markdown("""
             1. **Tab 2 (OBS & Risorse):** Inserisci le imprese, le maestranze e le attrezzature disponibili. Sono i soggetti che animeranno il cantiere.
             2. **Tab 1 (WBS - Lavorazioni):** Struttura l'albero delle attività. Assegna i budget (BAC), i predecessori e collega ciascuna lavorazione alla risorsa responsabile (OBS) e alle date previste.
@@ -2760,7 +2760,7 @@ with col_sviluppo:
             6. **Tab 5 & Radar (GIANFRY CONSIGLIA):** Monitora il cruscotto di controllo per verificare l'esposizione di cassa (Cash Flow) e le allerte di sovraccarico risorse.
             """)
         
-            with st.expander(" 📌 Legenda dei Flussi Automatici")
+            with st.expander(" 📌 Legenda dei Flussi Automatici"):
             st.markdown("""
             * **Da Tab 1, 2 a Radar (GIANFRY CONSIGLIA):** Il sistema controlla in tempo reale se la stessa risorsa è impegnata su più fronti nello stesso periodo, segnalando l'eventuale sovraccarico (con opzione di deroga).
             * **Da Tab 7 a Tab 1 (Cancello di Qualità):** Se esiste una CAPA attiva su una WBS, il sistema impedisce matematicamente di certificarla al 100%, bloccandola al 99% finché il problema non viene chiuso.
