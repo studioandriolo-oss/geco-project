@@ -647,7 +647,7 @@ with col_save:
             rischi_attivi = df_rischi_ai[df_rischi_ai['Stato'].isin(['Attivo ▾', 'Monitorato ▾'])]
 
         # ========================================================
-        # RADAR AI-ASSIST: ALLARMI COMBINATI (RITARDO + RISCHI)
+        # RADAR Gianfry: ALLARMI COMBINATI (RITARDO + RISCHI)
         # ========================================================
         df_wbs_radar = st.session_state.wbs_data.copy() if 'wbs_data' in st.session_state else pd.DataFrame()
         df_rischi_radar = st.session_state.rischi_data.copy() if 'rischi_data' in st.session_state else pd.DataFrame()
@@ -700,7 +700,7 @@ with col_save:
         # Stampa a schermo SOLO se ci sono criticità (Stealth mode)
         if allarmi_combinati:
             st.divider()
-            st.markdown("### 🚨 Radar AI-Assist: Criticità Combinate")
+            st.markdown("### 🚨 Radar Gianfry: Criticità Combinate")
             for allarme in allarmi_combinati:
                 st.error(f"⚠️ **INTERVENTO RUP:** L'attività **{allarme['wbs']} - {allarme['nome_wbs']}** è in ritardo cronico e ha un rischio attivo associato: *{allarme['rischio']}* (Impatto: {allarme['impatto']}). Intervenire o mitigare il rischio nel Tab 8.")
                 
@@ -895,7 +895,26 @@ with col_sviluppo:
                         "Inizio_Previsto": st.column_config.DateColumn("Inizio Previsto"),
                         "Fine_Prevista": st.column_config.DateColumn("Fine Prevista"),
                         "Inizio_Effettivo": st.column_config.DateColumn("Inizio Effettivo"),
-                        "Fine_Effettiva": st.column_config.DateColumn("Fine Effettiva")
+                        "Fine_Effettiva": st.column_config.DateColumn("Fine Effettiva"),
+                        "Vincolo_Burocratico": st.column_config.SelectboxColumn(
+                            "🏛️ Vincolo Burocratico",
+                            help="Seleziona l'autorizzazione necessaria per sbloccare l'inizio effettivo",
+                            options=[
+                                "Nessuno", 
+                                "Delibera di giunta",
+                                "Deposito Genio Civile", 
+                                "Autorizzazione Paesaggistica", 
+                                "Validazione Progetto (RUP)", 
+                                "Nomina CSE", 
+                                "Nulla Osta Soprintendenza"
+                            ],
+                            default="Nessuno"
+                        ),
+                        "Vincolo_Assolto": st.column_config.CheckboxColumn(
+                            "✅ Vincolo Assolto",
+                            help="Spunta questa casella solo quando hai ottenuto il protocollo/documento ufficiale",
+                            default=False
+                        ),
                     }
                 )
                 
