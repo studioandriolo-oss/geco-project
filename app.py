@@ -3058,11 +3058,11 @@ with col_sviluppo:
                 """)
 
             with st.expander("🚦 13. Perché il Gantt o i KPI segnano 'Arancione' se l'SPI è 0.99?"):
-            st.markdown("""
-            * **La Situazione:** Il tuo indice di efficienza temporale (SPI) è a 0.99. Visivamente e logicamente verrebbe da dire: *"È praticamente 1, dammi il verde!"*, ma il cruscotto e la barra del Gantt si colorano inesorabilmente di Arancione.
-            * **Perché accade:** Entra in gioco la spietata rigidità matematica del motore EVM. Le regole assolute del software sono: 🟢 **Verde** per SPI >= 1.00, 🟠 **Arancione** per SPI compreso tra 0.90 e 0.99, e 🔴 **Rosso** sotto lo 0.90. Poiché 0.99 è strettamente minore di 1.00, la macchina, senza un briciolo di flessibilità umana, lo declassa a "Lieve Ritardo". Ti sta matematicamente dicendo: *"Sei in ritardo dell'1% rispetto al piano teorico"*.
-            * **La Soluzione:** Nel Project Management "reale", spaccare il secondo al 100% è pressoché impossibile. Di solito si adotta una "soglia di tolleranza" operativa. L'app nasce con la massima severità di default per non nascondere alcuna deviazione, ma se questa pignoleria algoritmica dovesse risultare eccessiva, i parametri del software possono essere ricalibrati in qualsiasi momento (modificando le funzioni del Gantt e dei KPI) per considerare "Verde" tutto ciò che si mantiene sopra una soglia di tolleranza dello 0.95.
-            """)
+                st.markdown("""
+                * **La Situazione:** Il tuo indice di efficienza temporale (SPI) è a 0.99. Visivamente e logicamente verrebbe da dire: *"È praticamente 1, dammi il verde!"*, ma il cruscotto e la barra del Gantt si colorano inesorabilmente di Arancione.
+                * **Perché accade:** Entra in gioco la spietata rigidità matematica del motore EVM. Le regole assolute del software sono: 🟢 **Verde** per SPI >= 1.00, 🟠 **Arancione** per SPI compreso tra 0.90 e 0.99, e 🔴 **Rosso** sotto lo 0.90. Poiché 0.99 è strettamente minore di 1.00, la macchina, senza un briciolo di flessibilità umana, lo declassa a "Lieve Ritardo". Ti sta matematicamente dicendo: *"Sei in ritardo dell'1% rispetto al piano teorico"*.
+                * **La Soluzione:** Nel Project Management "reale", spaccare il secondo al 100% è pressoché impossibile. Di solito si adotta una "soglia di tolleranza" operativa. L'app nasce con la massima severità di default per non nascondere alcuna deviazione, ma se questa pignoleria algoritmica dovesse risultare eccessiva, i parametri del software possono essere ricalibrati in qualsiasi momento (modificando le funzioni del Gantt e dei KPI) per considerare "Verde" tutto ciò che si mantiene sopra una soglia di tolleranza dello 0.95.
+                """)
 
         # --- SEZIONE 5: ROADMAP VERSIONE 2.0 ---
         with t_sec5:
