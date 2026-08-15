@@ -2832,6 +2832,7 @@ with col_sviluppo:
                 T1 -- "Fornisce Attività" --> T3
                 T3 -. "Valida Assegnazioni" .-> T1
                 T1 -- "Date, Predecessori" --> T4
+                T8 -- "Alert sul percorco critico" --> T3
                 T1 -- "Genera Allerta" --> Scad[Scadenzario Vincoli]:::alerts
                 Scad -. "Visibile in" .-> T4
             end
@@ -2851,11 +2852,13 @@ with col_sviluppo:
                 T6[Tab 6: Registro Contabile]:::finance
                 T5[Tab 5: Motore EVM & Cash Flow]:::control
                 
+                
                 T7 -- "Genera Costi Tossici" --> T6
                 T6 -- "Costi Reali e SAL" --> T5
                 T1 -- "Budget e Avanzamento" --> T5
                 T8 -- "Riserva Monetaria" --> T5
                 T5 -. "Indice SPI colora le barre" .-> T4
+                T6 -- "Genera" --> Scad[Andamento Flussi di Cassa]:::alerts
             end
             
             %% Stile personalizzato per il riquadro della Fase 3 (Lilla tenue)
