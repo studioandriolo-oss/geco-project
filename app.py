@@ -649,9 +649,6 @@ with col_save:
         # ========================================================
         # RADAR Gianfry: ALLARMI COMBINATI (RITARDO + RISCHI)
         # ========================================================
-        st.divider()
-        st.markdown("### 🚨 Radar Gianfry: Criticità Combinate")
-        
         df_wbs_radar = st.session_state.wbs_data.copy()
         
         # Inizializziamo in modo sicuro la tabella rischi
@@ -678,7 +675,7 @@ with col_save:
                     except:
                         completamento = 0.0
                         
-                    # Calcolo di un ritardo evidente (es. Data Fine Prevista superata ma non finito)
+                    # Calcolo di un ritardo evidente
                     fine_prev = pd.to_datetime(row_w.get('Fine_Prevista', None), errors='coerce')
                     
                     in_ritardo_cronico = False
@@ -687,7 +684,6 @@ with col_save:
                         
                     # Se l'attività è in ritardo, interroghiamo la Matrice Rischi
                     if in_ritardo_cronico:
-                        # Filtriamo i rischi associati a questa specifica WBS
                         rischi_associati = df_rischi_radar[df_rischi_radar[col_wbs_rischio].astype(str).str.startswith(wbs_id)]
                         
                         for _, rischio in rischi_associati.iterrows():
@@ -703,12 +699,12 @@ with col_save:
                                     'rischio': desc_rischio
                                 })
 
-        # Stampa a schermo dei risultati dell'Gianfry
+        # Stampa a schermo SOLO se ci sono criticità (modalità Stealth)
         if allarmi_combinati:
+            st.divider()
+            st.markdown("### 🚨 Radar Gianfry: Criticità Combinate")
             for allarme in allarmi_combinati:
                 st.error(f"⚠️ **INTERVENTO RUP RICHIESTO:** L'attività **{allarme['wbs']} - {allarme['nome_wbs']}** è in ritardo cronico e ha innescato un rischio ad alto impatto: *{allarme['rischio']}*. Verificare immediatamente le contromisure nel Tab 8!")
-        else:
-            st.success("✅ **Radar Sincronizzato:** Nessuna combinazione critica rilevata tra ritardi esecutivi e Matrice Rischi.")
         
         # ===================================================
         # RILEVAMENTO CONFLITTI RISORSE (CON "IGNORE BUTTON")
@@ -2318,7 +2314,7 @@ with col_sviluppo:
             with st.expander("🚨 10. Allarme Critico Combinato nel Radar (Intervento RUP Richiesto)"):
                 st.markdown("""
                 * **La Situazione:** Nel cruscotto del Radar compare un vistoso messaggio di errore rosso che richiede l'intervento immediato del RUP, indicando che una specifica lavorazione è in ritardo e citando testualmente un rischio associato.
-                * **Perché accade:** Non è un errore del programma, ma il **motore di controllo incrociato (AI-Assist)** in azione. L'app ha scansionato l'intero progetto e ha rilevato una "tempesta perfetta": 
+                * **Perché accade:** Non è un errore del programma, ma il **motore di controllo incrociato (Gianfry)** in azione. L'app ha scansionato l'intero progetto e ha rilevato una "tempesta perfetta": 
                   1. Un'attività nel Tab 1 ha superato la sua data di *Fine Prevista* ma non è ancora certificata al 100% (ritardo cronico sul campo).
                   2. Questa stessa attività è collegata a un evento nella Matrice dei Rischi (Tab 8) che è classificato con impatto *Alto* o *Critico* e risulta ancora nello stato *Aperto*.
                 * **La Soluzione:** Il sistema ti sta avvisando che un rischio grave si sta materializzando a causa di un ritardo esecutivo. Per far rientrare l'allarme, il Direttore Lavori o il RUP devono adottare le misure di mitigazione previste; dopodiché basterà andare nel Tab 8 e commutare lo stato di quel rischio su **'Chiuso'**, oppure aggiornare l'effettivo completamento della WBS al 100% nel Tab 1.
