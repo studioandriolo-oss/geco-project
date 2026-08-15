@@ -2828,12 +2828,14 @@ with col_sviluppo:
                 T1[Tab 1: WBS & Budget]:::planning
                 T3[Tab 3: Matrice RACI]:::matrix
                 T4[Tab 4: Gantt e Scadenze]:::planning
+                Scad[Scadenzario]:::alerts
                 
-                %% Logica Interna Fase 1
-                T2 --> T3
-                T1 --> T3
-                T3 -.-> T1
-                T1 --> T4
+                T2 -->|"Assegna Responsabili"| T3
+                T1 -->|"Fornisce Attività"| T3
+                T3 -.->|"Valida Assegnazioni"| T1
+                T1 -->|"Date e Dipendenze"| T4
+                T1 -->|"Genera Allerta"| Scad
+                Scad -.->|"Visibile in"| T4
             end
 
             subgraph FASE_2 [FASE 2: IMPREVISTI]
@@ -2847,30 +2849,30 @@ with col_sviluppo:
                 direction TB
                 T6[Tab 6: Contabilità]:::finance
                 T5[Tab 5: Motore EVM]:::control
-                
-                %% Logica Interna Fase 3
-                T6 --> T5
             end
 
             %% ==========================================
-            %% CONNESSIONI PULITE (Verso i Bordi)
+            %% CONNESSIONI CHIRURGICHE (Nodo a Nodo)
             %% ==========================================
             
             %% Dalla Fase 2 alla Fase 1 (Imprevisti che alterano il piano)
-            T9 == "Inietta Soldi e Giorni" ==> FASE_1
-            T7 -. "Blocca Avanzamento" .-> FASE_1
+            T9 == "Inietta Soldi e Giorni" ==> T1
+            T7 -. "Blocca WBS al 99%" .-> T1
             
-            %% Dalla Fase 1 alla Fase 2 (Percorso critico che evidenzia i rischi)
-            T4 -- "Evidenzia Percorso Critico" --> T8
+            %% Dalla Fase 1 alla Fase 2 (Percorso critico)
+            T4 -- "Calcola Percorso Critico" --> T8
+            T8 -. "Minaccia Scadenze" .-> T4
             
             %% Flussi verso i Motori Finanziari (Fase 3)
-            FASE_1 -- "Fornisce Baseline e Dati" --> FASE_3
-            FASE_2 -- "Genera Costi Tossici e Riserve" --> FASE_3
+            T7 -- "Genera Costi Tossici" --> T6
+            T6 -- "Costi Reali (AC)" --> T5
+            T1 -- "Budget Originale (BAC)" --> T5
+            T8 -- "Riserva Monetaria (EMV)" --> T5
             
             %% Ritorno al Gantt
-            T5 -. "Indice SPI colora il Gantt" .-> FASE_1
+            T5 -. "Indice SPI colora le barre" .-> T4
             
-            %% Stile Fase 3
+            %% Stile personalizzato per la Fase 3
             style FASE_3 fill:#F3E5F5,stroke:#8E24AA,stroke-width:2px,stroke-dasharray: 4 4
         ```
         """)
