@@ -1571,82 +1571,8 @@ with col_sviluppo:
     with tab4:
         st.header("Cronoprogramma & Scadenzario Amministrativo")
         
-        # --- FIX CHIRURGICO 1: SCUDO ANTI-CRASH E RETRO-COMPATIBILITÀ ---
-        # Garantisce che le colonne esistano sempre, anche su vecchi salvataggi
-        if 'Vincolo_Burocratico' not in st.session_state.wbs_data.columns:
-            st.session_state.wbs_data['Vincolo_Burocratico'] = 'Nessuno'
-        if 'Vincolo_Assolto' not in st.session_state.wbs_data.columns:
-            st.session_state.wbs_data['Vincolo_Assolto'] = False
-
         # ========================================================
-        # 1. SCADENZARIO AMMINISTRATIVO
-        # ========================================================
-        st.subheader("🏛️ Scadenzario Autorizzazioni (Cancelli Burocratici)")
-        st.markdown("Monitora le lavorazioni che necessitano di un'autorizzazione formale prima di poter iniziare. Le voci già assolte rimangono in archivio per consultazione.")
-        
-        # FIX CHIRURGICO 2: Prendiamo TUTTO l'albero WBS, non solo le foglie!
-        df_wbs_scad = st.session_state.wbs_data.copy()
-        
-        # FIX CHIRURGICO 3: Pulizia del testo a prova di bomba per catturare "nessuno", "Nessuno", o celle vuote
-        df_wbs_scad['Vincolo_Clean'] = df_wbs_scad['Vincolo_Burocratico'].astype(str).str.strip().str.lower()
-        df_vincoli = df_wbs_scad[~df_wbs_scad['Vincolo_Clean'].isin(['nessuno', 'nan', 'none', ''])].copy()
-        
-        if not df_vincoli.empty:
-            df_vincoli['Assolto'] = df_vincoli['Vincolo_Assolto'].apply(lambda x: True if str(x).strip().lower() in ['true', '1', 't', 'y', 'yes'] else False)
-            
-            oggi_scad = pd.Timestamp.today().date()
-            dati_scadenzario = []
-            
-            for _, row in df_vincoli.iterrows():
-                inizio_prev = pd.to_datetime(row['Inizio_Previsto'], errors='coerce')
-                assolto = row['Assolto']
-                
-                if assolto:
-                    stato = "✅ Assolto (Autorizzato)"
-                    sort_val = 9999  # Spinge in fondo
-                    data_str = inizio_prev.strftime('%d/%m/%Y') if pd.notna(inizio_prev) else "N/D"
-                else:
-                    if pd.notna(inizio_prev):
-                        giorni_mancanti = (inizio_prev.date() - oggi_scad).days
-                        if giorni_mancanti < 0:
-                            stato = f"🔴 SCADUTO (Ritardo: {abs(giorni_mancanti)} gg)"
-                        elif giorni_mancanti <= 15:
-                            stato = f"🟠 CRITICO (Scade tra {giorni_mancanti} gg)"
-                        else:
-                            stato = f"🟢 In tempo ({giorni_mancanti} gg)"
-                        sort_val = giorni_mancanti
-                        data_str = inizio_prev.strftime('%d/%m/%Y')
-                    else:
-                        stato = "⚪ Data Inizio non definita"
-                        sort_val = 999
-                        data_str = "N/D"
-                    
-                dati_scadenzario.append({
-                    'WBS': f"{row['ID_WBS']} - {row['Attività']}",
-                    'Autorizzazione Richiesta': row['Vincolo_Burocratico'],
-                    'Scadenza (Inizio Previsto)': data_str,
-                    'Stato Urgenza': stato,
-                    '_sort': sort_val
-                })
-                
-            df_display_scad = pd.DataFrame(dati_scadenzario).sort_values('_sort').drop(columns=['_sort'])
-            
-            def colora_stato(val):
-                if '🔴' in str(val): return 'color: white; background-color: #D32F2F; font-weight: bold;'
-                if '🟠' in str(val): return 'color: white; background-color: #FF9800; font-weight: bold;'
-                if '🟢' in str(val): return 'color: white; background-color: #388E3C; font-weight: bold;'
-                if '✅' in str(val): return 'color: #155724; background-color: #C8E6C9; font-weight: bold;' 
-                return ''
-                
-            st.dataframe(df_display_scad.style.map(colora_stato, subset=['Stato Urgenza']), use_container_width=True, hide_index=True)
-                
-        else:
-            st.info("ℹ️ Nessun vincolo burocratico attualmente impostato nel Tab 1.")
-            
-        st.divider()
-        
-        # ========================================================
-        # 2. GANTT CHART (IL CODICE ESISTENTE)
+        # 1. GANTT CHART (IL CODICE ESISTENTE)
         # ========================================================
         st.subheader("📊 Diagramma di Gantt (EVM-Aware)")
         st.markdown("Le barre della fase esecutiva cambiano automaticamente colore in base alle performance reali (Indice SPI).")
@@ -1752,38 +1678,80 @@ with col_sviluppo:
         else:
             st.info("⚠️ Il cronoprogramma è vuoto. Inserisci le date di Inizio e Fine nel Tab 1.")
 
+        # SCUDO ANTI-CRASH E RETRO-COMPATIBILITÀ ---
+        # Garantisce che le colonne esistano sempre, anche su vecchi salvataggi
+        if 'Vincolo_Burocratico' not in st.session_state.wbs_data.columns:
+            st.session_state.wbs_data['Vincolo_Burocratico'] = 'Nessuno'
+        if 'Vincolo_Assolto' not in st.session_state.wbs_data.columns:
+            st.session_state.wbs_data['Vincolo_Assolto'] = False
+
         # ========================================================
-        # 3. TABELLA RIEPILOGATIVA VINCOLI (IL PEZZO CHE MANCAVA)
+        # 2. SCADENZARIO AMMINISTRATIVO
         # ========================================================
-        st.divider()
-        st.subheader("📋 Elenco Dettagliato Pratiche e Autorizzazioni")
-        st.markdown("Questa tabella raggruppa tutti i vincoli per tipologia, creando una pratica 'To-Do List' per l'ufficio amministrativo.")
+        st.subheader("🏛️ Scadenzario Autorizzazioni (Cancelli Burocratici)")
+        st.markdown("Monitora le lavorazioni che necessitano di un'autorizzazione formale prima di poter iniziare. Le voci già assolte rimangono in archivio per consultazione.")
         
-        # Usiamo df_vincoli che abbiamo filtrato all'inizio del Tab
+        # FIX CHIRURGICO 2: Prendiamo TUTTO l'albero WBS, non solo le foglie!
+        df_wbs_scad = st.session_state.wbs_data.copy()
+        
+        # FIX CHIRURGICO 3: Pulizia del testo a prova di bomba per catturare "nessuno", "Nessuno", o celle vuote
+        df_wbs_scad['Vincolo_Clean'] = df_wbs_scad['Vincolo_Burocratico'].astype(str).str.strip().str.lower()
+        df_vincoli = df_wbs_scad[~df_wbs_scad['Vincolo_Clean'].isin(['nessuno', 'nan', 'none', ''])].copy()
+        
         if not df_vincoli.empty:
-            dati_tabella = []
+            df_vincoli['Assolto'] = df_vincoli['Vincolo_Assolto'].apply(lambda x: True if str(x).strip().lower() in ['true', '1', 't', 'y', 'yes'] else False)
+            
+            oggi_scad = pd.Timestamp.today().date()
+            dati_scadenzario = []
+            
             for _, row in df_vincoli.iterrows():
-                assolto_bool = row['Assolto']
+                inizio_prev = pd.to_datetime(row['Inizio_Previsto'], errors='coerce')
+                assolto = row['Assolto']
                 
-                dati_tabella.append({
-                    "Pratica / Vincolo": str(row['Vincolo_Burocratico']).strip(),
-                    "Stato Pratica": "✅ Assolto" if assolto_bool else "❌ Da Ottenere",
-                    "Lavorazione Associata": f"{row['ID_WBS']} - {row['Attività']}"
+                if assolto:
+                    stato = "✅ Assolto (Autorizzato)"
+                    sort_val = 9999  # Spinge in fondo
+                    data_str = inizio_prev.strftime('%d/%m/%Y') if pd.notna(inizio_prev) else "N/D"
+                else:
+                    if pd.notna(inizio_prev):
+                        giorni_mancanti = (inizio_prev.date() - oggi_scad).days
+                        if giorni_mancanti < 0:
+                            stato = f"🔴 SCADUTO (Ritardo: {abs(giorni_mancanti)} gg)"
+                        elif giorni_mancanti <= 15:
+                            stato = f"🟠 CRITICO (Scade tra {giorni_mancanti} gg)"
+                        else:
+                            stato = f"🟢 In tempo ({giorni_mancanti} gg)"
+                        sort_val = giorni_mancanti
+                        data_str = inizio_prev.strftime('%d/%m/%Y')
+                    else:
+                        stato = "⚪ Data Inizio non definita"
+                        sort_val = 999
+                        data_str = "N/D"
+                    
+                dati_scadenzario.append({
+                    'WBS': f"{row['ID_WBS']} - {row['Attività']}",
+                    'Autorizzazione Richiesta': row['Vincolo_Burocratico'],
+                    'Scadenza (Inizio Previsto)': data_str,
+                    'Stato Urgenza': stato,
+                    '_sort': sort_val
                 })
                 
-            df_tab_riepilogo = pd.DataFrame(dati_tabella)
-            # Ordinamento alfabetico per raggruppare le pratiche simili
-            df_tab_riepilogo = df_tab_riepilogo.sort_values(by=["Pratica / Vincolo", "Stato Pratica"])
+            df_display_scad = pd.DataFrame(dati_scadenzario).sort_values('_sort').drop(columns=['_sort'])
             
-            def colora_pratica(val):
-                if '❌' in str(val): return 'color: #D32F2F; font-weight: bold;'
-                if '✅' in str(val): return 'color: #388E3C; font-weight: bold;'
+            def colora_stato(val):
+                if '🔴' in str(val): return 'color: white; background-color: #D32F2F; font-weight: bold;'
+                if '🟠' in str(val): return 'color: white; background-color: #FF9800; font-weight: bold;'
+                if '🟢' in str(val): return 'color: white; background-color: #388E3C; font-weight: bold;'
+                if '✅' in str(val): return 'color: #155724; background-color: #C8E6C9; font-weight: bold;' 
                 return ''
                 
-            st.dataframe(df_tab_riepilogo.style.map(colora_pratica, subset=['Stato Pratica']), use_container_width=True, hide_index=True)
+            st.dataframe(df_display_scad.style.map(colora_stato, subset=['Stato Urgenza']), use_container_width=True, hide_index=True)
+                
         else:
-            st.info("Nessuna lavorazione nell'albero WBS è soggetta a vincoli burocratici.")
-
+            st.info("ℹ️ Nessun vincolo burocratico attualmente impostato nel Tab 1.")
+            
+        st.divider()
+    
     #-------------------------------    
     # --- TAB 5: EVM E CASH FLOW ---
     #-------------------------------
