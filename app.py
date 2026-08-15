@@ -75,8 +75,13 @@ if 'wbs_data' not in st.session_state:
         'Attività': 'Progetto Principale', 
         'Inizio_Previsto': None, 'Fine_Prevista': None, 
         'Inizio_Effettivo': None, 'Fine_Effettiva': None, 
-        'BAC_Budget': 0.0, '%_Completamento': 0.0, 
-        'AC_Costo_Reale': 0.0, 'ID_OBS_Assegnato': None, 'Predecessori': ''
+        'BAC_Budget': 0.0,
+        '%_Completamento': 0.0, 
+        'AC_Costo_Reale': 0.0, 
+        'ID_OBS_Assegnato': None, 
+        'Predecessori': '',
+        'Vincolo_Burocratico',
+        'Vincolo_Assolto'
     }])
     
 if 'obs_data' not in st.session_state:
@@ -899,20 +904,13 @@ with col_sviluppo:
                         "Vincolo_Burocratico": st.column_config.SelectboxColumn(
                             "🏛️ Vincolo Burocratico",
                             help="Seleziona l'autorizzazione necessaria per sbloccare l'inizio effettivo",
-                            options=[
-                                "Nessuno", 
-                                "Delibera di giunta",
-                                "Deposito Genio Civile", 
-                                "Autorizzazione Paesaggistica", 
-                                "Validazione Progetto (RUP)", 
-                                "Nomina CSE", 
-                                "Nulla Osta Soprintendenza"
-                            ],
+                            options=["Nessuno", "Delibera di giunta", "Deposito Genio Civile", "Autorizzazione Paesaggistica", "Validazione Progetto (RUP)", "Nomina CSE", "Nulla Osta Soprintendenza"],
                             default="Nessuno"
+                            width="medium"
                         ),
                         "Vincolo_Assolto": st.column_config.CheckboxColumn(
                             "✅ Vincolo Assolto",
-                            help="Spunta questa casella solo quando hai ottenuto il protocollo/documento ufficiale",
+                            help="Spunta quando hai ottenuto il protocollo ufficiale",
                             default=False
                         ),
                     }
@@ -985,6 +983,23 @@ with col_sviluppo:
                     allarmi_blocco.append(wbs_id)
             # --- FINE INNESTO CAPA ---
 
+            # --- INIZIO INNESTO: CANCELLO AMMINISTRATIVO ---
+            allarmi_burocratici = []
+            for idx, row in df_aggiornato.iterrows():
+                vincolo = str(row.get('Vincolo_Burocratico', 'Nessuno')).strip()
+                sbloccato = row.get('Vincolo_Assolto', False)
+                inizio_effettivo = row.get('Inizio_Effettivo', None)
+                
+                # Se c'è un vincolo reale, NON è stato sbloccato, ma c'è una data di Inizio Effettiva
+                if vincolo not in ['Nessuno', 'nan', '', 'None'] and not sbloccato and pd.notnull(inizio_effettivo):
+                    # Il sistema annulla l'inizio lavori
+                    df_aggiornato.at[idx, 'Inizio_Effettivo'] = None 
+                    allarmi_burocratici.append(f"{row.get('ID_WBS')} ({vincolo})")
+            
+            if allarmi_burocratici:
+                st.error(f"🛑 BLOCCO AMMINISTRATIVO: La data di 'Inizio Effettivo' delle seguenti lavorazioni è stata annullata perché il vincolo burocratico non è ancora stato assolto: {', '.join(allarmi_burocratici)}")
+            # --- FINE INNESTO CANCELLO AMMINISTRATIVO ---
+            
             # 2. Salvataggio del dataframe corretto
             st.session_state.wbs_data = df_aggiornato
             
@@ -1039,7 +1054,7 @@ with col_sviluppo:
             st.session_state.obs_data = edited_obs
             st.success("✅ Dati anagrafici salvati con successo!")
             st.rerun()
-
+    
     # --- TAB 3: MATRICE E GRAFO A NODI ---
     with tab3:
         st.header("Percorso Logico - Work Packages e Percorso Critico")
@@ -2335,6 +2350,13 @@ with col_sviluppo:
                   1. Un'attività nel Tab 1 ha superato la sua data di *Fine Prevista* ma non è ancora certificata al 100% (ritardo cronico sul campo).
                   2. Questa stessa attività è collegata a un evento nella Matrice dei Rischi (Tab 8) che è classificato con impatto *Alto* o *Critico* e risulta ancora nello stato *Aperto*.
                 * **La Soluzione:** Il sistema ti sta avvisando che un rischio grave si sta materializzando a causa di un ritardo esecutivo. Per far rientrare l'allarme, il Direttore Lavori o il RUP devono adottare le misure di mitigazione previste; dopodiché basterà andare nel Tab 8 e commutare lo stato di quel rischio su **'Chiuso'**, oppure aggiornare l'effettivo completamento della WBS al 100% nel Tab 1.
+                """)
+
+            with st.expander("🏛️ 11. La data di 'Inizio Effettivo' scompare dopo il salvataggio (Blocco Amministrativo)"):
+                st.markdown("""
+                * **La Situazione:** Inserisci una data nella colonna *Inizio Effettivo* del Tab 1, clicchi "Salva", ma la cella torna immediatamente vuota e compare un banner di errore rosso.
+                * **Perché accade:** L'attività in questione è soggetta a un **Cancello Amministrativo** (es. *Deposito Genio Civile* o *Autorizzazione Paesaggistica*). Il software, conformemente al Codice degli Appalti, impedisce la registrazione formale dell'inizio delle lavorazioni se manca il nulla osta istituzionale.
+                * **La Soluzione:** L'inizio dei lavori può essere sbloccato solo da un utente autorizzato (RUP o DL). Quando l'ente preposto rilascia il protocollo ufficiale, entra nel Tab 1 e metti la spunta sulla colonna **'✅ Vincolo Assolto'**. Al salvataggio successivo, il sistema ti permetterà di inserire liberamente la data di Inizio Effettivo.
                 """)
 
         # --- SEZIONE 5: ROADMAP VERSIONE 2.0 ---
