@@ -864,13 +864,42 @@ with col_sviluppo:
         st.header("WBS - Work Breakdown Structure")
         
         # ======================================================
-        # INIZIO INNESTO: MEMORIA BUROCRATICA PERSISTENTE
+        # INIZIO INNESTO: MEMORIA PERSISTENTE (AMMINISTRATIVA E QUALITÀ)
         if 'memoria_burocratica' not in st.session_state:
             st.session_state.memoria_burocratica = set()
+        if 'memoria_capa' not in st.session_state:
+            st.session_state.memoria_capa = set()
+        if 'memoria_ticket' not in st.session_state:
+            st.session_state.memoria_ticket = set()
 
+        # Calcolo preventivo delle WBS bloccate per usarle nei controlli in tempo reale
+        wbs_bloccate_capa = []
+        if 'capa_data' in st.session_state and not st.session_state.capa_data.empty:
+            capa_attive = st.session_state.capa_data[st.session_state.capa_data['Stato'].isin(['Aperto ▾', 'In Lavorazione ▾'])]
+            if not capa_attive.empty:
+                wbs_bloccate_capa = capa_attive['ID_WBS_Rif'].astype(str).apply(lambda x: x.split(' - ')[0].strip()).unique().tolist()
+        
+        wbs_bloccate_ticket = []
+        if 'tickets_data' in st.session_state and not st.session_state.tickets_data.empty:
+            ticket_attesi = st.session_state.tickets_data[st.session_state.tickets_data['Stato'] == 'In attesa ⏳']
+            if not ticket_attesi.empty:
+                wbs_bloccate_ticket = ticket_attesi['ID_WBS_Rif'].astype(str).str.strip().unique().tolist()
+
+        # Pulizia automatica intelligente: se il ticket o la CAPA vengono chiusi dal RUP 
+        # negli altri tab, l'avviso sparisce d'ufficio da qui senza dover fare nulla!
+        st.session_state.memoria_capa = {w for w in st.session_state.memoria_capa if w in wbs_bloccate_capa}
+        st.session_state.memoria_ticket = {w for w in st.session_state.memoria_ticket if w in wbs_bloccate_ticket}
+
+        # DISPLAY DEGLI AVVISI IN FILA (Senza sovrapporsi, impaginati a colonna)
         if st.session_state.memoria_burocratica:
-            st.error(f"🛑 **PROMEMORIA BLOCCHI AMMINISTRATIVI:** Hai tentato di avviare le lavorazioni **{', '.join(st.session_state.memoria_burocratica)}** senza le dovute autorizzazioni. Ottieni il documento e metti la spunta su 'Vincolo Assolto' per sbloccarle e far sparire questo avviso!")
-        # FINE INNESTO MEMORIA BUROCRATICA
+            st.error(f"🛑 **BLOCCO AMMINISTRATIVO:** Hai tentato di avviare le lavorazioni **{', '.join(st.session_state.memoria_burocratica)}** senza le dovute autorizzazioni. Ottieni il documento e metti la spunta su 'Vincolo Assolto'.")
+            
+        if st.session_state.memoria_ticket:
+            st.warning(f"⏳ **CANCELLO SOSPESIVO:** Hai tentato di chiudere al 100% le WBS **{', '.join(st.session_state.memoria_ticket)}**. Sono state bloccate al 99% perché c'è un Ticket di Variante in attesa di approvazione RUP.")
+            
+        if st.session_state.memoria_capa:
+            st.warning(f"🚧 **BLOCCO QUALITÀ:** Hai tentato di chiudere al 100% le WBS **{', '.join(st.session_state.memoria_capa)}**. Sono state bloccate al 99% perché c'è un'azione correttiva (CAPA) aperta nel Tab 7.")
+        # FINE INNESTO MEMORIA PERSISTENTE
         # ======================================================
         
         st.markdown('*I numeri ID sono bloccati per garantire l\'integrità. Usa i pulsanti sotto ogni capitolo per spostare e rientrare le voci.*')
@@ -965,14 +994,16 @@ with col_sviluppo:
                 for i_row, row_mod in discendenti_modificati.iterrows():
                     val_id = str(row_mod['ID_WBS']).strip()
                     if val_id in ['', 'None', 'nan']:
-                        discendenti_modificati.at[i_row, 'ID_WBS'] = f"{id_radice}.999{i_row}"# --- INNESTO IN TEMPO REALE: CANCELLO AMMINISTRATIVO ---
+                        discendenti_modificati.at[i_row, 'ID_WBS'] = f"{id_radice}.999{i_row}"
                 
-                # --- INNESTO IN TEMPO REALE: CANCELLO AMMINISTRATIVO ---
-                allarmi_locali = []
+                # =====================================================================
+                # --- INNESTO IN TEMPO REALE: CONTROLLI INCROCIATI ---
+                allarmi_burocratici = []
                 for i_row, row_mod in discendenti_modificati.iterrows():
-                    vincolo = str(row_mod.get('Vincolo_Burocratico', '')).strip()
-                    nome_wbs = str(row_mod.get('ID_WBS', ''))
+                    nome_wbs = str(row_mod.get('ID_WBS', '')).strip()
                     
+                    # 1. CANCELLO AMMINISTRATIVO (Blocco data Inizio)
+                    vincolo = str(row_mod.get('Vincolo_Burocratico', '')).strip()
                     spunta = row_mod.get('Vincolo_Assolto', False)
                     sbloccato = True if str(spunta).strip().lower() in ['true', '1', 't', 'y', 'yes'] else False
                     
@@ -981,23 +1012,38 @@ with col_sviluppo:
                     if inizio is not None and pd.notna(inizio) and str(inizio).strip().lower() not in ['', 'nat', 'nan', 'none']:
                         has_inizio = True
                     
-                    # Logica della Memoria Persistente
                     stringa_memoria = f"{nome_wbs} ({vincolo})"
                     
                     if vincolo not in ['Nessuno', '', 'nan', 'None']:
                         if not sbloccato and has_inizio:
-                            # 1. Cancella la data
                             discendenti_modificati.at[i_row, 'Inizio_Effettivo'] = pd.NaT 
-                            allarmi_locali.append(nome_wbs)
-                            # 2. Scrive il promemoria incancellabile
+                            allarmi_burocratici.append(nome_wbs)
                             st.session_state.memoria_burocratica.add(stringa_memoria)
-                        
                         elif sbloccato and stringa_memoria in st.session_state.memoria_burocratica:
-                            # 3. Se l'utente FINALMENTE mette la spunta, cancella l'allarme dalla memoria!
-                            st.session_state.memoria_burocratica.remove(stringa_memoria)
+                            st.session_state.memoria_burocratica.discard(stringa_memoria)
                             
-                if allarmi_locali:
-                    msg = f"Hai inserito l'Inizio per la WBS {', '.join(allarmi_locali)} senza spuntare il Vincolo Assolto. La data è stata annullata."
+                    # 2. BLOCCO QUALITÀ E TICKET (Blocco chiusura al 100%)
+                    try:
+                        completamento = float(row_mod.get('%_Completamento', 0))
+                    except:
+                        completamento = 0.0
+                        
+                    if completamento >= 100:
+                        if nome_wbs in wbs_bloccate_ticket:
+                            discendenti_modificati.at[i_row, '%_Completamento'] = 99.0
+                            st.session_state.memoria_ticket.add(nome_wbs)
+                            st.toast(f"⏳ CANCELLO SOSPESIVO: WBS {nome_wbs} bloccata al 99%.", icon='⏳')
+                        elif nome_wbs in wbs_bloccate_capa:
+                            discendenti_modificati.at[i_row, '%_Completamento'] = 99.0
+                            st.session_state.memoria_capa.add(nome_wbs)
+                            st.toast(f"🚧 BLOCCO QUALITÀ: WBS {nome_wbs} bloccata al 99%.", icon='🚧')
+                    else:
+                        # Se l'utente riporta manualmente la voce sotto il 100%, la memoria si ripulisce da sola
+                        st.session_state.memoria_ticket.discard(nome_wbs)
+                        st.session_state.memoria_capa.discard(nome_wbs)
+
+                if allarmi_burocratici:
+                    msg = f"Hai inserito l'Inizio per la WBS {', '.join(allarmi_burocratici)} senza spuntare il Vincolo Assolto. La data è stata annullata."
                     st.toast(msg, icon='🚨')
                 # =====================================================================
  
