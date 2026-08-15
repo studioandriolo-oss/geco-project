@@ -2853,50 +2853,50 @@ with col_sviluppo:
         
         st.graphviz_chart(diag_guida, use_container_width=True)
 
-    with st.expander("📝 Flusso di Lavoro (Input Dati)"):
-        st.markdown("""
-         1. **Tab 2 (OBS & Risorse):** Inserisci le imprese, le maestranze e le attrezzature disponibili. Sono i soggetti che animeranno il cantiere.
-         2. **Tab 1 (WBS - Lavorazioni):** Struttura l'albero delle attività. Assegna i budget (BAC), le date, i predecessori, la risorsa responsabile e imposta gli eventuali **Vincoli Burocratici** (es. Genio Civile).
-         3. **Tab 8 (Gestione Rischi):** Mappa i rischi di cantiere, assegnando probabilità e impatto per calcolare matematicamente il fondo imprevisti.
-         4. **Tab 4 (Gantt & Scadenzario):** Controlla l'allineamento temporale (Gantt EVM) e monitora le scadenze amministrative per non bloccare il cantiere.
-         5. **Tab 6 (Gestione Finanziaria):** 
-            * *Uscite:* Registra fatture e costi reali associandoli alle WBS.
-            * *Entrate:* Emetti e traccia i SAL certificati e pagati dalla committenza.
-         6. **Tab 7 (Qualità & CAPA):** Apri azioni correttive (Non-Conformità) qualora qualcosa non rispetti gli standard, bloccando l'avanzamento dei lavori fallati.
-         7. **Tab 9 (Comunicazioni RUP & Varianti):** Gestisci l'approvazione formale di costi extra e proroghe temporali tramite ticket sigillati (Audit Trail).
-         8. **Tab 5 & Radar (GIANFRY CONSIGLIA):** Monitora il cruscotto di controllo per verificare le proiezioni a finire (EVM), l'esposizione di cassa (Cash Flow) e le allerte di sovraccarico.
-        """)
-    
-    with st.expander(" 📌 Legenda dei Flussi Automatici (Il Motore del Software)"):
-        st.markdown("""
-         * **Da Tab 1 a Tab 4 (Scadenzario Amministrativo):** Impostare un "Vincolo Burocratico" nel Tab 1 genera automaticamente un alert semaforico nel Tab 4, calcolando i giorni mancanti all'inizio lavori. Spuntare "Assolto" lo archivia in verde.
-         * **Da Tab 9 a Tab 1 e 5 (Motore Varianti):** L'approvazione di una variante nel Tab 9 inietta matematicamente il nuovo Budget (BAC) e i giorni di proroga direttamente nel Tab 1, aggiornando a cascata l'intero albero WBS e ricalibrando l'EVM (SPI/CPI) nel Tab 5. Il ticket viene poi "sigillato" contro le frodi.
-         * **Da Tab 8 a Tab 5 (Scudo Finanziario):** I rischi attivi calcolano il Valore Monetario Atteso (EMV), che si somma automaticamente alla stima a finire (EAC) nel Tab 5 per creare la *Contingency Reserve*.
-         * **Da Tab 7 a Tab 1 e 6 (Costi di Non-Qualità):** Un'azione correttiva aperta blocca la WBS al 99% nel Tab 1. Quando chiusa, se genera un costo extra, questo viene contabilizzato automaticamente nel Tab 6 come *Spesa Tossica*.
-         * **Da Tab 6 a Tab 5 (Cash Flow):** Le uscite (costi reali) e le entrate (SAL pagati) alimentano la curva cumulativa e l'indicatore di esposizione finanziaria netta.
-         * **Da Tab 1, 2 a Radar (Sovraccarico):** Il sistema controlla in tempo reale se la stessa risorsa è impegnata su più fronti nello stesso periodo, segnalando l'eventuale conflitto (con opzione di deroga).
-        """)
+        with st.expander("📝 Flusso di Lavoro (Input Dati)"):
+            st.markdown("""
+             1. **Tab 2 (OBS & Risorse):** Inserisci le imprese, le maestranze e le attrezzature disponibili. Sono i soggetti che animeranno il cantiere.
+             2. **Tab 1 (WBS - Lavorazioni):** Struttura l'albero delle attività. Assegna i budget (BAC), le date, i predecessori, la risorsa responsabile e imposta gli eventuali **Vincoli Burocratici** (es. Genio Civile).
+             3. **Tab 8 (Gestione Rischi):** Mappa i rischi di cantiere, assegnando probabilità e impatto per calcolare matematicamente il fondo imprevisti.
+             4. **Tab 4 (Gantt & Scadenzario):** Controlla l'allineamento temporale (Gantt EVM) e monitora le scadenze amministrative per non bloccare il cantiere.
+             5. **Tab 6 (Gestione Finanziaria):** 
+                * *Uscite:* Registra fatture e costi reali associandoli alle WBS.
+                * *Entrate:* Emetti e traccia i SAL certificati e pagati dalla committenza.
+             6. **Tab 7 (Qualità & CAPA):** Apri azioni correttive (Non-Conformità) qualora qualcosa non rispetti gli standard, bloccando l'avanzamento dei lavori fallati.
+             7. **Tab 9 (Comunicazioni RUP & Varianti):** Gestisci l'approvazione formale di costi extra e proroghe temporali tramite ticket sigillati (Audit Trail).
+             8. **Tab 5 & Radar (GIANFRY CONSIGLIA):** Monitora il cruscotto di controllo per verificare le proiezioni a finire (EVM), l'esposizione di cassa (Cash Flow) e le allerte di sovraccarico.
+            """)
+        
+        with st.expander(" 📌 Legenda dei Flussi Automatici (Il Motore del Software)"):
+            st.markdown("""
+             * **Da Tab 1 a Tab 4 (Scadenzario Amministrativo):** Impostare un "Vincolo Burocratico" nel Tab 1 genera automaticamente un alert semaforico nel Tab 4, calcolando i giorni mancanti all'inizio lavori. Spuntare "Assolto" lo archivia in verde.
+             * **Da Tab 9 a Tab 1 e 5 (Motore Varianti):** L'approvazione di una variante nel Tab 9 inietta matematicamente il nuovo Budget (BAC) e i giorni di proroga direttamente nel Tab 1, aggiornando a cascata l'intero albero WBS e ricalibrando l'EVM (SPI/CPI) nel Tab 5. Il ticket viene poi "sigillato" contro le frodi.
+             * **Da Tab 8 a Tab 5 (Scudo Finanziario):** I rischi attivi calcolano il Valore Monetario Atteso (EMV), che si somma automaticamente alla stima a finire (EAC) nel Tab 5 per creare la *Contingency Reserve*.
+             * **Da Tab 7 a Tab 1 e 6 (Costi di Non-Qualità):** Un'azione correttiva aperta blocca la WBS al 99% nel Tab 1. Quando chiusa, se genera un costo extra, questo viene contabilizzato automaticamente nel Tab 6 come *Spesa Tossica*.
+             * **Da Tab 6 a Tab 5 (Cash Flow):** Le uscite (costi reali) e le entrate (SAL pagati) alimentano la curva cumulativa e l'indicatore di esposizione finanziaria netta.
+             * **Da Tab 1, 2 a Radar (Sovraccarico):** Il sistema controlla in tempo reale se la stessa risorsa è impegnata su più fronti nello stesso periodo, segnalando l'eventuale conflitto (con opzione di deroga).
+            """)
 
-    with st.expander(" 🎯 Guida Operativa agli Imprevisti: Rischi, CAPA o Varianti?"):
-        st.markdown("""
-        Una delle forze di questo gestionale è la netta separazione tra **previsione**, **errore** e **modifica contrattuale**. In cantiere succedono mille imprevisti: ecco la bussola definitiva per sapere esattamente in quale Tab registrarli per mantenere i conti in perfetto equilibrio.
-        
-        ### 📊 Matrice Decisionale degli Imprevisti
-        
-        | Tipologia Evento | Tab | Quando si usa? (La Natura) | Esempio Pratico in Cantiere | Effetto sul Conto (Motore EVM) | Effetto a Cascata nel Sistema |
-        | :--- | :---: | :--- | :--- | :--- | :--- |
-        | 🔮 **RISCHIO** (Gestione Incertezza) | **8** | Evento **futuro incerto** (potrebbe accadere, ma non è detto). | *Rischio di trovare roccia dura durante le operazioni di scavo.* | Crea la **Riserva (EMV)** | Alza l'**EAC** (Stima a finire) nel cruscotto Tab 5 creando uno "Scudo Finanziario" preventivo, senza toccare i soldi attuali. |
-        | 🚨 **CAPA** (Non-Conformità / Errori) | **7** | Errore, difetto o infortunio **già avvenuto** (da sanare o correggere). | *Getto di calcestruzzo errato, armatura da demolire e rifare.* | Crea **Spesa Tossica (AC)** | Blocca la WBS al **99%** (Tab 1). I costi extra di ripristino alzano l'**AC** (Tab 6), bruciando cassa e abbassando l'indice di efficienza (CPI). |
-        | 📜 **VARIANTE** (Comunicazione RUP) | **9** | Modifica **formale e approvata** al progetto o al contratto originale. | *La Committenza richiede e approva la costruzione di una stanza extra.* | Cambia il **Budget (BAC)** | Inietta soldi e/o giorni extra nel **Tab 1**. Il "Sigillo" previene manomissioni (Audit Trail). Ricalibra l'intero piano dei tempi e dei costi. |
-        
-        ---
-        
-        ### 🛠️ Spiegazione Dettagliata per il Team
-        
-        *   **TAB 8 - GESTIONE RISCHI (La Sfera di Cristallo):** Qui si lavora di prevenzione. Inserisci tutto ciò di cui hai paura *prima* che accada. Il software calcola le probabilità e ti dice quanti soldi tenere da parte. Se il rischio si avvera davvero, lo chiudi qui e ne affronti le conseguenze (aprendo una Variante se il cliente paga, o registrando una spesa se tocca all'impresa).
-        *   **TAB 7 - AZIONI CORRETTIVE (Il Pronto Soccorso):** Usalo quando qualcuno ha sbagliato e devi mettere una "toppa". È lo strumento di Qualità e Sicurezza dell'app. Matematicamente è punitivo: ti fa spendere soldi non previsti per riparare un danno, peggiorando le tue statistiche di cantiere.
-        *   **TAB 9 - VARIANTI RUP (Il Notaio):** È lo strumento amministrativo per eccellenza. Usalo SOLO quando hai in mano un "Approvato" ufficiale per variare i lavori. Usare questo Tab altera le "fondamenta" stesse del progetto (la Baseline), per questo il sistema lo protegge registrando esattamente chi ha aggiunto i soldi e impedendo di modificarlo di nascosto in un secondo momento.
-        """)
+        with st.expander(" 🎯 Guida Operativa agli Imprevisti: Rischi, CAPA o Varianti?"):
+            st.markdown("""
+            Una delle forze di questo gestionale è la netta separazione tra **previsione**, **errore** e **modifica contrattuale**. In cantiere succedono mille imprevisti: ecco la bussola definitiva per sapere esattamente in quale Tab registrarli per mantenere i conti in perfetto equilibrio.
+            
+            ### 📊 Matrice Decisionale degli Imprevisti
+            
+            | Tipologia Evento | Tab | Quando si usa? (La Natura) | Esempio Pratico in Cantiere | Effetto sul Conto (Motore EVM) | Effetto a Cascata nel Sistema |
+            | :--- | :---: | :--- | :--- | :--- | :--- |
+            | 🔮 **RISCHIO** (Gestione Incertezza) | **8** | Evento **futuro incerto** (potrebbe accadere, ma non è detto). | *Rischio di trovare roccia dura durante le operazioni di scavo.* | Crea la **Riserva (EMV)** | Alza l'**EAC** (Stima a finire) nel cruscotto Tab 5 creando uno "Scudo Finanziario" preventivo, senza toccare i soldi attuali. |
+            | 🚨 **CAPA** (Non-Conformità / Errori) | **7** | Errore, difetto o infortunio **già avvenuto** (da sanare o correggere). | *Getto di calcestruzzo errato, armatura da demolire e rifare.* | Crea **Spesa Tossica (AC)** | Blocca la WBS al **99%** (Tab 1). I costi extra di ripristino alzano l'**AC** (Tab 6), bruciando cassa e abbassando l'indice di efficienza (CPI). |
+            | 📜 **VARIANTE** (Comunicazione RUP) | **9** | Modifica **formale e approvata** al progetto o al contratto originale. | *La Committenza richiede e approva la costruzione di una stanza extra.* | Cambia il **Budget (BAC)** | Inietta soldi e/o giorni extra nel **Tab 1**. Il "Sigillo" previene manomissioni (Audit Trail). Ricalibra l'intero piano dei tempi e dei costi. |
+            
+            ---
+            
+            ### 🛠️ Spiegazione Dettagliata
+            
+            *   **TAB 8 - GESTIONE RISCHI (La Sfera di Cristallo):** Qui si lavora di prevenzione. Inserisci tutto ciò di cui hai paura *prima* che accada. Il software calcola le probabilità e ti dice quanti soldi tenere da parte. Se il rischio si avvera davvero, lo chiudi qui e ne affronti le conseguenze (aprendo una Variante se il cliente paga, o registrando una spesa se tocca all'impresa).
+            *   **TAB 7 - AZIONI CORRETTIVE (Il Pronto Soccorso):** Usalo quando qualcuno ha sbagliato e devi mettere una "toppa". È lo strumento di Qualità e Sicurezza dell'app. Matematicamente è punitivo: ti fa spendere soldi non previsti per riparare un danno, peggiorando le tue statistiche di cantiere.
+            *   **TAB 9 - VARIANTI RUP (Il Notaio):** È lo strumento amministrativo per eccellenza. Usalo SOLO quando hai in mano un "Approvato" ufficiale per variare i lavori. Usare questo Tab altera le "fondamenta" stesse del progetto (la Baseline), per questo il sistema lo protegge registrando esattamente chi ha aggiunto i soldi e impedendo di modificarlo di nascosto in un secondo momento.
+            """)
 
         # --- 2. GLOSSARIO EVM ---
         with t_sec2:
@@ -3056,6 +3056,13 @@ with col_sviluppo:
                 * **La Soluzione:** Torna nel Tab 9, compila gli importi esatti in Euro e i giorni concessi, poi clicca "Registra Risposte RUP". Il sistema inietterà automaticamente quei valori nel Budget della WBS interessata (nel Tab 1), sposterà in avanti la data di *Fine Prevista*, ricalcolerà tutti gli indicatori nel Tab 5 e spegnerà l'allarme in modo definitivo. 
                 *(Nota tecnica: il sistema possiede una memoria interna, quindi i soldi non verranno mai sommati due volte, nemmeno se continui a premere Salva).*
                 """)
+
+            with st.expander("🚦 13. Perché il Gantt o i KPI segnano 'Arancione' se l'SPI è 0.99?"):
+            st.markdown("""
+            * **La Situazione:** Il tuo indice di efficienza temporale (SPI) è a 0.99. Visivamente e logicamente verrebbe da dire: *"È praticamente 1, dammi il verde!"*, ma il cruscotto e la barra del Gantt si colorano inesorabilmente di Arancione.
+            * **Perché accade:** Entra in gioco la spietata rigidità matematica del motore EVM. Le regole assolute del software sono: 🟢 **Verde** per SPI >= 1.00, 🟠 **Arancione** per SPI compreso tra 0.90 e 0.99, e 🔴 **Rosso** sotto lo 0.90. Poiché 0.99 è strettamente minore di 1.00, la macchina, senza un briciolo di flessibilità umana, lo declassa a "Lieve Ritardo". Ti sta matematicamente dicendo: *"Sei in ritardo dell'1% rispetto al piano teorico"*.
+            * **La Soluzione:** Nel Project Management "reale", spaccare il secondo al 100% è pressoché impossibile. Di solito si adotta una "soglia di tolleranza" operativa. L'app nasce con la massima severità di default per non nascondere alcuna deviazione, ma se questa pignoleria algoritmica dovesse risultare eccessiva, i parametri del software possono essere ricalibrati in qualsiasi momento (modificando le funzioni del Gantt e dei KPI) per considerare "Verde" tutto ciò che si mantiene sopra una soglia di tolleranza dello 0.95.
+            """)
 
         # --- SEZIONE 5: ROADMAP VERSIONE 2.0 ---
         with t_sec5:
