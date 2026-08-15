@@ -506,7 +506,10 @@ with col_save:
             "rischi": st.session_state.rischi_data.copy(),
             "sal": st.session_state.sal_data.copy(),
             "conflitti_ignorati": st.session_state.conflitti_ignorati.copy(),
-            "tickets": st.session_state.tickets_data.copy()
+            "tickets": st.session_state.tickets_data.copy(),
+            "memoria_burocratica": list(st.session_state.memoria_burocratica),
+            "memoria_capa": list(st.session_state.memoria_capa),
+            "memoria_ticket": list(st.session_state.memoria_ticket)
         }
         st.success("Salvato!")
         
@@ -520,7 +523,10 @@ with col_save:
             "rischi": st.session_state.rischi_data.copy(),
             "sal": st.session_state.sal_data.copy(),
             "conflitti_ignorati": st.session_state.conflitti_ignorati.copy(),
-            "tickets": st.session_state.tickets_data.copy()
+            "tickets": st.session_state.tickets_data.copy(),
+            "memoria_burocratica": list(st.session_state.memoria_burocratica),
+            "memoria_capa": list(st.session_state.memoria_capa),
+            "memoria_ticket": list(st.session_state.memoria_ticket)
         }
         st.session_state.nome_progetto_attivo = nuovo_nome
         st.rerun()
@@ -536,6 +542,9 @@ with col_save:
             st.session_state.sal_data = st.session_state.archivio_progetti[prog_selezionato].get("sal", pd.DataFrame()).copy()
             st.session_state.conflitti_ignorati = st.session_state.archivio_progetti[prog_selezionato].get("conflitti_ignorati", []).copy()
             st.session_state.tickets_data = st.session_state.archivio_progetti[prog_selezionato].get("tickets", pd.DataFrame()).copy()
+            st.session_state.memoria_burocratica = set(st.session_state.archivio_progetti[prog_selezionato].get("memoria_burocratica", []))
+            st.session_state.memoria_capa = set(st.session_state.archivio_progetti[prog_selezionato].get("memoria_capa", []))
+            st.session_state.memoria_ticket = set(st.session_state.archivio_progetti[prog_selezionato].get("memoria_ticket", []))
             
             st.session_state.nome_progetto_attivo = prog_selezionato
             for k in list(st.session_state.keys()):
@@ -545,7 +554,7 @@ with col_save:
 
     if st.button("📄 Nuovo", use_container_width=True):
         st.session_state.nome_progetto_attivo = "Nuovo_Progetto"
-        for key in ['wbs_data', 'obs_data', 'registro_data', 'capa_data', 'rischi_data', 'sal_data', 'tickets_data']:
+        for key in ['wbs_data', 'obs_data', 'registro_data', 'capa_data', 'rischi_data', 'sal_data', 'tickets_data', 'memoria_burocratica', 'memoria_capa', 'memoria_ticket']:
             if key in st.session_state:
                 del st.session_state[key]
         for k in list(st.session_state.keys()):
@@ -566,7 +575,12 @@ with col_save:
             "rischi": json.loads(st.session_state.rischi_data.to_json(orient="records")),
             "sal": json.loads(st.session_state.sal_data.to_json(orient="records", date_format="iso")),
             "conflitti_ignorati": list(st.session_state.conflitti_ignorati),
-            "tickets": json.loads(st.session_state.tickets_data.to_json(orient="records", date_format="iso"))
+            "memoria_burocratica": list(st.session_state.memoria_burocratica),
+            "memoria_capa": list(st.session_state.memoria_capa),
+            "memoria_ticket": list(st.session_state.memoria_ticket),
+            "tickets": json.loads(st.session_state.tickets_data.to_json(orient="records", date_format="iso")),
+            "tickets": json.loads(st.session_state.tickets_data.to_json(orient="records", date_format="iso")),
+            
         }
         json_string = json.dumps(progetto_export, indent=4)
         
@@ -627,6 +641,9 @@ with col_save:
                 # ------------------------------------
 
                 st.session_state.conflitti_ignorati = dati_caricati.get('conflitti_ignorati', [])
+                st.session_state.memoria_burocratica = set(dati_caricati.get('memoria_burocratica', []))
+                st.session_state.memoria_capa = set(dati_caricati.get('memoria_capa', []))
+                st.session_state.memoria_ticket = set(dati_caricati.get('memoria_ticket', []))
                 
                 for col in ['Inizio_Previsto', 'Fine_Prevista', 'Inizio_Effettivo', 'Fine_Effettiva']:
                     if col in st.session_state.wbs_data.columns:
