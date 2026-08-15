@@ -2599,14 +2599,14 @@ with col_sviluppo:
                 
                 # 1. Prima di tutto, salviamo a forza i testi modificati nel database dei ticket
                 for idx, row in edited_tickets.iterrows():
-                    st.session_state.tickets_data.at[idx, 'Stato'] = row['Stato']
+                    st.session_state.tickets_data.at[idx, 'Stato'] = row.get('Stato', 'In attesa ⏳')
                     st.session_state.tickets_data.at[idx, 'Risposta_RUP'] = row.get('Risposta_RUP', '')
                     st.session_state.tickets_data.at[idx, 'Variazione_Costi'] = row.get('Variazione_Costi')
                     st.session_state.tickets_data.at[idx, 'Variazione_Tempi'] = row.get('Variazione_Tempi')
                     
-                    if row['Stato'] != 'In attesa ⏳' and pd.isna(st.session_state.tickets_data.at[idx, 'Data_Chiusura']):
+                    if row.get('Stato') != 'In attesa ⏳' and pd.isna(st.session_state.tickets_data.at[idx, 'Data_Chiusura']):
                         st.session_state.tickets_data.at[idx, 'Data_Chiusura'] = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
-                    elif row['Stato'] == 'In attesa ⏳':
+                    elif row.get('Stato') == 'In attesa ⏳':
                         st.session_state.tickets_data.at[idx, 'Data_Chiusura'] = None
 
                 # 2. Ora applichiamo le varianti economiche e temporali direttamente sul database WBS
@@ -2625,7 +2625,9 @@ with col_sviluppo:
                             c_clean = float(c_val) if pd.notna(c_val) else 0.0
                             t_clean = int(t_val) if pd.notna(t_val) else 0
                             
-                            wbs_target = str(st.session_state.tickets_data.at[idx, 'ID_WBS_Rif']).strip()
+                            # FIX CRITICO: Estrazione purificata dell'ID WBS (rimuove testi e spazi accidentali)
+                            wbs_target_raw = str(st.session_state.tickets_data.at[idx, 'ID_WBS_Rif']).strip()
+                            wbs_target = wbs_target_raw.split(' - ')[0].strip()
                             
                             # Cerchiamo la riga esatta nell'albero WBS
                             mask = st.session_state.wbs_data['ID_WBS'].astype(str).str.strip() == wbs_target
@@ -2638,26 +2640,26 @@ with col_sviluppo:
                                     b_att = pd.to_numeric(st.session_state.wbs_data.at[i_w, 'BAC_Budget'], errors='coerce')
                                     st.session_state.wbs_data.at[i_w, 'BAC_Budget'] = (b_att if pd.notna(b_att) else 0.0) + c_clean
                                 
-                                # B) Sposta in avanti la Data Fine Prevista (e la fine effettiva se presente)
+                                # B) Sposta in avanti la Data Fine Prevista
                                 if t_clean != 0:
                                     f_att = pd.to_datetime(st.session_state.wbs_data.at[i_w, 'Fine_Prevista'], errors='coerce')
                                     if pd.notna(f_att):
-                                        nuova_fine_prev = (f_att + pd.Timedelta(days=t_clean)).date()
-                                        st.session_state.wbs_data.at[i_w, 'Fine_Prevista'] = nuova_fine_prev
+                                        st.session_state.wbs_data.at[i_w, 'Fine_Prevista'] = (f_att + pd.Timedelta(days=t_clean)).date()
                                         
                                     f_eff = st.session_state.wbs_data.at[i_w, 'Fine_Effettiva']
                                     if pd.notna(f_eff) and str(f_eff).strip() not in ['', 'NaT', 'None', 'nan']:
-                                        nuova_fine_eff = pd.to_datetime(f_eff) + pd.Timedelta(days=t_clean)
-                                        st.session_state.wbs_data.at[i_w, 'Fine_Effettiva'] = nuova_fine_eff.date()
+                                        st.session_state.wbs_data.at[i_w, 'Fine_Effettiva'] = (pd.to_datetime(f_eff) + pd.Timedelta(days=t_clean)).date()
 
                                 # C) Mette il sigillo per evitare doppi conteggi
                                 st.session_state.tickets_data.at[idx, 'Variante_Applicata'] = True
-                                st.toast(f"✅ Variante applicata: WBS {wbs_target} aggiornata nei costi e nei tempi!", icon="⚙️")
+                                st.toast(f"✅ Variante iniettata: WBS {wbs_target} aggiornata (+{c_clean}€, +{t_clean}gg)!", icon="⚙️")
+                            else:
+                                st.error(f"❌ ERRORE: La WBS '{wbs_target}' non esiste nell'albero! Variante annullata.")
                                 
                 # 3. Ricalcolo globale della gerarchia, dei padri e dei motori EVM/CPM
                 st.session_state.wbs_data = aggiorna_gerarchia(st.session_state.wbs_data)
                 
-                # Pulizia della cache dei widget per forzare il refresh visivo
+                # Pulizia della cache dei widget per forzare il refresh visivo del Tab 1
                 for k in list(st.session_state.keys()):
                     if k.startswith("editor_wbs_"):
                         del st.session_state[k]
