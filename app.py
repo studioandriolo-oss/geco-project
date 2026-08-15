@@ -2820,13 +2820,17 @@ with col_sviluppo:
             classDef control fill:#E8F5E9,stroke:#43A047,stroke-width:2px,color:black;
             classDef alerts fill:#FFEBEE,stroke:#E53935,stroke-width:2px,color:black;
             classDef finance fill:#FFF3E0,stroke:#FB8C00,stroke-width:2px,color:black;
+            classDef matrix fill:#E0F7FA,stroke:#00BCD4,stroke-width:2px,color:black;
 
-            subgraph FASE_1 [FASE 1: PIANIFICAZIONE]
+            subgraph FASE_1 [FASE 1: PIANIFICAZIONE E RISORSE]
                 T2[Tab 2: OBS & Risorse]:::planning
                 T1[Tab 1: WBS & Budget]:::planning
+                T3[Tab 3: Matrice RACI / Incroci]:::matrix
                 T4[Tab 4: Gantt & Scadenzario]:::planning
                 
-                T2 -- "Assegna Responsabili" --> T1
+                T2 -- "Fornisce Soggetti" --> T3
+                T1 -- "Fornisce Attività" --> T3
+                T3 -. "Valida Assegnazioni" .-> T1
                 T1 -- "Date, Predecessori" --> T4
                 T1 -- "Genera Allerta" --> Scad[Scadenzario Vincoli]:::alerts
                 Scad -. "Visibile in" .-> T4
@@ -2839,6 +2843,8 @@ with col_sviluppo:
                 
                 T9 == "Inietta Soldi e Giorni" ==> T1
                 T7 -. "Blocca WBS al 99%" .-> T1
+                T4 -- "Calcola Percorso Critico" --> T8
+                T8 -. "Minaccia Scadenze Critiche" .-> T4
             end
 
             subgraph FASE_3 [FASE 3: MOTORI FINANZIARI E CONTROLLO]
@@ -2851,33 +2857,36 @@ with col_sviluppo:
                 T8 -- "Riserva Monetaria" --> T5
                 T5 -. "Indice SPI colora le barre" .-> T4
             end
+            
+            %% Stile personalizzato per il riquadro della Fase 3 (Lilla tenue)
+            style FASE_3 fill:#F3E5F5,stroke:#8E24AA,stroke-width:2px,stroke-dasharray: 4 4
         ```
         """)
 
-        with st.expander("📝 Flusso di Lavoro (Input Dati)"):
-            st.markdown("""
-             1. **Tab 2 (OBS & Risorse):** Inserisci le imprese, le maestranze e le attrezzature disponibili. Sono i soggetti che animeranno il cantiere.
-             2. **Tab 1 (WBS - Lavorazioni):** Struttura l'albero delle attività. Assegna i budget (BAC), le date, i predecessori, la risorsa responsabile e imposta gli eventuali **Vincoli Burocratici** (es. Genio Civile).
-             3. **Tab 8 (Gestione Rischi):** Mappa i rischi di cantiere, assegnando probabilità e impatto per calcolare matematicamente il fondo imprevisti.
-             4. **Tab 4 (Gantt & Scadenzario):** Controlla l'allineamento temporale (Gantt EVM) e monitora le scadenze amministrative per non bloccare il cantiere.
-             5. **Tab 6 (Gestione Finanziaria):** 
-                * *Uscite:* Registra fatture e costi reali associandoli alle WBS.
-                * *Entrate:* Emetti e traccia i SAL certificati e pagati dalla committenza.
-             6. **Tab 7 (Qualità & CAPA):** Apri azioni correttive (Non-Conformità) qualora qualcosa non rispetti gli standard, bloccando l'avanzamento dei lavori fallati.
-             7. **Tab 9 (Comunicazioni RUP & Varianti):** Gestisci l'approvazione formale di costi extra e proroghe temporali tramite ticket sigillati (Audit Trail).
-             8. **Tab 5 & Radar (GIANFRY CONSIGLIA):** Monitora il cruscotto di controllo per verificare le proiezioni a finire (EVM), l'esposizione di cassa (Cash Flow) e le allerte di sovraccarico.
-            """)
-        
-        with st.expander(" 📌 Legenda dei Flussi Automatici (Il Motore del Software)"):
-            st.markdown("""
-             * **Da Tab 1 a Tab 4 (Scadenzario Amministrativo):** Impostare un "Vincolo Burocratico" nel Tab 1 genera automaticamente un alert semaforico nel Tab 4, calcolando i giorni mancanti all'inizio lavori. Spuntare "Assolto" lo archivia in verde.
-             * **Da Tab 9 a Tab 1 e 5 (Motore Varianti):** L'approvazione di una variante nel Tab 9 inietta matematicamente il nuovo Budget (BAC) e i giorni di proroga direttamente nel Tab 1, aggiornando a cascata l'intero albero WBS e ricalibrando l'EVM (SPI/CPI) nel Tab 5. Il ticket viene poi "sigillato" contro le frodi.
-             * **Da Tab 9, le variazioni vanno tutte registrate. Non cancellare le registrazioni, se ci sono modifiche, fosse anche sulla stessa attività, andrà fatta una nuova variazione in coda alle precednenti. Questo per garantire la tracciabilità di ogni azione protocollata.
-             * **Da Tab 8 a Tab 5 (Scudo Finanziario):** I rischi attivi calcolano il Valore Monetario Atteso (EMV), che si somma automaticamente alla stima a finire (EAC) nel Tab 5 per creare la *Contingency Reserve*.
-             * **Da Tab 7 a Tab 1 e 6 (Costi di Non-Qualità):** Un'azione correttiva aperta blocca la WBS al 99% nel Tab 1. Quando chiusa, se genera un costo extra, questo viene contabilizzato automaticamente nel Tab 6 come *Spesa Tossica*.
-             * **Da Tab 6 a Tab 5 (Cash Flow):** Le uscite (costi reali) e le entrate (SAL pagati) alimentano la curva cumulativa e l'indicatore di esposizione finanziaria netta.
-             * **Da Tab 1, 2 a Radar (Sovraccarico):** Il sistema controlla in tempo reale se la stessa risorsa è impegnata su più fronti nello stesso periodo, segnalando l'eventuale conflitto (con opzione di deroga).
-            """)
+            with st.expander("📝 Flusso di Lavoro (Input Dati)"):
+                st.markdown("""
+                 1. **Tab 2 (OBS & Risorse):** Inserisci le imprese, le maestranze e le attrezzature disponibili. Sono i soggetti che animeranno il cantiere.
+                 2. **Tab 1 (WBS - Lavorazioni):** Struttura l'albero delle attività. Assegna i budget (BAC), le date, i predecessori, la risorsa responsabile e imposta gli eventuali **Vincoli Burocratici** (es. Genio Civile).
+                 3. **Tab 8 (Gestione Rischi):** Mappa i rischi di cantiere, assegnando probabilità e impatto per calcolare matematicamente il fondo imprevisti.
+                 4. **Tab 4 (Gantt & Scadenzario):** Controlla l'allineamento temporale (Gantt EVM) e monitora le scadenze amministrative per non bloccare il cantiere.
+                 5. **Tab 6 (Gestione Finanziaria):** 
+                    * *Uscite:* Registra fatture e costi reali associandoli alle WBS.
+                    * *Entrate:* Emetti e traccia i SAL certificati e pagati dalla committenza.
+                 6. **Tab 7 (Qualità & CAPA):** Apri azioni correttive (Non-Conformità) qualora qualcosa non rispetti gli standard, bloccando l'avanzamento dei lavori fallati.
+                 7. **Tab 9 (Comunicazioni RUP & Varianti):** Gestisci l'approvazione formale di costi extra e proroghe temporali tramite ticket sigillati (Audit Trail).
+                 8. **Tab 5 & Radar (GIANFRY CONSIGLIA):** Monitora il cruscotto di controllo per verificare le proiezioni a finire (EVM), l'esposizione di cassa (Cash Flow) e le allerte di sovraccarico.
+                """)
+            
+            with st.expander(" 📌 Legenda dei Flussi Automatici (Il Motore del Software)"):
+                st.markdown("""
+                 * **Da Tab 1 a Tab 4 (Scadenzario Amministrativo):** Impostare un "Vincolo Burocratico" nel Tab 1 genera automaticamente un alert semaforico nel Tab 4, calcolando i giorni mancanti all'inizio lavori. Spuntare "Assolto" lo archivia in verde.
+                 * **Da Tab 9 a Tab 1 e 5 (Motore Varianti):** L'approvazione di una variante nel Tab 9 inietta matematicamente il nuovo Budget (BAC) e i giorni di proroga direttamente nel Tab 1, aggiornando a cascata l'intero albero WBS e ricalibrando l'EVM (SPI/CPI) nel Tab 5. Il ticket viene poi "sigillato" contro le frodi.
+                 * **Da Tab 9, le variazioni vanno tutte registrate. Non cancellare le registrazioni, se ci sono modifiche, fosse anche sulla stessa attività, andrà fatta una nuova variazione in coda alle precednenti. Questo per garantire la tracciabilità di ogni azione protocollata.
+                 * **Da Tab 8 a Tab 5 (Scudo Finanziario):** I rischi attivi calcolano il Valore Monetario Atteso (EMV), che si somma automaticamente alla stima a finire (EAC) nel Tab 5 per creare la *Contingency Reserve*.
+                 * **Da Tab 7 a Tab 1 e 6 (Costi di Non-Qualità):** Un'azione correttiva aperta blocca la WBS al 99% nel Tab 1. Quando chiusa, se genera un costo extra, questo viene contabilizzato automaticamente nel Tab 6 come *Spesa Tossica*.
+                 * **Da Tab 6 a Tab 5 (Cash Flow):** Le uscite (costi reali) e le entrate (SAL pagati) alimentano la curva cumulativa e l'indicatore di esposizione finanziaria netta.
+                 * **Da Tab 1, 2 a Radar (Sovraccarico):** Il sistema controlla in tempo reale se la stessa risorsa è impegnata su più fronti nello stesso periodo, segnalando l'eventuale conflitto (con opzione di deroga).
+                """)
 
         with st.expander(" 🎯 Guida Operativa agli Imprevisti: Rischi, CAPA o Varianti?"):
             st.markdown("""
