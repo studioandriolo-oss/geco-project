@@ -97,12 +97,12 @@ if 'registro_data' not in st.session_state:
 if 'tickets_data' not in st.session_state:
     st.session_state.tickets_data = pd.DataFrame(columns=[
         'ID_Ticket', 'ID_WBS_Rif', 'Autore', 'Data_Apertura',
-        'Tipologia', 'Descrizione', 'Stato', 'Risposta_RUP', 'Data_Chiusura', 'Variazione_Costi', 'Variazione_Tempi', 'Variante_Applicata'
+        'Tipologia', 'Descrizione', 'Stato', 'Risposta_RUP', 'Data_Chiusura', 'Variazione_Costi', 'Variazione_Tempi', 'Variante_Applicata', 
     ])
 
 if 'capa_data' not in st.session_state:
     st.session_state.capa_data = pd.DataFrame(columns=[
-        'Data_Apertura', 'ID_WBS_Rif', 'Tipo_Azione', 'Descrizione', 'Responsabile_OBS', 'Stato', 'Rischio_Associato'
+        'Data_Apertura', 'ID_WBS_Rif', 'Tipo_Azione', 'Descrizione', 'Responsabile_OBS', 'Stato', 'Rischio_Associato', 'Costo_Intervento', 'Giorni_Intervento', 'Costo_Scaricato'
     ])
 
 if 'rischi_data' not in st.session_state:
@@ -954,7 +954,7 @@ with col_sviluppo:
         st.title("Project Workflow & EVM Controller")
 
     # ==========================================
-    # RETRO-COMPATIBILITÀ TICKETS (Schema Update)
+    # RETRO-COMPATIBILITÀ TICKETS E CAPA (Schema Update)
     # ==========================================
     if 'tickets_data' in st.session_state:
         if 'Variazione_Costi' not in st.session_state.tickets_data.columns:
@@ -963,6 +963,14 @@ with col_sviluppo:
             st.session_state.tickets_data['Variazione_Tempi'] = None
         if 'Variante_Applicata' not in st.session_state.tickets_data.columns:
             st.session_state.tickets_data['Variante_Applicata'] = False
+            
+    if 'capa_data' in st.session_state:
+        if 'Costo_Intervento' not in st.session_state.capa_data.columns:
+            st.session_state.capa_data['Costo_Intervento'] = 0.0
+        if 'Giorni_Intervento' not in st.session_state.capa_data.columns:
+            st.session_state.capa_data['Giorni_Intervento'] = 0
+        if 'Costo_Scaricato' not in st.session_state.capa_data.columns:
+            st.session_state.capa_data['Costo_Scaricato'] = False
             
     # --- CREAZIONE TAB ---
     tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
@@ -2076,7 +2084,10 @@ with col_sviluppo:
                 "Tipo_Azione": st.column_config.SelectboxColumn("Tipo", options=["Correttiva ▾", "Preventiva ▾"]),
                 "Descrizione": st.column_config.TextColumn("Descrizione Intervento / Ordine", width="medium"),
                 "Responsabile_OBS": st.column_config.SelectboxColumn("Risorsa (OBS)", options=obs_options_capa),
-                "Rischio_Associato": st.column_config.SelectboxColumn("Rischio da mitigare ▾", options=lista_rischi), # LA NUOVA TENDINA
+                "Rischio_Associato": st.column_config.SelectboxColumn("Rischio da mitigare ▾", options=lista_rischi), 
+                "Costo_Intervento": st.column_config.NumberColumn("Costo Intervento (€)", format="€ %.2f", default=0.0, help="Costo della non-qualità"),
+                "Giorni_Intervento": st.column_config.NumberColumn("Giorni extra", step=1, default=0),
+                "Costo_Scaricato": None, # Nasconde la colonna di sistema
                 "Stato": st.column_config.SelectboxColumn("Stato", options=["Aperto ▾", "In Lavorazione ▾", "Chiuso ▾"])
             }
         )
@@ -2084,33 +2095,63 @@ with col_sviluppo:
         st.divider()
         st.warning("⚠️ **Ricordati di cliccare il tasto rosso qui sotto dopo aver inserito i dati!**")
         if st.button("💾 SALVA REGISTRO CAPA", type="primary", use_container_width=True):
-            st.session_state.capa_data = edited_capa
+            df_capa_new = edited_capa.copy()
             
-            # --- AUTO-MITIGAZIONE RISCHI (IL PILOTA AUTOMATICO) ---
+            # Variabili per i messaggi a schermo
             rischi_aggiornati = False
+            costi_inviati = 0
             df_rischi = st.session_state.rischi_data.copy()
+            nuove_spese = []
             
-            for _, capa_row in edited_capa.iterrows():
-                # Se l'azione di cantiere è stata CHIUSA e c'era un rischio collegato
+            for idx, capa_row in df_capa_new.iterrows():
+                # A) AUTO-MITIGAZIONE RISCHI (IL PILOTA AUTOMATICO)
                 if capa_row['Stato'] == 'Chiuso ▾' and pd.notna(capa_row.get('Rischio_Associato')) and str(capa_row.get('Rischio_Associato')).strip() != "":
                     rischio_target = str(capa_row['Rischio_Associato']).strip()
-                    
-                    # Cerca questo rischio nel Tab 8. Se è ancora Attivo o Monitorato...
                     mask = (df_rischi['Descrizione_Rischio'] == rischio_target) & (~df_rischi['Stato'].isin(['Mitigato ▾', 'Chiuso ▾']))
                     if mask.any():
-                        # ...abbatti la sua Probabilità a 1 e settalo come Mitigato!
                         df_rischi.loc[mask, 'Probabilità (1-5)'] = 1
                         df_rischi.loc[mask, 'Stato'] = 'Mitigato ▾'
                         rischi_aggiornati = True
+
+                # B) INVIO AUTOMATICO COSTI DELLA NON-QUALITÀ AL TAB 6
+                if capa_row['Stato'] == 'Chiuso ▾' and not capa_row.get('Costo_Scaricato', False):
+                    costo = pd.to_numeric(capa_row.get('Costo_Intervento', 0), errors='coerce')
+                    if pd.notna(costo) and costo > 0:
+                        # Prepara la riga per il Registro Contabile
+                        nuova_spesa = {
+                            'Data': pd.Timestamp.today().date(),
+                            'N_Doc': f"CAPA-AUTO",
+                            'Fornitore': str(capa_row.get('Responsabile_OBS', '')),
+                            'Voce_WBS': str(capa_row.get('ID_WBS_Rif', '')),
+                            'Importo_Netto': costo,
+                            'Descrizione': f"🔴 COSTO NON-QUALITÀ: {str(capa_row.get('Descrizione', ''))}"
+                        }
+                        nuove_spese.append(nuova_spesa)
+                        # Segna come scaricato per non duplicarlo in futuro
+                        df_capa_new.at[idx, 'Costo_Scaricato'] = True
+                        costi_inviati += 1
+            
+            # Applica le modifiche ai database
+            if nuove_spese:
+                st.session_state.registro_data = pd.concat([st.session_state.registro_data, pd.DataFrame(nuove_spese)], ignore_index=True)
             
             if rischi_aggiornati:
                 st.session_state.rischi_data = df_rischi
+                
+            st.session_state.capa_data = df_capa_new
+            
+            # Feedback intelligente a schermo
+            if costi_inviati > 0:
+                st.success(f"✅ Interventi salvati! Sono stati inviati **{costi_inviati} Costi di Non-Qualità** al Registro Contabile (Tab 6).")
+            elif rischi_aggiornati:
                 st.success("✅ Interventi salvati! Il pilota automatico ha **Mitigato** i rischi associati alle azioni chiuse nel Tab 8.")
             else:
                 st.success("✅ Interventi salvati con successo nel database!")
                 
+            import time
+            time.sleep(2)
             st.rerun()
-
+            
         # ------------------------------
         # SIMULAZIONE
         # ------------------------------
