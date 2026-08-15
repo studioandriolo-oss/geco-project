@@ -2796,6 +2796,14 @@ with col_sviluppo:
                 * **La Soluzione:** L'inizio dei lavori può essere sbloccato solo da un utente autorizzato (RUP o DL). Quando l'ente preposto rilascia il protocollo ufficiale, entra nel Tab 1 e metti la spunta sulla colonna **'✅ Vincolo Assolto'**. Al salvataggio successivo, il sistema ti permetterà di inserire liberamente la data di Inizio Effettivo.
                 """)
 
+            with st.expander("🚨 12. L'Allerta Finanziaria dopo l'approvazione di una variante"):
+                st.markdown("""
+                * **La Situazione:** Nel Tab 9 (Audit Trail) il RUP ha approvato un Ticket di tipo "Richiesta di Variante", ma spostandoti nel Tab 1 (WBS) o nel Tab 5 (EVM) compare un avviso rosso fisso di "Allerta Finanziaria".
+                * **Perché accade:** Hai formalmente approvato la variante, ma hai lasciato vuoti i campi "Variazione Costi (€)" e/o "Variazione Tempi (gg)". Il motore EVM sa che la contabilità contrattuale del cantiere è cambiata, ma non ha i numeri esatti per ricalcolare il Budget (BAC) e il cronoprogramma. È un "cane da guardia" per evitare che vengano concessi extra-budget a parole senza aggiornare la matematica del progetto.
+                * **La Soluzione:** Torna nel Tab 9, compila gli importi esatti in Euro e i giorni concessi, poi clicca "Registra Risposte RUP". Il sistema inietterà automaticamente quei valori nel Budget della WBS interessata (nel Tab 1), sposterà in avanti la data di *Fine Prevista*, ricalcolerà tutti gli indicatori nel Tab 5 e spegnerà l'allarme in modo definitivo. 
+                *(Nota tecnica: il sistema possiede una memoria interna, quindi i soldi non verranno mai sommati due volte, nemmeno se continui a premere Salva).*
+                """)
+
         # --- SEZIONE 5: ROADMAP VERSIONE 2.0 ---
         with t_sec5:
             st.subheader("🚀 Prossimi Sviluppi (Roadmap v2.0)")
