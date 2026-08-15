@@ -835,7 +835,7 @@ with col_sviluppo:
         "🧾 6-Reg. Contabile",
         "🛠️ 7-Direzione & CAPA",
         "⚠️ 8-Matrice Rischi",
-        "📩 9-Varianti e Comunicazioni"
+        "📩 9-Varianti e Comunicazioni",
         "📚 10-Guida & Glossario"
     ])
         
