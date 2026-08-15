@@ -862,7 +862,7 @@ with col_sviluppo:
                 
         st.divider()
         
-        # --- INNESTO: AGGIORNAMENTO RETROATTIVO COLONNE MANCANTI ---
+        # ---  AGGIORNAMENTO RETROATTIVO COLONNE MANCANTI ---
         if 'Vincolo_Burocratico' not in st.session_state.wbs_data.columns:
             st.session_state.wbs_data['Vincolo_Burocratico'] = 'Nessuno'
     
@@ -929,27 +929,34 @@ with col_sviluppo:
                     if val_id in ['', 'None', 'nan']:
                         discendenti_modificati.at[i_row, 'ID_WBS'] = f"{id_radice}.999{i_row}"# --- INNESTO IN TEMPO REALE: CANCELLO AMMINISTRATIVO ---
                 
+                # =====================================================================
                 # --- INNESTO IN TEMPO REALE: CANCELLO AMMINISTRATIVO ---
                 allarmi_locali = []
                 for i_row, row_mod in discendenti_modificati.iterrows():
-                    vincolo = str(row_mod.get('Vincolo_Burocratico', 'Nessuno')).strip()
+                    vincolo = str(row_mod.get('Vincolo_Burocratico', '')).strip()
                     
-                    # Cattura spunta e data a prova di bomba
-                    val_spunta = row_mod.get('Vincolo_Assolto', False)
-                    sbloccato = val_spunta if isinstance(val_spunta, bool) else str(val_spunta).strip().lower() in ['true', '1', 't', 'y', 'yes']
+                    # 1. Lettura Spunta (a prova di bomba)
+                    spunta = row_mod.get('Vincolo_Assolto', False)
+                    sbloccato = True if str(spunta).strip().lower() in ['true', '1', 't', 'y', 'yes'] else False
                     
-                    inizio = row_mod.get('Inizio_Effettivo', None)
-                    has_inizio = pd.notna(inizio) and str(inizio).strip().lower() not in ['none', 'nat', 'nan', '']
+                    # 2. Lettura Data (intercetta qualsiasi formato di tempo, testo o vuoto)
+                    inizio = row_mod.get('Inizio_Effettivo')
+                    has_inizio = False
+                    if inizio is not None and pd.notna(inizio) and str(inizio).strip().lower() not in ['', 'nat', 'nan', 'none']:
+                        has_inizio = True
                     
-                    # Se c'è vincolo, non c'è spunta e ha messo la data
-                if vincolo not in ['Nessuno', 'nan', '', 'None'] and not sbloccato and has_inizio:
-                    # 1. Cancelliamo la data dalla memoria prima che vada al df_aggiornato
-                    discendenti_modificati.at[i_row, 'Inizio_Effettivo'] = pd.NaT
-                    allarmi_locali.append(str(row_mod.get('ID_WBS', '')))
+                    # 3. La Trappola Burocratica
+                    if vincolo not in ['Nessuno', '', 'nan', 'None'] and not sbloccato and has_inizio:
+                        # Svuotiamo la data dalla memoria (sparirà visivamente quando si clicca Salva)
+                        discendenti_modificati.at[i_row, 'Inizio_Effettivo'] = pd.NaT 
+                        nome_wbs = str(row_mod.get('ID_WBS', ''))
+                        allarmi_locali.append(nome_wbs)
                         
-                # 2. Mostriamo l'errore sotto la tabella all'istante!
+                # 4. Feedback Immediato e Invasivo
                 if allarmi_locali:
-                    st.error(f"🛑 **BLOCCO AMMINISTRATIVO:** Hai inserito l'Inizio Effettivo per le WBS {', '.join(allarmi_locali)} senza la spunta 'Vincolo Assolto'. La data verrà ignorata al salvataggio.")
+                    msg = f"BLOCCO AMMINISTRATIVO: Hai inserito l'Inizio per la WBS {', '.join(allarmi_locali)} senza spuntare il Vincolo Assolto. La data NON verrà salvata!"
+                    st.error(f"🛑 **{msg}**")
+                    st.toast(msg, icon='🚨') # Popup dinamico nell'angolo dello schermo!
                 # =====================================================================
  
                 df_aggiornato = pd.concat([df_aggiornato, pd.DataFrame([radice]), discendenti_modificati], ignore_index=True)
