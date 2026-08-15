@@ -2199,9 +2199,9 @@ with col_sviluppo:
     # ---------------------------------------
     # --- TAB 9: COMUNICAZIONI E VARIANTI ---
     # ---------------------------------------
-    with tab9: # (Assicurati di dichiarare questo tab nel tuo st.tabs in alto)
+    with tab9: 
         st.header("📩 Registro Incorruttibile: Varianti e Comunicazioni")
-        st.markdown("*Ogni richiesta viene storicizzata con marcatura temporale. Le richieste inviate non possono essere modificate dall'autore, garantendo un Audit Trail perfetto.*")
+        st.markdown("*Ogni richiesta viene storicizzata con marcatura temporale. Le richieste inviate non possono essere modificate dall'autore, garantendo un Audit Trail.*")
         
         # --- SEZIONE 1: IL MITTENTE APRE IL TICKET ---
         with st.expander("➕ Apri un nuovo Ticket (Riservato a DL / CSE / Impresa)", expanded=False):
@@ -2222,7 +2222,7 @@ with col_sviluppo:
                 submit_ticket = st.form_submit_button("Invia Ticket al RUP", type="primary")
                 
                 if submit_ticket:
-                    if wbs_rif == "Nessuna" or non descrizione.strip():
+                    if wbs_rif == "Nessuna" or not descrizione.strip():
                         st.warning("⚠️ Seleziona una WBS e inserisci una descrizione prima di inviare.")
                     else:
                         import datetime
