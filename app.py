@@ -886,6 +886,14 @@ with col_sviluppo:
                 colonne_bloccate = ["ID_WBS", "Durata_Prevista (gg)", "AC_Costo_Reale", "PV", "EV", "CV", "SV", "SPI", "CPI", "EAC", "ETC", "VAC"]
                 colonne_bloccate = [col for col in colonne_bloccate if col in discendenti.columns]
                 
+                # --- INNESTO: AGGIORNAMENTO RETROATTIVO COLONNE MANCANTI ---
+                if 'Vincolo_Burocratico' not in st.session_state.wbs_data.columns:
+                    st.session_state.wbs_data['Vincolo_Burocratico'] = 'Nessuno'
+    
+                if 'Vincolo_Assolto' not in st.session_state.wbs_data.columns:
+                    st.session_state.wbs_data['Vincolo_Assolto'] = False
+                # -----------------------------------------------------------
+                
                 discendenti_modificati = st.data_editor(
                     discendenti,
                     key=f"editor_wbs_idx_{idx_riga}_id_{id_radice}",
