@@ -942,10 +942,10 @@ with col_sviluppo:
                     has_inizio = pd.notna(inizio) and str(inizio).strip().lower() not in ['none', 'nat', 'nan', '']
                     
                     # Se c'è vincolo, non c'è spunta e ha messo la data
-                        if vincolo not in ['Nessuno', 'nan', '', 'None'] and not sbloccato and has_inizio:
-                        # 1. Cancelliamo la data dalla memoria prima che vada al df_aggiornato
-                        discendenti_modificati.at[i_row, 'Inizio_Effettivo'] = pd.NaT
-                        allarmi_locali.append(str(row_mod.get('ID_WBS', '')))
+                if vincolo not in ['Nessuno', 'nan', '', 'None'] and not sbloccato and has_inizio:
+                    # 1. Cancelliamo la data dalla memoria prima che vada al df_aggiornato
+                    discendenti_modificati.at[i_row, 'Inizio_Effettivo'] = pd.NaT
+                    allarmi_locali.append(str(row_mod.get('ID_WBS', '')))
                         
                 # 2. Mostriamo l'errore sotto la tabella all'istante!
                 if allarmi_locali:
