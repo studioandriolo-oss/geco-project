@@ -2705,7 +2705,50 @@ with col_sviluppo:
             st.subheader("Il Ciclo di Vita del Progetto nell'App")
             st.markdown("Il software è progettato in modo che le informazioni viaggino automaticamente tra le varie sezioni, creando un ciclo continuo di pianificazione, misurazione, allerta e correzione.")
             
-            st.markdown("""
+        import graphviz
+        diag_guida = graphviz.Digraph(engine='dot')
+        diag_guida.attr(rankdir='LR', splines='ortho', nodesep='0.6', ranksep='1.0')
+        diag_guida.attr('node', shape='box', style='rounded,filled', fontname='Helvetica', fontsize='10', margin='0.15')
+            
+        # Nodi Input Base (Grigi)
+        with diag_guida.subgraph(name='cluster_input') as c:
+            c.attr(label='FASE 1: INPUT DATI', style='dashed', color='gray')
+            c.node('T1', 'TAB 1: WBS (Lavorazioni)\nStruttura, Budget, Date,\n% Completamento & Cancello 99%', fillcolor='#F5F5F5')
+            c.node('T2', 'TAB 2: OBS (Risorse)\nAnagrafiche e Assegnazioni', fillcolor='#F5F5F5')
+            c.node('T6', 'TAB 6: FINANZA & CASH FLOW\n- Uscite (Fatture e AC)\n- Entrate (SAL e Incassi Pagati)', fillcolor='#F5F5F5')
+
+        # Nodi Motore e Output (Colorati)
+        with diag_guida.subgraph(name='cluster_analisi') as c:
+            c.attr(label='FASE 2: ANALISI E PREVISIONI', style='dashed', color='gray')
+            c.node('T3', 'TAB 3: GRAFO E CPM\nPercorso Critico e Margini', fillcolor='#FFE0B2', color='#FBC02D', penwidth='2')
+            c.node('T4', 'TAB 4: GANTT\nBaseline vs Esecutivo\nColorazione SPI in tempo reale', fillcolor='#FFE0B2', color='#FBC02D', penwidth='2')
+            c.node('T5', 'TAB 5: EVM & CASH FLOW\n- Indicatori (CPI / SPI)\n- Esposizione di Cassa Netta\n- Grafico Storico a Gradoni', fillcolor='#C8E6C9', color='#43A047', penwidth='2')
+
+        # Nodi Gestione Rischi e Controllo
+        with diag_guida.subgraph(name='cluster_controllo') as c:
+            c.attr(label='FASE 3: DIREZIONE LAVORI & GIANFRY CONSIGLIA', style='dashed', color='gray')
+            c.node('RADAR', 'RADAR (GIANFRY CONSIGLIA)\n- Rilevamento Sovraccarichi\n- Gestione Deroghe / Ignora', fillcolor='#E1BEE7', color='#8E24AA', penwidth='2')
+            c.node('T8', 'TAB 8: MATRICE RISCHI\nHeatmap e Fondo Imprevisti', fillcolor='#FFCDD2', color='#E53935', penwidth='2')
+            c.node('T7', 'TAB 7: DIREZIONE & CAPA\n- Registro Non-Conformità\n- Blocco Qualità 99% WBS', fillcolor='#BBDEFB', color='#1E88E5', penwidth='2')
+        
+        # Archi Relazionali (Frecce)
+        diag_guida.edge('T2', 'T1', ' Assegnazione', color='gray')
+        diag_guida.edge('T1', 'T3', ' Predecessori', color='gray')
+        diag_guida.edge('T1', 'T4', ' Schedulazione', color='gray')
+        diag_guida.edge('T1', 'T5', ' Budget (BAC) & Valore (EV)', color='gray')
+        diag_guida.edge('T2', 'RADAR', ' Verifica Sovrapposizioni', color='#8E24AA', fontcolor='#8E24AA')
+        diag_guida.edge('T1', 'RADAR', ' Incrocio Date / Risorse', color='#8E24AA', fontcolor='#8E24AA')
+        diag_guida.edge('T6', 'T5', ' Costo Reale (AC) & SAL', color='gray')
+        
+        # Archi Rischio, CAPA e Blocchi
+        diag_guida.edge('T8', 'T3', ' Allerta Visiva', color='#E53935', fontcolor='#E53935')
+        diag_guida.edge('T8', 'T5', ' Fondo Imprevisti', color='#E53935', fontcolor='#E53935')
+        diag_guida.edge('T8', 'T7', ' Attiva Mitigazione', color='#E53935', fontcolor='#E53935')
+        diag_guida.edge('T7', 'T1', ' 🔒 Blocca WBS a 99%\nse CAPA Aperta', color='#1E88E5', fontcolor='#1E88E5', style='bold')
+        
+        st.graphviz_chart(diag_guida, use_container_width=True)
+
+            with st.expander("""
             1. **Tab 2 (OBS & Risorse):** Inserisci le imprese, le maestranze e le attrezzature disponibili. Sono i soggetti che animeranno il cantiere.
             2. **Tab 1 (WBS - Lavorazioni):** Struttura l'albero delle attività. Assegna i budget (BAC), i predecessori e collega ciascuna lavorazione alla risorsa responsabile (OBS) e alle date previste.
             3. **Tab 4 (Gantt & Monitoraggio):** Controlla l'allineamento temporale. Le barre si coloreranno automaticamente in base all'efficienza (SPI).
@@ -2715,51 +2758,8 @@ with col_sviluppo:
             5. **Tab 7 (Rischi & CAPA):** Gestisci il fondo imprevisti e apri azioni correttive (Non-Conformità) qualora qualcosa non rispetti gli standard qualitativi.
             6. **Tab 5 & Radar (GIANFRY CONSIGLIA):** Monitora il cruscotto di controllo per verificare l'esposizione di cassa (Cash Flow) e le allerte di sovraccarico risorse.
             """)
-            
-            import graphviz
-            diag_guida = graphviz.Digraph(engine='dot')
-            diag_guida.attr(rankdir='LR', splines='ortho', nodesep='0.6', ranksep='1.0')
-            diag_guida.attr('node', shape='box', style='rounded,filled', fontname='Helvetica', fontsize='10', margin='0.15')
-            
-            # Nodi Input Base (Grigi)
-            with diag_guida.subgraph(name='cluster_input') as c:
-                c.attr(label='FASE 1: INPUT DATI', style='dashed', color='gray')
-                c.node('T1', 'TAB 1: WBS (Lavorazioni)\nStruttura, Budget, Date,\n% Completamento & Cancello 99%', fillcolor='#F5F5F5')
-                c.node('T2', 'TAB 2: OBS (Risorse)\nAnagrafiche e Assegnazioni', fillcolor='#F5F5F5')
-                c.node('T6', 'TAB 6: FINANZA & CASH FLOW\n- Uscite (Fatture e AC)\n- Entrate (SAL e Incassi Pagati)', fillcolor='#F5F5F5')
-
-            # Nodi Motore e Output (Colorati)
-            with diag_guida.subgraph(name='cluster_analisi') as c:
-                c.attr(label='FASE 2: ANALISI E PREVISIONI', style='dashed', color='gray')
-                c.node('T3', 'TAB 3: GRAFO E CPM\nPercorso Critico e Margini', fillcolor='#FFE0B2', color='#FBC02D', penwidth='2')
-                c.node('T4', 'TAB 4: GANTT\nBaseline vs Esecutivo\nColorazione SPI in tempo reale', fillcolor='#FFE0B2', color='#FBC02D', penwidth='2')
-                c.node('T5', 'TAB 5: EVM & CASH FLOW\n- Indicatori (CPI / SPI)\n- Esposizione di Cassa Netta\n- Grafico Storico a Gradoni', fillcolor='#C8E6C9', color='#43A047', penwidth='2')
-
-            # Nodi Gestione Rischi e Controllo
-            with diag_guida.subgraph(name='cluster_controllo') as c:
-                c.attr(label='FASE 3: DIREZIONE LAVORI & GIANFRY CONSIGLIA', style='dashed', color='gray')
-                c.node('RADAR', 'RADAR (GIANFRY CONSIGLIA)\n- Rilevamento Sovraccarichi\n- Gestione Deroghe / Ignora', fillcolor='#E1BEE7', color='#8E24AA', penwidth='2')
-                c.node('T8', 'TAB 8: MATRICE RISCHI\nHeatmap e Fondo Imprevisti', fillcolor='#FFCDD2', color='#E53935', penwidth='2')
-                c.node('T7', 'TAB 7: DIREZIONE & CAPA\n- Registro Non-Conformità\n- Blocco Qualità 99% WBS', fillcolor='#BBDEFB', color='#1E88E5', penwidth='2')
-            
-            # Archi Relazionali (Frecce)
-            diag_guida.edge('T2', 'T1', ' Assegnazione', color='gray')
-            diag_guida.edge('T1', 'T3', ' Predecessori', color='gray')
-            diag_guida.edge('T1', 'T4', ' Schedulazione', color='gray')
-            diag_guida.edge('T1', 'T5', ' Budget (BAC) & Valore (EV)', color='gray')
-            diag_guida.edge('T2', 'RADAR', ' Verifica Sovrapposizioni', color='#8E24AA', fontcolor='#8E24AA')
-            diag_guida.edge('T1', 'RADAR', ' Incrocio Date / Risorse', color='#8E24AA', fontcolor='#8E24AA')
-            diag_guida.edge('T6', 'T5', ' Costo Reale (AC) & SAL', color='gray')
-            
-            # Archi Rischio, CAPA e Blocchi
-            diag_guida.edge('T8', 'T3', ' Allerta Visiva', color='#E53935', fontcolor='#E53935')
-            diag_guida.edge('T8', 'T5', ' Fondo Imprevisti', color='#E53935', fontcolor='#E53935')
-            diag_guida.edge('T8', 'T7', ' Attiva Mitigazione', color='#E53935', fontcolor='#E53935')
-            diag_guida.edge('T7', 'T1', ' 🔒 Blocca WBS a 99%\nse CAPA Aperta', color='#1E88E5', fontcolor='#1E88E5', style='bold')
-            
-            st.graphviz_chart(diag_guida, use_container_width=True)
-            
-            st.markdown("""
+        
+            with st.expander("""
             ### 📌 Legenda dei Flussi Automatici:
             * **Da Tab 1, 2 a Radar (GIANFRY CONSIGLIA):** Il sistema controlla in tempo reale se la stessa risorsa è impegnata su più fronti nello stesso periodo, segnalando l'eventuale sovraccarico (con opzione di deroga).
             * **Da Tab 7 a Tab 1 (Cancello di Qualità):** Se esiste una CAPA attiva su una WBS, il sistema impedisce matematicamente di certificarla al 100%, bloccandola al 99% finché il problema non viene chiuso.
