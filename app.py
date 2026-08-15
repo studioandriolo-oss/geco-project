@@ -863,12 +863,12 @@ with col_sviluppo:
         st.divider()
         
         # --- INNESTO: AGGIORNAMENTO RETROATTIVO COLONNE MANCANTI ---
-                if 'Vincolo_Burocratico' not in st.session_state.wbs_data.columns:
-                    st.session_state.wbs_data['Vincolo_Burocratico'] = 'Nessuno'
+            if 'Vincolo_Burocratico' not in st.session_state.wbs_data.columns:
+                st.session_state.wbs_data['Vincolo_Burocratico'] = 'Nessuno'
     
-                if 'Vincolo_Assolto' not in st.session_state.wbs_data.columns:
-                    st.session_state.wbs_data['Vincolo_Assolto'] = False
-                # -----------------------------------------------------------
+            if 'Vincolo_Assolto' not in st.session_state.wbs_data.columns:
+                st.session_state.wbs_data['Vincolo_Assolto'] = False
+        # -----------------------------------------------------------
         
         df = st.session_state.wbs_data.copy()
         
