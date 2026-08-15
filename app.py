@@ -509,6 +509,7 @@ with col_save:
             "conflitti_ignorati": st.session_state.conflitti_ignorati.copy(),
             "imprevisti_ignorati": st.session_state.imprevisti_ignorati.copy(),
             "varianti_ignorate": st.session_state.varianti_ignorate.copy(),
+            "rischi_rossi_ignorati": st.session_state.rischi_rossi_ignorati.copy(),
             "tickets": st.session_state.tickets_data.copy(),
             "memoria_burocratica": list(st.session_state.memoria_burocratica),
             "memoria_capa": list(st.session_state.memoria_capa),
@@ -528,6 +529,7 @@ with col_save:
             "conflitti_ignorati": st.session_state.conflitti_ignorati.copy(),
             "imprevisti_ignorati": st.session_state.imprevisti_ignorati.copy(),
             "varianti_ignorate": st.session_state.varianti_ignorate.copy(),
+            "rischi_rossi_ignorati": st.session_state.rischi_rossi_ignorati.copy(),
             "tickets": st.session_state.tickets_data.copy(),
             "memoria_burocratica": list(st.session_state.memoria_burocratica),
             "memoria_capa": list(st.session_state.memoria_capa),
@@ -548,6 +550,7 @@ with col_save:
             st.session_state.conflitti_ignorati = st.session_state.archivio_progetti[prog_selezionato].get("conflitti_ignorati", []).copy()
             st.session_state.imprevisti_ignorati = st.session_state.archivio_progetti[prog_selezionato].get("imprevisti_ignorati", []).copy()
             st.session_state.varianti_ignorate = st.session_state.archivio_progetti[prog_selezionato].get("varianti_ignorate", []).copy()
+            st.session_state.rischi_rossi_ignorati = st.session_state.archivio_progetti[prog_selezionato].get("rischi_rossi_ignorati", []).copy()
             st.session_state.tickets_data = st.session_state.archivio_progetti[prog_selezionato].get("tickets", pd.DataFrame()).copy()
             st.session_state.memoria_burocratica = set(st.session_state.archivio_progetti[prog_selezionato].get("memoria_burocratica", []))
             st.session_state.memoria_capa = set(st.session_state.archivio_progetti[prog_selezionato].get("memoria_capa", []))
@@ -561,7 +564,7 @@ with col_save:
 
     if st.button("📄 Nuovo", use_container_width=True):
         st.session_state.nome_progetto_attivo = "Nuovo_Progetto"
-        for key in ['wbs_data', 'obs_data', 'registro_data', 'capa_data', 'rischi_data', 'sal_data', 'tickets_data', 'memoria_burocratica', 'memoria_capa', 'memoria_ticket', 'conflitti_ignorati', 'imprevisti_ignorati', 'varianti_ignorate']:
+        for key in ['wbs_data', 'obs_data', 'registro_data', 'capa_data', 'rischi_data', 'sal_data', 'tickets_data', 'memoria_burocratica', 'memoria_capa', 'memoria_ticket', 'conflitti_ignorati', 'imprevisti_ignorati', 'varianti_ignorate', 'rischi_rossi_ignorati']:
             if key in st.session_state:
                 del st.session_state[key]
         for k in list(st.session_state.keys()):
@@ -584,6 +587,7 @@ with col_save:
             "conflitti_ignorati": list(st.session_state.conflitti_ignorati),
             "imprevisti_ignorati": list(st.session_state.imprevisti_ignorati),
             "varianti_ignorate": list(st.session_state.varianti_ignorate),
+            "rischi_rossi_ignorati": list(st.session_state.rischi_rossi_ignorati),
             "memoria_burocratica": list(st.session_state.memoria_burocratica),
             "memoria_capa": list(st.session_state.memoria_capa),
             "memoria_ticket": list(st.session_state.memoria_ticket),
@@ -652,6 +656,7 @@ with col_save:
                 st.session_state.conflitti_ignorati = dati_caricati.get('conflitti_ignorati', [])
                 st.session_state.imprevisti_ignorati = dati_caricati.get('imprevisti_ignorati', [])
                 st.session_state.varianti_ignorate = dati_caricati.get('varianti_ignorate', [])
+                st.session_state.rischi_rossi_ignorati = dati_caricati.get('rischi_rossi_ignorati', [])
                 st.session_state.memoria_burocratica = set(dati_caricati.get('memoria_burocratica', []))
                 st.session_state.memoria_capa = set(dati_caricati.get('memoria_capa', []))
                 st.session_state.memoria_ticket = set(dati_caricati.get('memoria_ticket', []))
