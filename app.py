@@ -1749,8 +1749,6 @@ with col_sviluppo:
                 
         else:
             st.info("ℹ️ Nessun vincolo burocratico attualmente impostato nel Tab 1.")
-            
-        st.divider()
     
     #-------------------------------    
     # --- TAB 5: EVM E CASH FLOW ---
