@@ -1042,15 +1042,24 @@ with col_sviluppo:
         st.warning("⚠️ **Hai aggiunto nuove lavorazioni nelle tabelle?** Clicca il tasto qui sotto per far assegnare al sistema la numerazione definitiva e riallineare l'albero WBS.")
         if st.button("💾 SALVA INSERIMENTI E RICALCOLA ALBERO", type="primary", use_container_width=True, key="btn_salva_mega_wbs"):
             
-            # --- 1. INIZIO INNESTO CAPA (Agisce su df_aggiornato) ---
-            df_capa_check = st.session_state.capa_data
-            wbs_bloccate = []
-            if not df_capa_check.empty and 'ID_WBS_Rif' in df_capa_check.columns and 'Stato' in df_capa_check.columns:
-                capa_attive = df_capa_check[df_capa_check['Stato'].isin(['Aperto ▾', 'In Lavorazione ▾'])]
+            # --- 1. INIZIO INNESTO BLOCCHI QUALITÀ (CAPA + TICKETS) ---
+            # A) Raccolta WBS bloccate da CAPA (Non-Conformità)
+            wbs_bloccate_capa = []
+            if not st.session_state.capa_data.empty and 'ID_WBS_Rif' in st.session_state.capa_data.columns:
+                capa_attive = st.session_state.capa_data[st.session_state.capa_data['Stato'].isin(['Aperto ▾', 'In Lavorazione ▾'])]
                 if not capa_attive.empty:
-                    wbs_bloccate = capa_attive['ID_WBS_Rif'].astype(str).apply(lambda x: x.split(' - ')[0].strip()).unique().tolist()
+                    wbs_bloccate_capa = capa_attive['ID_WBS_Rif'].astype(str).apply(lambda x: x.split(' - ')[0].strip()).unique().tolist()
             
-            allarmi_blocco = []
+            # B) Raccolta WBS bloccate da TICKET (Cancello Sospensivo)
+            wbs_bloccate_ticket = []
+            if 'tickets_data' in st.session_state and not st.session_state.tickets_data.empty:
+                ticket_attesi = st.session_state.tickets_data[st.session_state.tickets_data['Stato'] == 'In attesa ⏳']
+                if not ticket_attesi.empty:
+                    wbs_bloccate_ticket = ticket_attesi['ID_WBS_Rif'].astype(str).str.strip().unique().tolist()
+
+            allarmi_capa = []
+            allarmi_ticket = []
+            
             for idx, row in df_aggiornato.iterrows():
                 wbs_id = str(row.get('ID_WBS', '')).strip()
                 try:
@@ -1058,12 +1067,18 @@ with col_sviluppo:
                 except:
                     completamento = 0.0
                     
-                if wbs_id in wbs_bloccate and completamento >= 100:
-                    df_aggiornato.at[idx, '%_Completamento'] = 99.0
-                    allarmi_blocco.append(wbs_id)
-            # --- FINE INNESTO CAPA ---
-
-# --- INIZIO INNESTO: CANCELLO AMMINISTRATIVO ---
+                if completamento >= 100:
+                    # La priorità va al Cancello Sospensivo (Ticket istituzionali)
+                    if wbs_id in wbs_bloccate_ticket:
+                        df_aggiornato.at[idx, '%_Completamento'] = 99.0
+                        allarmi_ticket.append(wbs_id)
+                    # Poi controlla le anomalie esecutive (CAPA di cantiere)
+                    elif wbs_id in wbs_bloccate_capa:
+                        df_aggiornato.at[idx, '%_Completamento'] = 99.0
+                        allarmi_capa.append(wbs_id)
+            # --- FINE INNESTO BLOCCHI QUALITÀ ---
+            
+            # --- INIZIO INNESTO: CANCELLO AMMINISTRATIVO ---
             allarmi_burocratici = []
             for idx, row in df_aggiornato.iterrows():
                 vincolo = str(row.get('Vincolo_Burocratico', 'Nessuno')).strip()
@@ -1102,10 +1117,21 @@ with col_sviluppo:
             modifica_struttura('1', 'rinumera')
             
             # 5. Feedback a schermo
-            if allarmi_blocco:
-                st.error(f"🚧 BLOCCO QUALITÀ: WBS {', '.join(allarmi_blocco)} bloccate al 99% per CAPA aperte.")
-            else:
+            bloccato_qualcosa = False
+            
+            if allarmi_capa:
+                st.error(f"🚧 BLOCCO QUALITÀ: WBS {', '.join(allarmi_capa)} bloccate al 99% per CAPA aperte nel Tab 7.")
+                bloccato_qualcosa = True
+                
+            if allarmi_ticket:
+                st.error(f"⏳ CANCELLO SOSPESIVO: WBS {', '.join(allarmi_ticket)} bloccate al 99%. Attendi l'approvazione della variante nel Tab 9.")
+                bloccato_qualcosa = True
+                
+            if not bloccato_qualcosa:
                 st.success("✅ Dati salvati e albero ricalcolato!")
+            else:
+                import time
+                time.sleep(3.5) # Congela lo schermo per far leggere gli avvisi al RUP
                 
             st.rerun()
 
