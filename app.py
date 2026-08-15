@@ -2813,61 +2813,63 @@ with col_sviluppo:
             st.markdown("""
         ### 🕸️ Architettura del Sistema (Flussi di Dati)
         
-        ```mermaid
-        graph LR
-            %% Definizione Stili Personalizzati
-            classDef planning fill:#E3F2FD,stroke:#1E88E5,stroke-width:2px,color:black;
-            classDef control fill:#E8F5E9,stroke:#43A047,stroke-width:2px,color:black;
-            classDef alerts fill:#FFEBEE,stroke:#E53935,stroke-width:2px,color:black;
-            classDef finance fill:#FFF3E0,stroke:#FB8C00,stroke-width:2px,color:black;
-            classDef matrix fill:#E0F7FA,stroke:#00BCD4,stroke-width:2px,color:black;
-        
-            subgraph FASE_1 [FASE 1: PIANIFICAZIONE E RISORSE]
-                direction TB
-                T2[Tab 2: OBS & Risorse]:::planning
-                T1[Tab 1: WBS & Budget]:::planning
-                T3[Tab 3: Matrice RACI / Incroci]:::matrix
-                T4[Tab 4: Gantt & Scadenzario]:::planning
-                Scad[Scadenzario Vincoli]:::alerts
-            end
-        
-            subgraph FASE_2 [FASE 2: GESTIONE IMPREVISTI E CORREZIONI]
-                direction TB
-                T8[Tab 8: Rischi]:::finance
-                T7[Tab 7: CAPA]:::alerts
-                T9[Tab 9: Varianti RUP]:::alerts
-            end
-        
-            subgraph FASE_3 [FASE 3: MOTORI FINANZIARI E CONTROLLO]
-                direction TB
-                T6[Tab 6: Registro Contabile]:::finance
-                T5[Tab 5: Motore EVM & Cash Flow]:::control
-            end
-        
-            %% Connessioni Interne alla Fase 1
-            T2 -- "Fornisce Soggetti" --> T3
-            T1 -- "Fornisce Attività" --> T3
-            T3 -. "Valida Assegnazioni" .-> T1
-            T1 -- "Date, Predecessori" --> T4
-            T1 -- "Genera Allerta" --> Scad
-            Scad -. "Visibile in" .-> T4
-        
-            %% Connessioni Chirurgiche tra Fasi Diverse
-            T9 == "Inietta Soldi e Giorni" ==> T1
-            T7 -. "Blocca WBS al 99%" .-> T1
+            ```mermaid
+            graph LR
+                %% Definizione Stili Personalizzati
+                classDef planning fill:#E3F2FD,stroke:#1E88E5,stroke-width:2px,color:black;
+                classDef control fill:#E8F5E9,stroke:#43A047,stroke-width:2px,color:black;
+                classDef alerts fill:#FFEBEE,stroke:#E53935,stroke-width:2px,color:black;
+                classDef finance fill:#FFF3E0,stroke:#FB8C00,stroke-width:2px,color:black;
+                classDef matrix fill:#E0F7FA,stroke:#00BCD4,stroke-width:2px,color:black;
             
-            T4 -- "Calcola Percorso Critico" --> T8
-            T8 -. "Minaccia Scadenze Critiche" .-> T4
-            T8 -- "Evidenzia Criticità Risorse" --> T3
-        
-            T7 -- "Genera Costi Tossici" --> T6
-            T6 -- "Costi Reali e SAL" --> T5
-            T1 -- "Budget e Avanzamento" --> T5
-            T8 -- "Riserva Monetaria" --> T5
-            T5 -. "Indice SPI colora le barre" .-> T4
+                subgraph FASE_1 [FASE 1: PIANIFICAZIONE E RISORSE]
+                    direction TB
+                    T2[Tab 2: OBS & Risorse]:::planning
+                    T1[Tab 1: WBS & Budget]:::planning
+                    T3[Tab 3: Matrice RACI / Incroci]:::matrix
+                    T4[Tab 4: Gantt & Scadenzario]:::planning
+                    Scad[Scadenzario Vincoli]:::alerts
+                end
             
-            %% Stile personalizzato per il riquadro della Fase 3
-            style FASE_3 fill:#F3E5F5,stroke:#8E24AA,stroke-width:2px,stroke-dasharray: 4 4
+                subgraph FASE_2 [FASE 2: GESTIONE IMPREVISTI E CORREZIONI]
+                    direction TB
+                    T8[Tab 8: Rischi]:::finance
+                    T7[Tab 7: CAPA]:::alerts
+                    T9[Tab 9: Varianti RUP]:::alerts
+                end
+            
+                subgraph FASE_3 [FASE 3: MOTORI FINANZIARI E CONTROLLO]
+                    direction TB
+                    T6[Tab 6: Registro Contabile]:::finance
+                    T5[Tab 5: Motore EVM & Cash Flow]:::control
+                end
+            
+                %% Connessioni Interne alla Fase 1
+                T2 -- "Fornisce Soggetti" --> T3
+                T1 -- "Fornisce Attività" --> T3
+                T3 -. "Valida Assegnazioni" .-> T1
+                T1 -- "Date, Predecessori" --> T4
+                T1 -- "Genera Allerta" --> Scad
+                Scad -. "Visibile in" .-> T4
+            
+                %% Connessioni Chirurgiche tra Fasi Diverse
+                T9 == "Inietta Soldi e Giorni" ==> T1
+                T7 -. "Blocca WBS al 99%" .-> T1
+                
+                T4 -- "Calcola Percorso Critico" --> T8
+                T8 -. "Minaccia Scadenze Critiche" .-> T4
+                T8 -- "Evidenzia Criticità Risorse" --> T3
+            
+                T7 -- "Genera Costi Tossici" --> T6
+                T6 -- "Costi Reali e SAL" --> T5
+                T1 -- "Budget e Avanzamento" --> T5
+                T8 -- "Riserva Monetaria" --> T5
+                T5 -. "Indice SPI colora le barre" .-> T4
+                
+                %% Stile personalizzato per il riquadro della Fase 3
+                style FASE_3 fill:#F3E5F5,stroke:#8E24AA,stroke-width:2px,stroke-dasharray: 4 4
+            ```
+            """)
 
             with st.expander("📝 Flusso di Lavoro (Input Dati)"):
                 st.markdown("""
