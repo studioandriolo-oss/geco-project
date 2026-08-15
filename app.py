@@ -286,14 +286,14 @@ def aggiorna_costi_reali():
         df_reg['ID_WBS_calc'] = df_reg['Voce_WBS'].astype(str).apply(
             lambda x: str(x).split(' - ')[0].strip() if pd.notna(x) and str(x).strip() not in ['', 'None', 'nan'] else None
         )
-        # FIX: Forza la conversione matematica per evitare che stringhe o celle vuote sballino le somme
+        # Forza la conversione in numeri per evitare che stringhe o vuoti blocchino il calcolo
         df_reg['Importo_Netto'] = pd.to_numeric(df_reg['Importo_Netto'], errors='coerce').fillna(0.0)
         
         costi_raggruppati = df_reg.groupby('ID_WBS_calc')['Importo_Netto'].sum().reset_index()
         cost_map = dict(zip(costi_raggruppati['ID_WBS_calc'], costi_raggruppati['Importo_Netto']))
         wbs = st.session_state.wbs_data.copy()
         
-        # FIX: Pulisce eventuali spazi accidentali negli ID WBS prima di iniettare i costi
+        # Stacca gli spazi accidentali e inietta i costi nel database WBS
         wbs['AC_Costo_Reale'] = wbs['ID_WBS'].astype(str).str.strip().apply(lambda x: cost_map.get(x, 0.0))
         st.session_state.wbs_data = wbs
 
@@ -2166,21 +2166,23 @@ with col_sviluppo:
                         df_rischi.loc[mask, 'Stato'] = 'Mitigato ▾'
                         rischi_aggiornati = True
 
-                # B) INVIO AUTOMATICO COSTI DELLA NON-QUALITÀ AL TAB 6
-                if capa_row['Stato'] == 'Chiuso ▾' and not capa_row.get('Costo_Scaricato', False):
+               # B) INVIO AUTOMATICO COSTI DELLA NON-QUALITÀ AL TAB 6
+                val_scaricato = capa_row.get('Costo_Scaricato', False)
+                # Decodificatore a prova di bomba per il JSON
+                gia_scaricato = val_scaricato if isinstance(val_scaricato, bool) else str(val_scaricato).strip().lower() in ['true', '1', 't', 'y', 'yes']
+                
+                if capa_row['Stato'] == 'Chiuso ▾' and not gia_scaricato:
                     costo = pd.to_numeric(capa_row.get('Costo_Intervento', 0), errors='coerce')
                     if pd.notna(costo) and costo > 0:
-                        # Prepara la riga per il Registro Contabile
                         nuova_spesa = {
                             'Data': pd.Timestamp.today().date(),
-                            'N_Doc': f"CAPA-AUTO",
+                            'N_Doc': f"CAPA-{idx}",
                             'Fornitore': str(capa_row.get('Responsabile_OBS', '')),
                             'Voce_WBS': str(capa_row.get('ID_WBS_Rif', '')),
                             'Importo_Netto': costo,
                             'Descrizione': f"🔴 COSTO NON-QUALITÀ: {str(capa_row.get('Descrizione', ''))}"
                         }
                         nuove_spese.append(nuova_spesa)
-                        # Segna come scaricato per non duplicarlo in futuro
                         df_capa_new.at[idx, 'Costo_Scaricato'] = True
                         costi_inviati += 1
             
@@ -2622,32 +2624,38 @@ with col_sviluppo:
                         
                     # 2. INNESTO MATEMATICO SUL MOTORE EVM
                     if row['Tipologia'] == 'Richiesta di Variante' and row['Stato'] == 'Approvato ✅':
-                        # Estraiamo in modo sicuro saltando le stringhe vuote
                         costo_val = pd.to_numeric(row.get('Variazione_Costi'), errors='coerce')
                         tempi_val = pd.to_numeric(row.get('Variazione_Tempi'), errors='coerce')
-                        applicata = row.get('Variante_Applicata', False)
                         
-                        # LOGICA CORRETTA: Basta che sia compilato ALMENO UNO dei due valori
+                        val_app = row.get('Variante_Applicata', False)
+                        # Decodificatore a prova di bomba per il JSON
+                        applicata = val_app if isinstance(val_app, bool) else str(val_app).strip().lower() in ['true', '1', 't', 'y', 'yes']
+                        
+                        # Basta che sia compilato ALMENO UNO dei due valori e che non sia già stata applicata
                         if (pd.notna(costo_val) or pd.notna(tempi_val)) and not applicata:
+                            costo_clean = float(costo_val) if pd.notna(costo_val) else 0.0
+                            tempi_clean = int(tempi_val) if pd.notna(tempi_val) else 0
+                            
                             wbs_target = str(row['ID_WBS_Rif']).strip()
                             wbs_idx = st.session_state.wbs_data.index[st.session_state.wbs_data['ID_WBS'].astype(str).str.strip() == wbs_target].tolist()
                             
                             if wbs_idx:
                                 i_w = wbs_idx[0]
                                 
-                                # A) Aggiorna il Budget (BAC) se c'è un costo
-                                if pd.notna(costo_val) and costo_val != 0:
+                                # A) Aggiorna il Budget (BAC)
+                                if costo_clean != 0:
                                     budget_attuale = pd.to_numeric(st.session_state.wbs_data.at[i_w, 'BAC_Budget'], errors='coerce')
-                                    st.session_state.wbs_data.at[i_w, 'BAC_Budget'] = (budget_attuale if pd.notna(budget_attuale) else 0.0) + float(costo_val)
+                                    st.session_state.wbs_data.at[i_w, 'BAC_Budget'] = (budget_attuale if pd.notna(budget_attuale) else 0.0) + costo_clean
                                 
-                                # B) Aggiorna i Tempi (Data Fine Prevista) se ci sono giorni
-                                if pd.notna(tempi_val) and tempi_val != 0:
+                                # B) Aggiorna i Tempi (Data Fine Prevista)
+                                if tempi_clean != 0:
                                     fine_attuale = pd.to_datetime(st.session_state.wbs_data.at[i_w, 'Fine_Prevista'], errors='coerce')
                                     if pd.notna(fine_attuale):
-                                        st.session_state.wbs_data.at[i_w, 'Fine_Prevista'] = (fine_attuale + pd.Timedelta(days=int(tempi_val))).date()
+                                        st.session_state.wbs_data.at[i_w, 'Fine_Prevista'] = (fine_attuale + pd.Timedelta(days=tempi_clean)).date()
                                 
-                                # C) Blocca il ticket: non sommerà mai più questi valori in futuro
+                                # C) Blocca il ticket
                                 edited_tickets.at[idx, 'Variante_Applicata'] = True
+                                st.toast(f"✅ Variante applicata su WBS {wbs_target}: {costo_clean}€ aggiunti al BAC!", icon="⚙️")
                             
                             if wbs_idx:
                                 i_w = wbs_idx[0]
