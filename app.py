@@ -93,6 +93,12 @@ if 'registro_data' not in st.session_state:
     st.session_state.registro_data = pd.DataFrame(columns=[
         'Data', 'N_Doc', 'Fornitore', 'Voce_WBS', 'Importo_Netto', 'Descrizione'
     ])
+    
+if 'tickets_data' not in st.session_state:
+    st.session_state.tickets_data = pd.DataFrame(columns=[
+        'ID_Ticket', 'ID_WBS_Rif', 'Autore', 'Data_Apertura',
+        'Tipologia', 'Descrizione', 'Stato', 'Risposta_RUP', 'Data_Chiusura'
+    ])
 
 if 'capa_data' not in st.session_state:
     st.session_state.capa_data = pd.DataFrame(columns=[
@@ -829,7 +835,8 @@ with col_sviluppo:
         "🧾 6-Reg. Contabile",
         "🛠️ 7-Direzione & CAPA",
         "⚠️ 8-Matrice Rischi",
-        "📚 9-Guida & Glossario"
+        "📩 9-Varianti e Comunicazioni"
+        "📚 10-Guida & Glossario"
     ])
         
     # --- TAB 1: SETUP WBS ---
@@ -2189,10 +2196,101 @@ with col_sviluppo:
         else:
             st.info("ℹ️ Compila i valori numerici (da 1 a 5) nella colonna Probabilità e Impatto della tabella qui sopra per generare la matrice.")
 
-# ========================================================
-    # --- TAB 9: MANUALE OPERATIVO, FORMULARIO & FAQ V.2.0 ---
+    # ---------------------------------------
+    # --- TAB 9: COMUNICAZIONI E VARIANTI ---
+    # ---------------------------------------
+    with tab9: # (Assicurati di dichiarare questo tab nel tuo st.tabs in alto)
+        st.header("📩 Registro Incorruttibile: Varianti e Comunicazioni")
+        st.markdown("*Ogni richiesta viene storicizzata con marcatura temporale. Le richieste inviate non possono essere modificate dall'autore, garantendo un Audit Trail perfetto.*")
+        
+        # --- SEZIONE 1: IL MITTENTE APRE IL TICKET ---
+        with st.expander("➕ Apri un nuovo Ticket (Riservato a DL / CSE / Impresa)", expanded=False):
+            with st.form("form_nuovo_ticket"):
+                c1, c2 = st.columns(2)
+                
+                # Creiamo la lista delle WBS dal tab 1 per il menu a tendina
+                lista_wbs = []
+                if 'wbs_data' in st.session_state and not st.session_state.wbs_data.empty:
+                    lista_wbs = [f"{row['ID_WBS']} - {row['Attività']}" for _, row in st.session_state.wbs_data.iterrows() if pd.notna(row['ID_WBS'])]
+                
+                wbs_rif = c1.selectbox("WBS di Riferimento", options=["Nessuna"] + lista_wbs)
+                autore = c2.selectbox("Ruolo Autore", options=["Direttore dei Lavori (DL)", "Coordinatore Sicurezza (CSE)", "Impresa Appaltatrice"])
+                
+                tipo = c1.selectbox("Tipologia di Richiesta", options=["Richiesta di Variante", "Richiesta di Chiarimento Progettuale", "Segnalazione Imprevisto/Ostacolo", "Ordine di Servizio"])
+                descrizione = st.text_area("Descrizione dettagliata (Attenzione: Non modificabile dopo l'invio)")
+                
+                submit_ticket = st.form_submit_button("Invia Ticket al RUP", type="primary")
+                
+                if submit_ticket:
+                    if wbs_rif == "Nessuna" or non descrizione.strip():
+                        st.warning("⚠️ Seleziona una WBS e inserisci una descrizione prima di inviare.")
+                    else:
+                        import datetime
+                        # Creazione ID progressivo (es. TCK-001)
+                        nuovo_id = f"TCK-{len(st.session_state.tickets_data)+1:03d}"
+                        wbs_clean = wbs_rif.split(' - ')[0] # Estrae solo il codice numerico
+                        
+                        nuovo_ticket = {
+                            'ID_Ticket': nuovo_id,
+                            'ID_WBS_Rif': wbs_clean,
+                            'Autore': autore,
+                            'Data_Apertura': datetime.datetime.now().strftime("%d/%m/%Y %H:%M"),
+                            'Tipologia': tipo,
+                            'Descrizione': descrizione,
+                            'Stato': 'In attesa ⏳',
+                            'Risposta_RUP': '',
+                            'Data_Chiusura': None
+                        }
+                        
+                        st.session_state.tickets_data = pd.concat([st.session_state.tickets_data, pd.DataFrame([nuovo_ticket])], ignore_index=True)
+                        st.success("✅ Ticket registrato nell'Audit Trail con successo!")
+                        st.rerun()
+        
+        st.divider()
+        
+        # --- SEZIONE 2: IL RUP GESTISCE E RISPONDE ---
+        st.subheader("📋 Audit Trail: Cruscotto di Risposta RUP")
+        
+        if not st.session_state.tickets_data.empty:
+            df_tickets = st.session_state.tickets_data.copy()
+            
+            # BLOCCAGGIO INCORRUTTIBILE: il RUP non può manomettere chi, cosa e quando ha scritto.
+            colonne_bloccate = ['ID_Ticket', 'ID_WBS_Rif', 'Autore', 'Data_Apertura', 'Tipologia', 'Descrizione', 'Data_Chiusura']
+            
+            edited_tickets = st.data_editor(
+                df_tickets,
+                disabled=colonne_bloccate,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "Stato": st.column_config.SelectboxColumn("Stato Richiesta", options=["In attesa ⏳", "Approvato ✅", "Respinto ❌"], required=True),
+                    "Risposta_RUP": st.column_config.TextColumn("Prescrizioni / Risposta RUP")
+                }
+            )
+            
+            # Pulsante indipendente per salvare le risposte del RUP
+            if st.button("💾 Registra Risposte RUP"):
+                import datetime
+                for idx, row in edited_tickets.iterrows():
+                    # Se lo stato viene cambiato da 'In attesa' a qualcos'altro, registra il Timestamp di chiusura
+                    if row['Stato'] != 'In attesa ⏳' and pd.isna(row['Data_Chiusura']):
+                        edited_tickets.at[idx, 'Data_Chiusura'] = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
+                    # Se il RUP lo rimette "In attesa", cancella la data di chiusura
+                    elif row['Stato'] == 'In attesa ⏳':
+                        edited_tickets.at[idx, 'Data_Chiusura'] = None
+                        
+                st.session_state.tickets_data = edited_tickets
+                st.success("✅ Registro aggiornato e storicizzato!")
+                import time
+                time.sleep(1.5)
+                st.rerun()
+        else:
+            st.info("Nessuna comunicazione o variante registrata.")
+    
     # ========================================================
-    with tab9:
+    # --- TAB 10: MANUALE OPERATIVO, FORMULARIO & FAQ V.2.0 ---
+    # ========================================================
+    with tab10:
         st.header("📖 Manuale Operativo & Knowledge Base (Versione 2.0)")
         st.markdown("Benvenuto nella centrale di controllo della documentazione di cantiere. Questo manuale guida l'utente attraverso l'architettura dei dati, le formule matematiche e le logiche di automazione integrate nell'applicazione.")
 
