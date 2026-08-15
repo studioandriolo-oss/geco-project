@@ -2200,7 +2200,7 @@ with col_sviluppo:
     # --- TAB 9: COMUNICAZIONI E VARIANTI ---
     # ---------------------------------------
     with tab9: 
-        st.header("📩 Registro Incorruttibile: Varianti e Comunicazioni")
+        st.header("📩 Registro Varianti e Comunicazioni")
         st.markdown("*Ogni richiesta viene storicizzata con marcatura temporale. Le richieste inviate non possono essere modificate dall'autore, garantendo un Audit Trail.*")
         
         # --- SEZIONE 1: IL MITTENTE APRE IL TICKET ---
@@ -2260,6 +2260,7 @@ with col_sviluppo:
             edited_tickets = st.data_editor(
                 df_tickets,
                 disabled=colonne_bloccate,
+                num_rows="dynamic", # <--- RIGA PER ATTIVA/DISATTIVARE IL CESTINO 🗑️ NATIVO DI STREAMLIT - CANCELLANDO QUESTA RIGA SI TOGLIE IL 🗑️
                 use_container_width=True,
                 hide_index=True,
                 column_config={
