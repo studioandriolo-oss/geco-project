@@ -863,6 +863,17 @@ with col_sviluppo:
     with col_title:
         st.title("Project Workflow & EVM Controller")
 
+    # ==========================================
+    # RETRO-COMPATIBILITÀ TICKETS (Schema Update)
+    # ==========================================
+    if 'tickets_data' in st.session_state:
+        if 'Variazione_Costi' not in st.session_state.tickets_data.columns:
+            st.session_state.tickets_data['Variazione_Costi'] = None
+        if 'Variazione_Tempi' not in st.session_state.tickets_data.columns:
+            st.session_state.tickets_data['Variazione_Tempi'] = None
+        if 'Variante_Applicata' not in st.session_state.tickets_data.columns:
+            st.session_state.tickets_data['Variante_Applicata'] = False
+            
     # --- CREAZIONE TAB ---
     tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
         "🗂️ 1-WBS (Lavorazioni)", 
