@@ -80,8 +80,8 @@ if 'wbs_data' not in st.session_state:
         'AC_Costo_Reale': 0.0, 
         'ID_OBS_Assegnato': None, 
         'Predecessori': '',
-        'Vincolo_Burocratico',
-        'Vincolo_Assolto'
+        'Vincolo_Burocratico': 'nessuno',
+        'Vincolo_Assolto': False
     }])
     
 if 'obs_data' not in st.session_state:
