@@ -508,6 +508,7 @@ with col_save:
             "sal": st.session_state.sal_data.copy(),
             "conflitti_ignorati": st.session_state.conflitti_ignorati.copy(),
             "imprevisti_ignorati": st.session_state.imprevisti_ignorati.copy(),
+            "varianti_ignorate": st.session_state.varianti_ignorate.copy(),
             "tickets": st.session_state.tickets_data.copy(),
             "memoria_burocratica": list(st.session_state.memoria_burocratica),
             "memoria_capa": list(st.session_state.memoria_capa),
@@ -526,6 +527,7 @@ with col_save:
             "sal": st.session_state.sal_data.copy(),
             "conflitti_ignorati": st.session_state.conflitti_ignorati.copy(),
             "imprevisti_ignorati": st.session_state.imprevisti_ignorati.copy(),
+            "varianti_ignorate": st.session_state.varianti_ignorate.copy(),
             "tickets": st.session_state.tickets_data.copy(),
             "memoria_burocratica": list(st.session_state.memoria_burocratica),
             "memoria_capa": list(st.session_state.memoria_capa),
@@ -545,6 +547,7 @@ with col_save:
             st.session_state.sal_data = st.session_state.archivio_progetti[prog_selezionato].get("sal", pd.DataFrame()).copy()
             st.session_state.conflitti_ignorati = st.session_state.archivio_progetti[prog_selezionato].get("conflitti_ignorati", []).copy()
             st.session_state.imprevisti_ignorati = st.session_state.archivio_progetti[prog_selezionato].get("imprevisti_ignorati", []).copy()
+            st.session_state.varianti_ignorate = st.session_state.archivio_progetti[prog_selezionato].get("varianti_ignorate", []).copy()
             st.session_state.tickets_data = st.session_state.archivio_progetti[prog_selezionato].get("tickets", pd.DataFrame()).copy()
             st.session_state.memoria_burocratica = set(st.session_state.archivio_progetti[prog_selezionato].get("memoria_burocratica", []))
             st.session_state.memoria_capa = set(st.session_state.archivio_progetti[prog_selezionato].get("memoria_capa", []))
@@ -558,7 +561,7 @@ with col_save:
 
     if st.button("📄 Nuovo", use_container_width=True):
         st.session_state.nome_progetto_attivo = "Nuovo_Progetto"
-        for key in ['wbs_data', 'obs_data', 'registro_data', 'capa_data', 'rischi_data', 'sal_data', 'tickets_data', 'memoria_burocratica', 'memoria_capa', 'memoria_ticket', 'conflitti_ignorati', 'imprevisti_ignorati']:
+        for key in ['wbs_data', 'obs_data', 'registro_data', 'capa_data', 'rischi_data', 'sal_data', 'tickets_data', 'memoria_burocratica', 'memoria_capa', 'memoria_ticket', 'conflitti_ignorati', 'imprevisti_ignorati', 'varianti_ignorate']:
             if key in st.session_state:
                 del st.session_state[key]
         for k in list(st.session_state.keys()):
@@ -580,6 +583,7 @@ with col_save:
             "sal": json.loads(st.session_state.sal_data.to_json(orient="records", date_format="iso")),
             "conflitti_ignorati": list(st.session_state.conflitti_ignorati),
             "imprevisti_ignorati": list(st.session_state.imprevisti_ignorati),
+            "varianti_ignorate": list(st.session_state.varianti_ignorate),
             "memoria_burocratica": list(st.session_state.memoria_burocratica),
             "memoria_capa": list(st.session_state.memoria_capa),
             "memoria_ticket": list(st.session_state.memoria_ticket),
@@ -647,6 +651,7 @@ with col_save:
 
                 st.session_state.conflitti_ignorati = dati_caricati.get('conflitti_ignorati', [])
                 st.session_state.imprevisti_ignorati = dati_caricati.get('imprevisti_ignorati', [])
+                st.session_state.varianti_ignorate = dati_caricati.get('varianti_ignorate', [])
                 st.session_state.memoria_burocratica = set(dati_caricati.get('memoria_burocratica', []))
                 st.session_state.memoria_capa = set(dati_caricati.get('memoria_capa', []))
                 st.session_state.memoria_ticket = set(dati_caricati.get('memoria_ticket', []))
@@ -879,6 +884,48 @@ with col_save:
                                     st.session_state.imprevisti_ignorati.append(t_id)
                                     st.rerun()
         # ===================================================
+
+        # ===================================================
+        # DA VARIANTI APPROVATE A RISCHI (SUGGERIMENTO)
+        # ===================================================
+        if 'varianti_ignorate' not in st.session_state:
+            st.session_state.varianti_ignorate = []
+            
+        if isinstance(st.session_state.varianti_ignorate, set):
+            st.session_state.varianti_ignorate = list(st.session_state.varianti_ignorate)
+
+        if 'tickets_data' in st.session_state and not st.session_state.tickets_data.empty:
+            if 'Tipologia' in st.session_state.tickets_data.columns and 'Stato' in st.session_state.tickets_data.columns:
+                
+                # Filtriamo SOLO i ticket "Variante" che sono stati "Approvati"
+                varianti_approvate = st.session_state.tickets_data[
+                    (st.session_state.tickets_data['Tipologia'] == 'Richiesta di Variante') & 
+                    (st.session_state.tickets_data['Stato'] == 'Approvato ✅')
+                ]
+                
+                for _, ticket in varianti_approvate.iterrows():
+                    t_id = str(ticket.get('ID_Ticket', ''))
+                    wbs_rif = str(ticket.get('ID_WBS_Rif', ''))
+                    
+                    if t_id.strip() != "":
+                        if t_id in st.session_state.varianti_ignorate:
+                            # Se Ignorato, lascia il riquadro verde di conferma
+                            with st.expander(f"✅ WBS {wbs_rif}: Variante {t_id} (Rischi Gestiti)"):
+                                st.success(f"Hai confermato che la Variante {t_id} non comporta nuovi rischi o è già stata gestita nel Tab 8.")
+                                if st.button("🔄 Ripristina Allarme", key=f"ripristina_var_{t_id}"):
+                                    st.session_state.varianti_ignorate.remove(t_id)
+                                    st.rerun()
+                        else:
+                            # Altrimenti mostra l'allarme standard
+                            with st.expander(f"⚠️ WBS {wbs_rif}: Variante Approvata", expanded=True):
+                                st.markdown(f"La **Variante {t_id}** è stata ufficialmente approvata dal RUP.")
+                                st.warning("💡 **Gianfry suggerisce:** Questa variante comporta dei nuovi rischi per il cantiere? Ricordati di gestirli nel **Tab 8 - Matrice dei Rischi**.")
+                                
+                                if st.button("👁️ Rischi gestiti / Nessun rischio (Ignora)", key=f"ignora_var_{t_id}"):
+                                    st.session_state.varianti_ignorate.append(t_id)
+                                    st.rerun()
+        # ===================================================
+
 # ==========================================
 # COLONNA DI DESTRA (IL MOTORE DELL'APP)
 # ==========================================
