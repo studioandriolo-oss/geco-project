@@ -1701,8 +1701,14 @@ with col_sviluppo:
             st.plotly_chart(fig, use_container_width=True)
         else:
             st.info("⚠️ Il cronoprogramma è vuoto. Inserisci le date di Inizio e Fine nel Tab 1.")
-            
-    # ======================================================
+
+    #-------------------------------    
+    # --- TAB 5: EVM E CASH FLOW ---
+    #-------------------------------
+    with tab5:
+        st.header("Controllo Costi e Analisi EVM")
+
+        # ======================================================
         # ALLERTA FINANZIARIA GIANFRY: VARIANTI DA QUANTIFICARE
         if 'tickets_data' in st.session_state and not st.session_state.tickets_data.empty:
             df_t_alert = st.session_state.tickets_data
@@ -1725,8 +1731,7 @@ with col_sviluppo:
         # ======================================================
         
         data_status_evm = st.date_input("📅 Data di Stato (Status Date):", value=pd.Timestamp.today().date())
-        df_evm = calcola_evm(get_foglie(st.session_state.wbs_data), data_status_evm)
-        
+        df_evm = calcola_evm(get_foglie(st.session_state.wbs_data), data_status_evm)       
         tot_bac, tot_pv, tot_ev, tot_ac = df_evm['BAC_Budget'].sum(), df_evm['PV'].sum(), df_evm['EV'].sum(), df_evm['AC_Costo_Reale'].sum()
         tot_eac, tot_etc, tot_vac = df_evm['EAC'].sum(), df_evm['ETC'].sum(), df_evm['VAC'].sum()
         cpi_globale = tot_ev / tot_ac if tot_ac > 0 else 1.0
