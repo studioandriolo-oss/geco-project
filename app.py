@@ -905,7 +905,7 @@ with col_sviluppo:
                             "🏛️ Vincolo Burocratico",
                             help="Seleziona l'autorizzazione necessaria per sbloccare l'inizio effettivo",
                             options=["Nessuno", "Delibera di giunta", "Deposito Genio Civile", "Autorizzazione Paesaggistica", "Validazione Progetto (RUP)", "Nomina CSE", "Nulla Osta Soprintendenza"],
-                            default="Nessuno"
+                            default="Nessuno",
                             width="medium"
                         ),
                         "Vincolo_Assolto": st.column_config.CheckboxColumn(
