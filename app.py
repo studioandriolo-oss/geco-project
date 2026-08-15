@@ -2643,17 +2643,20 @@ with col_sviluppo:
                                     b_att = float(pd.to_numeric(st.session_state.wbs_data.loc[mask, 'BAC_Budget'], errors='coerce').fillna(0.0).iloc[0])
                                     st.session_state.wbs_data.loc[mask, 'BAC_Budget'] = b_att + c_clean
                                 
-                                # B) Sposta i Tempi
+                                # B) Aggiorna i Tempi (Data Fine Prevista) nel Tab 1
                                 if t_clean != 0:
-                                    f_att = st.session_state.wbs_data.loc[mask, 'Fine_Prevista'].iloc[0]
+                                    f_att = pd.to_datetime(st.session_state.wbs_data.at[i_w, 'Fine_Prevista'], errors='coerce')
                                     if pd.notna(f_att):
-                                        nuova_data = pd.to_datetime(f_att) + pd.Timedelta(days=t_clean)
-                                        st.session_state.wbs_data.loc[mask, 'Fine_Prevista'] = nuova_data.date()
-                                
-                                # C) Sigilla il ticket per impedire doppie fatturazioni in futuro
-                                st.session_state.tickets_data.at[idx, 'Variante_Applicata'] = True
-                                st.toast(f"✅ Variante iniettata: WBS {wbs_target} aggiornata nel motore EVM!", icon="💰")
-                                
+                                        nuova_data_fine = (f_att + pd.Timedelta(days=t_clean)).date()
+                                        st.session_state.wbs_data.at[i_w, 'Fine_Prevista'] = nuova_data_fine
+                                        
+                                        # Se l'attività era già iniziata o si vuole riflettere sull'effettivo, 
+                                        # aggiorniamo in modo coerente anche la fine effettiva se valorizzata
+                                        f_eff = st.session_state.wbs_data.at[i_w, 'Fine_Effettiva']
+                                        if pd.notna(f_eff) and str(f_eff).strip() not in ['', 'NaT', 'None', 'nan']:
+                                            nuova_data_eff = pd.to_datetime(f_eff) + pd.Timedelta(days=t_clean)
+                                            st.session_state.wbs_data.at[i_w, 'Fine_Effettiva'] = nuova_data_eff.date()
+                                            
                 # Ricalcola padri e figli
                 st.session_state.wbs_data = aggiorna_gerarchia(st.session_state.wbs_data)
                 
