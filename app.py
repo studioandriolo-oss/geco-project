@@ -2858,7 +2858,9 @@ with col_sviluppo:
                 T1 -- "Budget e Avanzamento" --> T5
                 T8 -- "Riserva Monetaria" --> T5
                 T5 -. "Indice SPI colora le barre" .-> T4
-                T6 -- "Genera" --> [Andamento Flussi di Cassa]:::alerts
+                T6 -- "Genera" --> Scad[Andamento Flussi di Cassa]:::alerts
+                Scad -. "Visibile in" .-> T4
+                
             end
             
             %% Stile personalizzato per il riquadro della Fase 3 (Lilla tenue)
