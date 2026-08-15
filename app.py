@@ -927,8 +927,31 @@ with col_sviluppo:
                 for i_row, row_mod in discendenti_modificati.iterrows():
                     val_id = str(row_mod['ID_WBS']).strip()
                     if val_id in ['', 'None', 'nan']:
-                        discendenti_modificati.at[i_row, 'ID_WBS'] = f"{id_radice}.999{i_row}"
+                        discendenti_modificati.at[i_row, 'ID_WBS'] = f"{id_radice}.999{i_row}"# --- INNESTO IN TEMPO REALE: CANCELLO AMMINISTRATIVO ---
                 
+                # --- INNESTO IN TEMPO REALE: CANCELLO AMMINISTRATIVO ---
+                allarmi_locali = []
+                for i_row, row_mod in discendenti_modificati.iterrows():
+                    vincolo = str(row_mod.get('Vincolo_Burocratico', 'Nessuno')).strip()
+                    
+                    # Cattura spunta e data a prova di bomba
+                    val_spunta = row_mod.get('Vincolo_Assolto', False)
+                    sbloccato = val_spunta if isinstance(val_spunta, bool) else str(val_spunta).strip().lower() in ['true', '1', 't', 'y', 'yes']
+                    
+                    inizio = row_mod.get('Inizio_Effettivo', None)
+                    has_inizio = pd.notna(inizio) and str(inizio).strip().lower() not in ['none', 'nat', 'nan', '']
+                    
+                    # Se c'è vincolo, non c'è spunta e ha messo la data
+                        if vincolo not in ['Nessuno', 'nan', '', 'None'] and not sbloccato and has_inizio:
+                        # 1. Cancelliamo la data dalla memoria prima che vada al df_aggiornato
+                        discendenti_modificati.at[i_row, 'Inizio_Effettivo'] = pd.NaT
+                        allarmi_locali.append(str(row_mod.get('ID_WBS', '')))
+                        
+                # 2. Mostriamo l'errore sotto la tabella all'istante!
+                if allarmi_locali:
+                    st.error(f"🛑 **BLOCCO AMMINISTRATIVO:** Hai inserito l'Inizio Effettivo per le WBS {', '.join(allarmi_locali)} senza la spunta 'Vincolo Assolto'. La data verrà ignorata al salvataggio.")
+                # =====================================================================
+ 
                 df_aggiornato = pd.concat([df_aggiornato, pd.DataFrame([radice]), discendenti_modificati], ignore_index=True)
                 
                 if not discendenti.empty:
