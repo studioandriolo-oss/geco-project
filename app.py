@@ -2195,7 +2195,13 @@ with col_sviluppo:
                 st.success("✅ Interventi salvati! Il pilota automatico ha **Mitigato** i rischi associati alle azioni chiuse nel Tab 8.")
             else:
                 st.success("✅ Interventi salvati con successo nel database!")
-                
+
+            aggiorna_costi_reali()
+            st.session_state.wbs_data = aggiorna_gerarchia(st.session_state.wbs_data)
+            for k in list(st.session_state.keys()):
+                if k.startswith("editor_wbs_"):
+                    del st.session_state[k]
+            
             import time
             time.sleep(2)
             st.rerun()
@@ -2659,6 +2665,10 @@ with col_sviluppo:
                 # Ricalcola padri, figli e indici dopo l'innesto
                 st.session_state.wbs_data = aggiorna_gerarchia(st.session_state.wbs_data)
                 
+                for k in list(st.session_state.keys()):
+                    if k.startswith("editor_wbs_"):
+                        del st.session_state[k]
+                        
                 st.success("✅ Registro aggiornato! Se i valori erano compilati, sono stati innestati nel motore WBS.")
                 import time
                 time.sleep(2)
