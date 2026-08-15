@@ -286,10 +286,15 @@ def aggiorna_costi_reali():
         df_reg['ID_WBS_calc'] = df_reg['Voce_WBS'].astype(str).apply(
             lambda x: str(x).split(' - ')[0].strip() if pd.notna(x) and str(x).strip() not in ['', 'None', 'nan'] else None
         )
+        # FIX: Forza la conversione matematica per evitare che stringhe o celle vuote sballino le somme
+        df_reg['Importo_Netto'] = pd.to_numeric(df_reg['Importo_Netto'], errors='coerce').fillna(0.0)
+        
         costi_raggruppati = df_reg.groupby('ID_WBS_calc')['Importo_Netto'].sum().reset_index()
         cost_map = dict(zip(costi_raggruppati['ID_WBS_calc'], costi_raggruppati['Importo_Netto']))
-        wbs = st.session_state.wbs_data
-        wbs['AC_Costo_Reale'] = wbs['ID_WBS'].apply(lambda x: cost_map.get(str(x), 0.0))
+        wbs = st.session_state.wbs_data.copy()
+        
+        # FIX: Pulisce eventuali spazi accidentali negli ID WBS prima di iniettare i costi
+        wbs['AC_Costo_Reale'] = wbs['ID_WBS'].astype(str).str.strip().apply(lambda x: cost_map.get(x, 0.0))
         st.session_state.wbs_data = wbs
 
 def calcola_evm(df, data_status):
@@ -1965,13 +1970,13 @@ with col_sviluppo:
             leaf_wbs_reg = get_foglie(st.session_state.wbs_data)
             wbs_options = [f"{row['ID_WBS']} - {row['Attività']}" for _, row in leaf_wbs_reg.iterrows()]
             
-            edited_registro = st.data_editor(
+                edited_registro = st.data_editor(
                 st.session_state.registro_data, num_rows="dynamic", use_container_width=True, hide_index=True,
                 column_config={
                     "Data": st.column_config.DateColumn("Data Fattura / Spesa"),
-                    "ID_WBS_Rif": st.column_config.SelectboxColumn("Attività WBS (Rif.)", options=wbs_options),
-                    "Descrizione_Costo": st.column_config.TextColumn("Descrizione", width="medium"),
-                    "Importo_Euro": st.column_config.NumberColumn("Importo (€)", format="€ %.2f")
+                    "Voce_WBS": st.column_config.SelectboxColumn("Attività WBS (Rif.)", options=wbs_options), # NOME CORRETTO
+                    "Descrizione": st.column_config.TextColumn("Descrizione", width="medium"), # NOME CORRETTO
+                    "Importo_Netto": st.column_config.NumberColumn("Importo (€)", format="€ %.2f") # NOME CORRETTO
                 }
             )
             if st.button("💾 SALVA REGISTRO USCITE", type="primary", use_container_width=True):
@@ -2625,7 +2630,7 @@ with col_sviluppo:
                         # LOGICA CORRETTA: Basta che sia compilato ALMENO UNO dei due valori
                         if (pd.notna(costo_val) or pd.notna(tempi_val)) and not applicata:
                             wbs_target = str(row['ID_WBS_Rif']).strip()
-                            wbs_idx = st.session_state.wbs_data.index[st.session_state.wbs_data['ID_WBS'].astype(str) == wbs_target].tolist()
+                            wbs_idx = st.session_state.wbs_data.index[st.session_state.wbs_data['ID_WBS'].astype(str).str.strip() == wbs_target].tolist()
                             
                             if wbs_idx:
                                 i_w = wbs_idx[0]
