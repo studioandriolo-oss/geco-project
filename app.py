@@ -506,14 +506,16 @@ with col_save:
             "capa": st.session_state.capa_data.copy(),
             "rischi": st.session_state.rischi_data.copy(),
             "sal": st.session_state.sal_data.copy(),
-            "conflitti_ignorati": st.session_state.conflitti_ignorati.copy(),
-            "imprevisti_ignorati": st.session_state.imprevisti_ignorati.copy(),
-            "varianti_ignorate": st.session_state.varianti_ignorate.copy(),
-            "rischi_rossi_ignorati": st.session_state.rischi_rossi_ignorati.copy(),
             "tickets": st.session_state.tickets_data.copy(),
             "memoria_burocratica": list(st.session_state.memoria_burocratica),
             "memoria_capa": list(st.session_state.memoria_capa),
-            "memoria_ticket": list(st.session_state.memoria_ticket)
+            "memoria_ticket": list(st.session_state.memoria_ticket),
+            
+            # --- FIX: SCUDO ANTI-CRASH ---
+            "conflitti_ignorati": list(st.session_state.get("conflitti_ignorati", [])),
+            "imprevisti_ignorati": list(st.session_state.get("imprevisti_ignorati", [])),
+            "varianti_ignorate": list(st.session_state.get("varianti_ignorate", [])),
+            "rischi_rossi_ignorati": list(st.session_state.get("rischi_rossi_ignorati", []))
         }
         st.success("Salvato!")
         
@@ -526,14 +528,16 @@ with col_save:
             "capa": st.session_state.capa_data.copy(),
             "rischi": st.session_state.rischi_data.copy(),
             "sal": st.session_state.sal_data.copy(),
-            "conflitti_ignorati": st.session_state.conflitti_ignorati.copy(),
-            "imprevisti_ignorati": st.session_state.imprevisti_ignorati.copy(),
-            "varianti_ignorate": st.session_state.varianti_ignorate.copy(),
-            "rischi_rossi_ignorati": st.session_state.rischi_rossi_ignorati.copy(),
             "tickets": st.session_state.tickets_data.copy(),
             "memoria_burocratica": list(st.session_state.memoria_burocratica),
             "memoria_capa": list(st.session_state.memoria_capa),
-            "memoria_ticket": list(st.session_state.memoria_ticket)
+            "memoria_ticket": list(st.session_state.memoria_ticket),
+            
+            # --- FIX: SCUDO ANTI-CRASH ---
+            "conflitti_ignorati": list(st.session_state.get("conflitti_ignorati", [])),
+            "imprevisti_ignorati": list(st.session_state.get("imprevisti_ignorati", [])),
+            "varianti_ignorate": list(st.session_state.get("varianti_ignorate", [])),
+            "rischi_rossi_ignorati": list(st.session_state.get("rischi_rossi_ignorati", []))
         }
         st.session_state.nome_progetto_attivo = nuovo_nome
         st.rerun()
@@ -584,15 +588,16 @@ with col_save:
             "capa": json.loads(st.session_state.capa_data.to_json(orient="records", date_format="iso")),
             "rischi": json.loads(st.session_state.rischi_data.to_json(orient="records")),
             "sal": json.loads(st.session_state.sal_data.to_json(orient="records", date_format="iso")),
-            "conflitti_ignorati": list(st.session_state.conflitti_ignorati),
-            "imprevisti_ignorati": list(st.session_state.imprevisti_ignorati),
-            "varianti_ignorate": list(st.session_state.varianti_ignorate),
-            "rischi_rossi_ignorati": list(st.session_state.rischi_rossi_ignorati),
+            "tickets": json.loads(st.session_state.tickets_data.to_json(orient="records", date_format="iso")),
             "memoria_burocratica": list(st.session_state.memoria_burocratica),
             "memoria_capa": list(st.session_state.memoria_capa),
             "memoria_ticket": list(st.session_state.memoria_ticket),
-            "tickets": json.loads(st.session_state.tickets_data.to_json(orient="records", date_format="iso")),
             
+            # --- FIX: SCUDO ANTI-CRASH ---
+            "conflitti_ignorati": list(st.session_state.get("conflitti_ignorati", [])),
+            "imprevisti_ignorati": list(st.session_state.get("imprevisti_ignorati", [])),
+            "varianti_ignorate": list(st.session_state.get("varianti_ignorate", [])),
+            "rischi_rossi_ignorati": list(st.session_state.get("rischi_rossi_ignorati", []))
         }
         json_string = json.dumps(progetto_export, indent=4)
         
