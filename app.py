@@ -1567,27 +1567,32 @@ with col_sviluppo:
         with col_leg2:
             st.markdown("**CAVI E COLLEGAMENTI**\n* 🔗 **Freccia Grigia Continua:** Assegnazione Risorsa\n* 🔀 **Freccia Arancione Tratteggiata:** Relazione logica\n* 🚨 **Freccia Rossa Spessa:** Flusso del Percorso Critico")
 
-    # --- TAB 4: CRONOPROGRAMMA (GANTT) ---
+   # --- TAB 4: CRONOPROGRAMMA (GANTT) ---
     with tab4:
         st.header("Cronoprogramma & Scadenzario Amministrativo")
         
+        # --- FIX CHIRURGICO 1: SCUDO ANTI-CRASH E RETRO-COMPATIBILITÀ ---
+        # Garantisce che le colonne esistano sempre, anche su vecchi salvataggi
+        if 'Vincolo_Burocratico' not in st.session_state.wbs_data.columns:
+            st.session_state.wbs_data['Vincolo_Burocratico'] = 'Nessuno'
+        if 'Vincolo_Assolto' not in st.session_state.wbs_data.columns:
+            st.session_state.wbs_data['Vincolo_Assolto'] = False
+
         # ========================================================
-        # 1. SCADENZARIO AMMINISTRATIVO (NUOVO INNESTO)
+        # 1. SCADENZARIO AMMINISTRATIVO
         # ========================================================
         st.subheader("🏛️ Scadenzario Autorizzazioni (Cancelli Burocratici)")
         st.markdown("Monitora le lavorazioni che necessitano di un'autorizzazione formale prima di poter iniziare. Le voci già assolte rimangono in archivio per consultazione.")
         
-        df_wbs_scad = get_foglie(st.session_state.wbs_data).copy()
-        df_vincoli = df_wbs_scad[
-            (df_wbs_scad['Vincolo_Burocratico'].notna()) & 
-            (df_wbs_scad['Vincolo_Burocratico'] != 'Nessuno') & 
-            (df_wbs_scad['Vincolo_Burocratico'] != 'nan') &
-            (df_wbs_scad['Vincolo_Burocratico'] != '')
-        ].copy()
+        # FIX CHIRURGICO 2: Prendiamo TUTTO l'albero WBS, non solo le foglie!
+        df_wbs_scad = st.session_state.wbs_data.copy()
+        
+        # FIX CHIRURGICO 3: Pulizia del testo a prova di bomba per catturare "nessuno", "Nessuno", o celle vuote
+        df_wbs_scad['Vincolo_Clean'] = df_wbs_scad['Vincolo_Burocratico'].astype(str).str.strip().str.lower()
+        df_vincoli = df_wbs_scad[~df_wbs_scad['Vincolo_Clean'].isin(['nessuno', 'nan', 'none', ''])].copy()
         
         if not df_vincoli.empty:
-            # Normalizziamo il booleano del vincolo
-            df_vincoli['Assolto'] = df_vincoli['Vincolo_Assolto'].apply(lambda x: True if str(x).lower() in ['true', '1', 't', 'y', 'yes'] else False)
+            df_vincoli['Assolto'] = df_vincoli['Vincolo_Assolto'].apply(lambda x: True if str(x).strip().lower() in ['true', '1', 't', 'y', 'yes'] else False)
             
             oggi_scad = pd.Timestamp.today().date()
             dati_scadenzario = []
@@ -1596,10 +1601,9 @@ with col_sviluppo:
                 inizio_prev = pd.to_datetime(row['Inizio_Previsto'], errors='coerce')
                 assolto = row['Assolto']
                 
-                # Se è già stato assolto, ignora le scadenze e lo segna come completato
                 if assolto:
                     stato = "✅ Assolto (Autorizzato)"
-                    sort_val = 9999  # Lo spinge in fondo alla tabella
+                    sort_val = 9999  # Spinge in fondo
                     data_str = inizio_prev.strftime('%d/%m/%Y') if pd.notna(inizio_prev) else "N/D"
                 else:
                     if pd.notna(inizio_prev):
@@ -1627,12 +1631,11 @@ with col_sviluppo:
                 
             df_display_scad = pd.DataFrame(dati_scadenzario).sort_values('_sort').drop(columns=['_sort'])
             
-            # Colori semaforici potenziati
             def colora_stato(val):
                 if '🔴' in str(val): return 'color: white; background-color: #D32F2F; font-weight: bold;'
                 if '🟠' in str(val): return 'color: white; background-color: #FF9800; font-weight: bold;'
                 if '🟢' in str(val): return 'color: white; background-color: #388E3C; font-weight: bold;'
-                if '✅' in str(val): return 'color: #155724; background-color: #C8E6C9; font-weight: bold;' # Verde chiaro
+                if '✅' in str(val): return 'color: #155724; background-color: #C8E6C9; font-weight: bold;' 
                 return ''
                 
             st.dataframe(df_display_scad.style.map(colora_stato, subset=['Stato Urgenza']), use_container_width=True, hide_index=True)
@@ -1662,44 +1665,34 @@ with col_sviluppo:
             df_gantt['Fine_Effettiva'] = pd.to_datetime(df_gantt['Fine_Effettiva']).fillna(pd.to_datetime(data_status_gantt))
             
             cpm_data = calcola_cpm(st.session_state.wbs_data)
-            # Calcoliamo l'EVM in background per avere gli indici di performance aggiornati a questa data
             df_evm_gantt = calcola_evm(get_foglie(st.session_state.wbs_data), data_status_gantt)
             
             fig = go.Figure()
             
-            # 1. TRACCIA BASELINE (Azzurra)
             if vista in ["Progetto (Baseline)", "Comparativa"]:
                 fig.add_trace(go.Bar(
                     x=(df_gantt['Fine_Prevista'] - df_gantt['Inizio_Previsto'] + pd.Timedelta(days=1)).dt.total_seconds() * 1000, 
                     y=df_gantt['ID_WBS'].astype(str) + " - " + df_gantt['Attività'], 
                     base=df_gantt['Inizio_Previsto'], 
-                    orientation='h', 
-                    name='Baseline (Pianificato)', 
-                    width=0.4, 
+                    orientation='h', name='Baseline (Pianificato)', width=0.4, 
                     marker=dict(color='rgba(30, 136, 229, 0.4)' if vista == "Comparativa" else '#1E88E5')
                 ))
                 
-            # 2. TRACCIA ESECUTIVA "PARLANTE"
             if vista in ["Esecuzione (Esecutivo)", "Comparativa"]:
                 df_esec = df_gantt.dropna(subset=['Inizio_Effettivo']).copy()
                 if not df_esec.empty:
-                    # Forziamo il formato testo per evitare mancati incroci
                     df_esec['ID_WBS'] = df_esec['ID_WBS'].astype(str).str.strip()
                     df_evm_clean = df_evm_gantt[['ID_WBS', 'SPI', '%_Completamento']].copy()
                     df_evm_clean['ID_WBS'] = df_evm_clean['ID_WBS'].astype(str).str.strip()
-                    
-                    # CANCELLIAMO LE VECCHIE COLONNE PER EVITARE I DOPPIONI (_x e _y)
                     df_esec = df_esec.drop(columns=['SPI', '%_Completamento'], errors='ignore')
-                    
-                    # Ora uniamo i dati puliti
                     df_esec = df_esec.merge(df_evm_clean, on='ID_WBS', how='left')
                     
                     def colora_gantt(row):
                         spi = row['SPI']
-                        if pd.isna(spi) or row['%_Completamento'] == 0: return '#9E9E9E' # Grigio se non ancora valutabile
-                        if spi >= 1.0: return '#4CAF50' # Verde (In anticipo/Puntuale)
-                        if spi >= 0.90: return '#FF9800' # Arancione (Lieve ritardo)
-                        return '#D32F2F' # Rosso (Ritardo grave)
+                        if pd.isna(spi) or row['%_Completamento'] == 0: return '#9E9E9E'
+                        if spi >= 1.0: return '#4CAF50'
+                        if spi >= 0.90: return '#FF9800'
+                        return '#D32F2F'
                         
                     colori_barre = df_esec.apply(colora_gantt, axis=1).tolist()
                     testi_hover = df_esec['SPI'].apply(lambda x: f"SPI: {x:.2f}" if pd.notna(x) else "").tolist()
@@ -1707,43 +1700,32 @@ with col_sviluppo:
                     fig.add_trace(go.Bar(
                         x=(df_esec['Fine_Effettiva'] - df_esec['Inizio_Effettivo'] + pd.Timedelta(days=1)).dt.total_seconds() * 1000, 
                         y=df_esec['ID_WBS'].astype(str) + " - " + df_esec['Attività'], 
-                        base=df_esec['Inizio_Effettivo'], 
-                        orientation='h', 
-                        name='Esecutivo',
-                        text=testi_hover,
-                        textposition='inside',
-                        insidetextanchor='middle',
+                        base=df_esec['Inizio_Effettivo'], orientation='h', name='Esecutivo',
+                        text=testi_hover, textposition='inside', insidetextanchor='middle',
                         textfont=dict(color='white', size=11, family='Arial Black'),
                         width=0.4 if vista == "Esecuzione (Esecutivo)" else 0.2, 
                         marker=dict(color=colori_barre)
                     ))
                     
-                    # Tracce fantasma per creare la legenda dei colori
                     fig.add_trace(go.Scatter(x=[None], y=[None], mode='markers', marker=dict(size=12, color='#4CAF50', symbol='square'), name='🟢 Puntuale/Anticipo (SPI ≥ 1)'))
                     fig.add_trace(go.Scatter(x=[None], y=[None], mode='markers', marker=dict(size=12, color='#FF9800', symbol='square'), name='🟠 Lieve Ritardo (SPI 0.9-1.0)'))
                     fig.add_trace(go.Scatter(x=[None], y=[None], mode='markers', marker=dict(size=12, color='#D32F2F', symbol='square'), name='🔴 Ritardo Grave (SPI < 0.9)'))
                     
-            # 3. FRECCE DIPENDENZE
             if mostra_frecce:
                 for _, row in df_gantt.iterrows():
                     wbs_id = str(row['ID_WBS']).strip()
                     succ_y = wbs_id + " - " + str(row['Attività'])
-                    
-                    if vista == "Esecuzione (Esecutivo)" and pd.notna(row['Inizio_Effettivo']):
-                        succ_start = row['Inizio_Effettivo']
-                    else:
-                        succ_start = row['Inizio_Previsto']
+                    if vista == "Esecuzione (Esecutivo)" and pd.notna(row['Inizio_Effettivo']): succ_start = row['Inizio_Effettivo']
+                    else: succ_start = row['Inizio_Previsto']
                     
                     preds = str(row.get('Predecessori', '')).strip()
                     if preds and preds.lower() not in ['none', 'nan', 'null']:
                         for p in preds.split(','):
                             p_id = p.split(' - ')[0].strip()
                             if p_id.endswith('.0'): p_id = p_id[:-2]
-                            
                             pred_row = df_gantt[df_gantt['ID_WBS'].astype(str) == p_id]
                             if not pred_row.empty:
                                 pred_y = p_id + " - " + str(pred_row.iloc[0]['Attività'])
-                                
                                 if vista == "Esecuzione (Esecutivo)" and pd.notna(pred_row.iloc[0]['Fine_Effettiva']):
                                     pred_end = pred_row.iloc[0]['Fine_Effettiva'] + pd.Timedelta(days=1)
                                 else:
@@ -1751,53 +1733,37 @@ with col_sviluppo:
                                 
                                 is_critical = cpm_data.get(wbs_id, {}).get('is_critical', False)
                                 pred_is_critical = cpm_data.get(p_id, {}).get('is_critical', False)
-                                
                                 arrow_color = '#D32F2F' if (is_critical and pred_is_critical) else '#9E9E9E'
-                                
                                 fig.add_annotation(
                                     x=succ_start, y=succ_y, ax=pred_end, ay=pred_y,
                                     xref='x', yref='y', axref='x', ayref='y',
                                     showarrow=True, arrowhead=2, arrowsize=1, arrowwidth=1.5,
-                                    arrowcolor=arrow_color, opacity=0.8,
-                                    standoff=2, startstandoff=2
+                                    arrowcolor=arrow_color, opacity=0.8, standoff=2, startstandoff=2
                                 )
             
             altezza_dinamica = max(500, len(df_gantt) * 45)
-            
             fig.update_layout(
-                barmode='overlay', 
-                height=altezza_dinamica, 
-                bargap=0.3, 
-                xaxis_title="Linea Temporale", 
-                yaxis_title="Lavorazioni (WBS)", 
-                yaxis={'autorange': 'reversed'}, 
-                xaxis_type='date',
+                barmode='overlay', height=altezza_dinamica, bargap=0.3, 
+                xaxis_title="Linea Temporale", yaxis_title="Lavorazioni (WBS)", 
+                yaxis={'autorange': 'reversed'}, xaxis_type='date',
                 legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, bgcolor="rgba(255,255,255,0.8)")
             )
             st.plotly_chart(fig, use_container_width=True)
         else:
             st.info("⚠️ Il cronoprogramma è vuoto. Inserisci le date di Inizio e Fine nel Tab 1.")
 
-    # ========================================================
-        # 3. TABELLA RIEPILOGATIVA VINCOLI (SOTTO IL GANTT)
+        # ========================================================
+        # 3. TABELLA RIEPILOGATIVA VINCOLI (IL PEZZO CHE MANCAVA)
         # ========================================================
         st.divider()
         st.subheader("📋 Elenco Dettagliato Pratiche e Autorizzazioni")
         st.markdown("Questa tabella raggruppa tutti i vincoli per tipologia, creando una pratica 'To-Do List' per l'ufficio amministrativo.")
         
-        df_vincoli_bottom = get_foglie(st.session_state.wbs_data).copy()
-        df_vincoli_bottom = df_vincoli_bottom[
-            (df_vincoli_bottom['Vincolo_Burocratico'].notna()) & 
-            (df_vincoli_bottom['Vincolo_Burocratico'] != 'Nessuno') & 
-            (df_vincoli_bottom['Vincolo_Burocratico'] != 'nan') &
-            (df_vincoli_bottom['Vincolo_Burocratico'] != '')
-        ].copy()
-        
-        if not df_vincoli_bottom.empty:
+        # Usiamo df_vincoli che abbiamo filtrato all'inizio del Tab
+        if not df_vincoli.empty:
             dati_tabella = []
-            for _, row in df_vincoli_bottom.iterrows():
-                assolto_val = row.get('Vincolo_Assolto', False)
-                assolto_bool = True if str(assolto_val).strip().lower() in ['true', '1', 't', 'y', 'yes'] else False
+            for _, row in df_vincoli.iterrows():
+                assolto_bool = row['Assolto']
                 
                 dati_tabella.append({
                     "Pratica / Vincolo": str(row['Vincolo_Burocratico']).strip(),
@@ -1806,11 +1772,9 @@ with col_sviluppo:
                 })
                 
             df_tab_riepilogo = pd.DataFrame(dati_tabella)
-            
-            # Ordinamento alfabetico per Pratica (così si raggruppano da sole, es. tutti i Genio Civile vicini)
+            # Ordinamento alfabetico per raggruppare le pratiche simili
             df_tab_riepilogo = df_tab_riepilogo.sort_values(by=["Pratica / Vincolo", "Stato Pratica"])
             
-            # Formattazione visiva testuale
             def colora_pratica(val):
                 if '❌' in str(val): return 'color: #D32F2F; font-weight: bold;'
                 if '✅' in str(val): return 'color: #388E3C; font-weight: bold;'
