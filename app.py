@@ -2810,48 +2810,49 @@ with col_sviluppo:
             st.subheader("Il Ciclo di Vita del Progetto nell'App")
             st.markdown("Il software è progettato in modo che le informazioni viaggino automaticamente tra le varie sezioni, creando un ciclo continuo di pianificazione, misurazione, allerta e correzione.")
             
-        import graphviz
-        diag_guida = graphviz.Digraph(engine='dot')
-        diag_guida.attr(rankdir='LR', splines='ortho', nodesep='0.6', ranksep='1.0')
-        diag_guida.attr('node', shape='box', style='rounded,filled', fontname='Helvetica', fontsize='10', margin='0.15')
+            st.markdown("""
+            ### 🕸️ Architettura del Sistema (Flussi di Dati)
             
-        # Nodi Input Base (Grigi)
-        with diag_guida.subgraph(name='cluster_input') as c:
-            c.attr(label='FASE 1: INPUT DATI', style='dashed', color='gray')
-            c.node('T1', 'TAB 1: WBS (Lavorazioni)\nStruttura, Budget, Date,\n% Completamento & Cancello 99%', fillcolor='#F5F5F5')
-            c.node('T2', 'TAB 2: OBS (Risorse)\nAnagrafiche e Assegnazioni', fillcolor='#F5F5F5')
-            c.node('T6', 'TAB 6: FINANZA & CASH FLOW\n- Uscite (Fatture e AC)\n- Entrate (SAL e Incassi Pagati)', fillcolor='#F5F5F5')
-
-        # Nodi Motore e Output (Colorati)
-        with diag_guida.subgraph(name='cluster_analisi') as c:
-            c.attr(label='FASE 2: ANALISI E PREVISIONI', style='dashed', color='gray')
-            c.node('T3', 'TAB 3: GRAFO E CPM\nPercorso Critico e Margini', fillcolor='#FFE0B2', color='#FBC02D', penwidth='2')
-            c.node('T4', 'TAB 4: GANTT\nBaseline vs Esecutivo\nColorazione SPI in tempo reale', fillcolor='#FFE0B2', color='#FBC02D', penwidth='2')
-            c.node('T5', 'TAB 5: EVM & CASH FLOW\n- Indicatori (CPI / SPI)\n- Esposizione di Cassa Netta\n- Grafico Storico a Gradoni', fillcolor='#C8E6C9', color='#43A047', penwidth='2')
-
-        # Nodi Gestione Rischi e Controllo
-        with diag_guida.subgraph(name='cluster_controllo') as c:
-            c.attr(label='FASE 3: DIREZIONE LAVORI & GIANFRY CONSIGLIA', style='dashed', color='gray')
-            c.node('RADAR', 'RADAR (GIANFRY CONSIGLIA)\n- Rilevamento Sovraccarichi\n- Gestione Deroghe / Ignora', fillcolor='#E1BEE7', color='#8E24AA', penwidth='2')
-            c.node('T8', 'TAB 8: MATRICE RISCHI\nHeatmap e Fondo Imprevisti', fillcolor='#FFCDD2', color='#E53935', penwidth='2')
-            c.node('T7', 'TAB 7: DIREZIONE & CAPA\n- Registro Non-Conformità\n- Blocco Qualità 99% WBS', fillcolor='#BBDEFB', color='#1E88E5', penwidth='2')
-        
-        # Archi Relazionali (Frecce)
-        diag_guida.edge('T2', 'T1', ' Assegnazione', color='gray')
-        diag_guida.edge('T1', 'T3', ' Predecessori', color='gray')
-        diag_guida.edge('T1', 'T4', ' Schedulazione', color='gray')
-        diag_guida.edge('T1', 'T5', ' Budget (BAC) & Valore (EV)', color='gray')
-        diag_guida.edge('T2', 'RADAR', ' Verifica Sovrapposizioni', color='#8E24AA', fontcolor='#8E24AA')
-        diag_guida.edge('T1', 'RADAR', ' Incrocio Date / Risorse', color='#8E24AA', fontcolor='#8E24AA')
-        diag_guida.edge('T6', 'T5', ' Costo Reale (AC) & SAL', color='gray')
-        
-        # Archi Rischio, CAPA e Blocchi
-        diag_guida.edge('T8', 'T3', ' Allerta Visiva', color='#E53935', fontcolor='#E53935')
-        diag_guida.edge('T8', 'T5', ' Fondo Imprevisti', color='#E53935', fontcolor='#E53935')
-        diag_guida.edge('T8', 'T7', ' Attiva Mitigazione', color='#E53935', fontcolor='#E53935')
-        diag_guida.edge('T7', 'T1', ' 🔒 Blocca WBS a 99%\nse CAPA Aperta', color='#1E88E5', fontcolor='#1E88E5', style='bold')
-        
-        st.graphviz_chart(diag_guida, use_container_width=True)
+            ```mermaid
+            graph TD
+                %% Definizione Stili Personalizzati
+                classDef planning fill:#E3F2FD,stroke:#1E88E5,stroke-width:2px,color:black;
+                classDef control fill:#E8F5E9,stroke:#43A047,stroke-width:2px,color:black;
+                classDef alerts fill:#FFEBEE,stroke:#E53935,stroke-width:2px,color:black;
+                classDef finance fill:#FFF3E0,stroke:#FB8C00,stroke-width:2px,color:black;
+    
+                subgraph FASE 1: PIANIFICAZIONE
+                    T2[Tab 2: OBS & Risorse]:::planning
+                    T1[Tab 1: WBS & Budget]:::planning
+                    T4[Tab 4: Gantt & Scadenzario]:::planning
+                    
+                    T2 -- "Assegna Responsabili" --> T1
+                    T1 -- "Date, Predecessori" --> T4
+                    T1 -- "Genera Allerta Semaforica" --> Scad[Scadenzario Vincoli Burocratici]:::alerts
+                    Scad -. "Visibile in" .-> T4
+                end
+    
+                subgraph FASE 2: GESTIONE IMPREVISTI (RUN-TIME)
+                    T8[Tab 8: Rischi]:::finance
+                    T7[Tab 7: CAPA]:::alerts
+                    T9[Tab 9: Varianti RUP]:::alerts
+                    
+                    T9 == "Inietta Soldi e Giorni" ==> T1
+                    T7 -. "Blocca WBS al 99%" .-> T1
+                end
+    
+                subgraph FASE 3: MOTORI FINANZIARI E CONTROLLO
+                    T6[Tab 6: Registro Contabile]:::finance
+                    T5[Tab 5: Motore EVM & Cash Flow]:::control
+                    
+                    T7 -- "Genera Costi Tossici" --> T6
+                    T6 -- "Costi Reali (AC) & SAL" --> T5
+                    T1 -- "Budget (BAC) e Avanzamento" --> T5
+                    T8 -- "Riserva Monetaria (EMV)" --> T5
+                    T5 -. "Indice SPI colora le barre" .-> T4
+                end
+            ```
+            """)
 
         with st.expander("📝 Flusso di Lavoro (Input Dati)"):
             st.markdown("""
@@ -2871,6 +2872,7 @@ with col_sviluppo:
             st.markdown("""
              * **Da Tab 1 a Tab 4 (Scadenzario Amministrativo):** Impostare un "Vincolo Burocratico" nel Tab 1 genera automaticamente un alert semaforico nel Tab 4, calcolando i giorni mancanti all'inizio lavori. Spuntare "Assolto" lo archivia in verde.
              * **Da Tab 9 a Tab 1 e 5 (Motore Varianti):** L'approvazione di una variante nel Tab 9 inietta matematicamente il nuovo Budget (BAC) e i giorni di proroga direttamente nel Tab 1, aggiornando a cascata l'intero albero WBS e ricalibrando l'EVM (SPI/CPI) nel Tab 5. Il ticket viene poi "sigillato" contro le frodi.
+             * **Da Tab 9, le variazioni vanno tutte registrate. Non cancellare le registrazioni, se ci sono modifiche, fosse anche sulla stessa attività, andrà fatta una nuova variazione in coda alle precednenti. Questo per garantire la tracciabilità di ogni azione protocollata.
              * **Da Tab 8 a Tab 5 (Scudo Finanziario):** I rischi attivi calcolano il Valore Monetario Atteso (EMV), che si somma automaticamente alla stima a finire (EAC) nel Tab 5 per creare la *Contingency Reserve*.
              * **Da Tab 7 a Tab 1 e 6 (Costi di Non-Qualità):** Un'azione correttiva aperta blocca la WBS al 99% nel Tab 1. Quando chiusa, se genera un costo extra, questo viene contabilizzato automaticamente nel Tab 6 come *Spesa Tossica*.
              * **Da Tab 6 a Tab 5 (Cash Flow):** Le uscite (costi reali) e le entrate (SAL pagati) alimentano la curva cumulativa e l'indicatore di esposizione finanziaria netta.
