@@ -839,26 +839,38 @@ with col_save:
                             st.session_state.conflitti_ignorati.remove(conf_id)
                             st.rerun()
             
-            # ===================================================
-            # DA IMPREVISTI A RISCHI (SUGGERIMENTO)
-            # ===================================================
-            if 'imprevisti_ignorati' not in st.session_state:
-                st.session_state.imprevisti_ignorati = []
+        # ===================================================
+        # DA IMPREVISTI A RISCHI (SUGGERIMENTO)
+        # ===================================================
+        if 'imprevisti_ignorati' not in st.session_state:
+            st.session_state.imprevisti_ignorati = []
+            
+        # Assicuriamoci che sia una lista (per evitare crash se caricato da vecchi JSON)
+        if isinstance(st.session_state.imprevisti_ignorati, set):
+            st.session_state.imprevisti_ignorati = list(st.session_state.imprevisti_ignorati)
 
-            if 'tickets_data' in st.session_state and not st.session_state.tickets_data.empty:
-                imprevisti = st.session_state.tickets_data[st.session_state.tickets_data['Tipologia'] == 'Segnalazione Imprevisto/Ostacolo']
+        if 'tickets_data' in st.session_state and not st.session_state.tickets_data.empty:
+            if 'Tipologia' in st.session_state.tickets_data.columns and 'Stato' in st.session_state.tickets_data.columns:
+                
+                # Filtriamo SOLO i ticket "Imprevisto" che sono ancora "In attesa"
+                imprevisti = st.session_state.tickets_data[
+                    (st.session_state.tickets_data['Tipologia'] == 'Segnalazione Imprevisto/Ostacolo') & 
+                    (st.session_state.tickets_data['Stato'] == 'In attesa ⏳')
+                ]
+                
                 for _, ticket in imprevisti.iterrows():
                     t_id = str(ticket.get('ID_Ticket', ''))
                     wbs_rif = str(ticket.get('ID_WBS_Rif', ''))
                     
-                    if t_id not in st.session_state.imprevisti_ignorati:
-                        with st.expander(f"🧩 WBS {wbs_rif}: Imprevisto Segnalato"):
+                    if t_id not in st.session_state.imprevisti_ignorati and t_id.strip() != "":
+                        with st.expander(f"🧩 WBS {wbs_rif}: Imprevisto Segnalato", expanded=True):
                             st.markdown(f"Dal campo è arrivata una **Segnalazione di Imprevisto/Ostacolo** (Ticket {t_id}).")
                             st.warning("💡 **Suggerimento:** Vai nel Tab 8 per mappare questo ostacolo come Rischio e calcolare l'impatto sul Fondo Imprevisti.")
+                            
                             if st.button("👁️ Non è un rischio (Ignora)", key=f"ignora_imp_{t_id}", help="Nascondi definitivamente questo suggerimento."):
                                 st.session_state.imprevisti_ignorati.append(t_id)
                                 st.rerun()
-            # ===================================================
+        # ===================================================
 
 # ==========================================
 # COLONNA DI DESTRA (IL MOTORE DELL'APP)
