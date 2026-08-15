@@ -2811,7 +2811,7 @@ with col_sviluppo:
             st.markdown("Il software è progettato in modo che le informazioni viaggino automaticamente tra le varie sezioni, creando un ciclo continuo di pianificazione, misurazione, allerta e correzione.")
             
             st.markdown("""
-        ### 🕸️ Architettura del Sistema (Flussi di Dati)
+            ### 🕸️ Architettura del Sistema (Flussi di Dati)
         
             ```mermaid
             graph LR
