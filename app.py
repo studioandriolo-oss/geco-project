@@ -991,17 +991,27 @@ with col_sviluppo:
                     allarmi_blocco.append(wbs_id)
             # --- FINE INNESTO CAPA ---
 
-            # --- INIZIO INNESTO: CANCELLO AMMINISTRATIVO ---
+# --- INIZIO INNESTO: CANCELLO AMMINISTRATIVO ---
             allarmi_burocratici = []
             for idx, row in df_aggiornato.iterrows():
                 vincolo = str(row.get('Vincolo_Burocratico', 'Nessuno')).strip()
-                sbloccato = row.get('Vincolo_Assolto', False)
-                inizio_effettivo = row.get('Inizio_Effettivo', None)
                 
-                # Se c'è un vincolo reale, NON è stato sbloccato, ma c'è una data di Inizio Effettiva
-                if vincolo not in ['Nessuno', 'nan', '', 'None'] and not sbloccato and pd.notnull(inizio_effettivo):
-                    # Il sistema annulla l'inizio lavori
-                    df_aggiornato.at[idx, 'Inizio_Effettivo'] = None 
+                # 1. CATTURA IL BOOLEANO A PROVA DI BOMBA
+                val_spunta = row.get('Vincolo_Assolto', False)
+                if isinstance(val_spunta, bool):
+                    sbloccato = val_spunta
+                else:
+                    # Se è un testo, lo converte. Se è vuoto o nan, diventa False.
+                    sbloccato = str(val_spunta).strip().lower() in ['true', '1', 't', 'y', 'yes']
+                
+                # 2. CATTURA LA DATA IN MODO SICURO
+                inizio_effettivo = row.get('Inizio_Effettivo', None)
+                has_inizio = pd.notna(inizio_effettivo) and str(inizio_effettivo).strip().lower() not in ['none', 'nat', 'nan', '']
+                
+                # 3. IL BLOCCO
+                if vincolo not in ['Nessuno', 'nan', '', 'None'] and not sbloccato and has_inizio:
+                    # Usa pd.NaT invece di None per svuotare correttamente una colonna DateTime in Pandas
+                    df_aggiornato.at[idx, 'Inizio_Effettivo'] = pd.NaT 
                     allarmi_burocratici.append(f"{row.get('ID_WBS')} ({vincolo})")
             
             if allarmi_burocratici:
