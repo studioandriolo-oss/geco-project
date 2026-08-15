@@ -506,6 +506,7 @@ with col_save:
             "rischi": st.session_state.rischi_data.copy(),
             "sal": st.session_state.sal_data.copy(),
             "conflitti_ignorati": st.session_state.conflitti_ignorati.copy(),
+            "imprevisti_ignorati": st.session_state.imprevisti_ignorati.copy(),
             "tickets": st.session_state.tickets_data.copy(),
             "memoria_burocratica": list(st.session_state.memoria_burocratica),
             "memoria_capa": list(st.session_state.memoria_capa),
@@ -523,6 +524,7 @@ with col_save:
             "rischi": st.session_state.rischi_data.copy(),
             "sal": st.session_state.sal_data.copy(),
             "conflitti_ignorati": st.session_state.conflitti_ignorati.copy(),
+            "imprevisti_ignorati": st.session_state.imprevisti_ignorati.copy(),
             "tickets": st.session_state.tickets_data.copy(),
             "memoria_burocratica": list(st.session_state.memoria_burocratica),
             "memoria_capa": list(st.session_state.memoria_capa),
@@ -541,6 +543,7 @@ with col_save:
             st.session_state.rischi_data = st.session_state.archivio_progetti[prog_selezionato].get("rischi", pd.DataFrame()).copy()
             st.session_state.sal_data = st.session_state.archivio_progetti[prog_selezionato].get("sal", pd.DataFrame()).copy()
             st.session_state.conflitti_ignorati = st.session_state.archivio_progetti[prog_selezionato].get("conflitti_ignorati", []).copy()
+            st.session_state.imprevisti_ignorati = st.session_state.archivio_progetti[prog_selezionato].get("imprevisti_ignorati", []).copy()
             st.session_state.tickets_data = st.session_state.archivio_progetti[prog_selezionato].get("tickets", pd.DataFrame()).copy()
             st.session_state.memoria_burocratica = set(st.session_state.archivio_progetti[prog_selezionato].get("memoria_burocratica", []))
             st.session_state.memoria_capa = set(st.session_state.archivio_progetti[prog_selezionato].get("memoria_capa", []))
@@ -554,7 +557,7 @@ with col_save:
 
     if st.button("📄 Nuovo", use_container_width=True):
         st.session_state.nome_progetto_attivo = "Nuovo_Progetto"
-        for key in ['wbs_data', 'obs_data', 'registro_data', 'capa_data', 'rischi_data', 'sal_data', 'tickets_data', 'memoria_burocratica', 'memoria_capa', 'memoria_ticket']:
+        for key in ['wbs_data', 'obs_data', 'registro_data', 'capa_data', 'rischi_data', 'sal_data', 'tickets_data', 'memoria_burocratica', 'memoria_capa', 'memoria_ticket', 'conflitti_ignorati', 'imprevisti_ignorati']:
             if key in st.session_state:
                 del st.session_state[key]
         for k in list(st.session_state.keys()):
@@ -575,6 +578,7 @@ with col_save:
             "rischi": json.loads(st.session_state.rischi_data.to_json(orient="records")),
             "sal": json.loads(st.session_state.sal_data.to_json(orient="records", date_format="iso")),
             "conflitti_ignorati": list(st.session_state.conflitti_ignorati),
+            "imprevisti_ignorati": list(st.session_state.imprevisti_ignorati),
             "memoria_burocratica": list(st.session_state.memoria_burocratica),
             "memoria_capa": list(st.session_state.memoria_capa),
             "memoria_ticket": list(st.session_state.memoria_ticket),
@@ -642,6 +646,7 @@ with col_save:
                 # ------------------------------------
 
                 st.session_state.conflitti_ignorati = dati_caricati.get('conflitti_ignorati', [])
+                st.session_state.imprevisti_ignorati = dati_caricati.get('imprevisti_ignorati', [])
                 st.session_state.memoria_burocratica = set(dati_caricati.get('memoria_burocratica', []))
                 st.session_state.memoria_capa = set(dati_caricati.get('memoria_capa', []))
                 st.session_state.memoria_ticket = set(dati_caricati.get('memoria_ticket', []))
@@ -834,7 +839,26 @@ with col_save:
                             st.session_state.conflitti_ignorati.remove(conf_id)
                             st.rerun()
             
+            # ===================================================
+            # DA IMPREVISTI A RISCHI (SUGGERIMENTO)
+            # ===================================================
+            if 'imprevisti_ignorati' not in st.session_state:
+                st.session_state.imprevisti_ignorati = []
 
+            if 'tickets_data' in st.session_state and not st.session_state.tickets_data.empty:
+                imprevisti = st.session_state.tickets_data[st.session_state.tickets_data['Tipologia'] == 'Segnalazione Imprevisto/Ostacolo']
+                for _, ticket in imprevisti.iterrows():
+                    t_id = str(ticket.get('ID_Ticket', ''))
+                    wbs_rif = str(ticket.get('ID_WBS_Rif', ''))
+                    
+                    if t_id not in st.session_state.imprevisti_ignorati:
+                        with st.expander(f"🧩 WBS {wbs_rif}: Imprevisto Segnalato"):
+                            st.markdown(f"Dal campo è arrivata una **Segnalazione di Imprevisto/Ostacolo** (Ticket {t_id}).")
+                            st.warning("💡 **Suggerimento:** Vai nel Tab 8 per mappare questo ostacolo come Rischio e calcolare l'impatto sul Fondo Imprevisti.")
+                            if st.button("👁️ Non è un rischio (Ignora)", key=f"ignora_imp_{t_id}", help="Nascondi definitivamente questo suggerimento."):
+                                st.session_state.imprevisti_ignorati.append(t_id)
+                                st.rerun()
+            # ===================================================
 
 # ==========================================
 # COLONNA DI DESTRA (IL MOTORE DELL'APP)
