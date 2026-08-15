@@ -2813,8 +2813,11 @@ with col_sviluppo:
             st.markdown("""
         ### 🕸️ Architettura del Sistema (Flussi di Dati)
         
+        st.markdown("""
+        ### 🕸️ Architettura del Sistema (Flussi di Dati)
+        
         ```mermaid
-        graph TD
+        graph LR
             %% Definizione Stili Personalizzati
             classDef planning fill:#E3F2FD,stroke:#1E88E5,stroke-width:2px,color:black;
             classDef control fill:#E8F5E9,stroke:#43A047,stroke-width:2px,color:black;
@@ -2822,41 +2825,50 @@ with col_sviluppo:
             classDef finance fill:#FFF3E0,stroke:#FB8C00,stroke-width:2px,color:black;
             classDef matrix fill:#E0F7FA,stroke:#00BCD4,stroke-width:2px,color:black;
 
-            subgraph FASE_1 [FASE 1: PIANIFICAZIONE E RISORSE]
+            subgraph FASE_1 [FASE 1: PIANIFICAZIONE]
+                direction TB
                 T2[Tab 2: OBS & Risorse]:::planning
                 T1[Tab 1: WBS & Budget]:::planning
-                T3[Tab 3: Matrice RACI / Incroci]:::matrix
-                T4[Tab 4: Gantt & Scadenzario]:::planning
+                T3[Tab 3: Matrice RACI]:::matrix
+                T4[Tab 4: Gantt]:::planning
+                Scad[Scadenzario]:::alerts
                 
-                T2 -- "Fornisce Soggetti" --> T3
-                T1 -- "Fornisce Attività" --> T3
-                T3 -. "Valida Assegnazioni" .-> T1
-                T1 -- "Date, Predecessori" --> T4
-                T1 -- "Genera Allerta" --> Scad[Scadenzario Vincoli]:::alerts
-                Scad -. "Visibile in" .-> T4
+                T2 -->|"Assegna Responsabili"| T3
+                T1 -->|"Fornisce Attività"| T3
+                T3 -.->|"Valida"| T1
+                T1 -->|"Date e Dipendenze"| T4
+                T1 -->|"Genera Allerta"| Scad
+                Scad -.->|"Visibile in"| T4
             end
 
-            subgraph FASE_2 [FASE 2: GESTIONE IMPREVISTI E CORREZIONI]
+            subgraph FASE_2 [FASE 2: IMPREVISTI]
+                direction TB
                 T8[Tab 8: Rischi]:::finance
                 T7[Tab 7: CAPA]:::alerts
                 T9[Tab 9: Varianti RUP]:::alerts
-                
-                T9 == "Inietta Soldi e Giorni" ==> T1
-                T7 -. "Blocca WBS al 99%" .-> T1
-                T4 -- "Calcola Percorso Critico" --> T8
-                T8 -. "Minaccia Scadenze Critiche" .-> T4
             end
 
-            subgraph FASE_3 [FASE 3: MOTORI FINANZIARI E CONTROLLO]
+            subgraph FASE_3 [FASE 3: CONTROLLO]
+                direction TB
                 T6[Tab 6: Registro Contabile]:::finance
-                T5[Tab 5: Motore EVM & Cash Flow]:::control
-                
-                T7 -- "Genera Costi Tossici" --> T6
-                T6 -- "Costi Reali e SAL" --> T5
-                T1 -- "Budget e Avanzamento" --> T5
-                T8 -- "Riserva Monetaria" --> T5
-                T5 -. "Indice SPI colora le barre" .-> T4
+                T5[Tab 5: Motore EVM]:::control
             end
+
+            %% Connessioni da Destra a Sinistra (Correzioni)
+            T9 == "Inietta Soldi e Giorni" ==> T1
+            T7 -. "Blocca al 99%" .-> T1
+            
+            %% Connessioni del Percorso Critico
+            T4 -- "Calcola Percorso Critico" --> T8
+            T8 -. "Minaccia Scadenze" .-> T4
+            T8 -- "Evidenzia Criticità sulle Risorse" --> T3
+            
+            %% Connessioni Finanziarie verso Destra
+            T7 -- "Costi Tossici" --> T6
+            T6 -- "Costi Reali (AC)" --> T5
+            T1 -- "Budget (BAC)" --> T5
+            T8 -- "Riserva Monetaria (EMV)" --> T5
+            T5 -. "Indice SPI colora barre" .-> T4
             
             %% Stile personalizzato per il riquadro della Fase 3 (Lilla tenue)
             style FASE_3 fill:#F3E5F5,stroke:#8E24AA,stroke-width:2px,stroke-dasharray: 4 4
@@ -2888,26 +2900,26 @@ with col_sviluppo:
                  * **Da Tab 1, 2 a Radar (Sovraccarico):** Il sistema controlla in tempo reale se la stessa risorsa è impegnata su più fronti nello stesso periodo, segnalando l'eventuale conflitto (con opzione di deroga).
                 """)
 
-        with st.expander(" 🎯 Guida Operativa agli Imprevisti: Rischi, CAPA o Varianti?"):
-            st.markdown("""
-            Una delle forze di questo gestionale è la netta separazione tra **previsione**, **errore** e **modifica contrattuale**. In cantiere succedono mille imprevisti: ecco la bussola definitiva per sapere esattamente in quale Tab registrarli per mantenere i conti in perfetto equilibrio.
-            
-            ### 📊 Matrice Decisionale degli Imprevisti
-            
-            | Tipologia Evento | Tab | Quando si usa? (La Natura) | Esempio Pratico in Cantiere | Effetto sul Conto (Motore EVM) | Effetto a Cascata nel Sistema |
-            | :--- | :---: | :--- | :--- | :--- | :--- |
-            | 🔮 **RISCHIO** (Gestione Incertezza) | **8** | Evento **futuro incerto** (potrebbe accadere, ma non è detto). | *Rischio di trovare roccia dura durante le operazioni di scavo.* | Crea la **Riserva (EMV)** | Alza l'**EAC** (Stima a finire) nel cruscotto Tab 5 creando uno "Scudo Finanziario" preventivo, senza toccare i soldi attuali. |
-            | 🚨 **CAPA** (Non-Conformità / Errori) | **7** | Errore, difetto o infortunio **già avvenuto** (da sanare o correggere). | *Getto di calcestruzzo errato, armatura da demolire e rifare.* | Crea **Spesa Tossica (AC)** | Blocca la WBS al **99%** (Tab 1). I costi extra di ripristino alzano l'**AC** (Tab 6), bruciando cassa e abbassando l'indice di efficienza (CPI). |
-            | 📜 **VARIANTE** (Comunicazione RUP) | **9** | Modifica **formale e approvata** al progetto o al contratto originale. | *La Committenza richiede e approva la costruzione di una stanza extra.* | Cambia il **Budget (BAC)** | Inietta soldi e/o giorni extra nel **Tab 1**. Il "Sigillo" previene manomissioni (Audit Trail). Ricalibra l'intero piano dei tempi e dei costi. |
-            
-            ---
-            
-            ### 🛠️ Spiegazione Dettagliata
-            
-            *   **TAB 8 - GESTIONE RISCHI (La Sfera di Cristallo):** Qui si lavora di prevenzione. Inserisci tutto ciò di cui hai paura *prima* che accada. Il software calcola le probabilità e ti dice quanti soldi tenere da parte. Se il rischio si avvera davvero, lo chiudi qui e ne affronti le conseguenze (aprendo una Variante se il cliente paga, o registrando una spesa se tocca all'impresa).
-            *   **TAB 7 - AZIONI CORRETTIVE (Il Pronto Soccorso):** Usalo quando qualcuno ha sbagliato e devi mettere una "toppa". È lo strumento di Qualità e Sicurezza dell'app. Matematicamente è punitivo: ti fa spendere soldi non previsti per riparare un danno, peggiorando le tue statistiche di cantiere.
-            *   **TAB 9 - VARIANTI RUP (Il Notaio):** È lo strumento amministrativo per eccellenza. Usalo SOLO quando hai in mano un "Approvato" ufficiale per variare i lavori. Usare questo Tab altera le "fondamenta" stesse del progetto (la Baseline), per questo il sistema lo protegge registrando esattamente chi ha aggiunto i soldi e impedendo di modificarlo di nascosto in un secondo momento.
-            """)
+            with st.expander(" 🎯 Guida Operativa agli Imprevisti: Rischi, CAPA o Varianti?"):
+                st.markdown("""
+                Una delle forze di questo gestionale è la netta separazione tra **previsione**, **errore** e **modifica contrattuale**. In cantiere succedono mille imprevisti: ecco la bussola definitiva per sapere esattamente in quale Tab registrarli per mantenere i conti in perfetto equilibrio.
+                
+                ### 📊 Matrice Decisionale degli Imprevisti
+                
+                | Tipologia Evento | Tab | Quando si usa? (La Natura) | Esempio Pratico in Cantiere | Effetto sul Conto (Motore EVM) | Effetto a Cascata nel Sistema |
+                | :--- | :---: | :--- | :--- | :--- | :--- |
+                | 🔮 **RISCHIO** (Gestione Incertezza) | **8** | Evento **futuro incerto** (potrebbe accadere, ma non è detto). | *Rischio di trovare roccia dura durante le operazioni di scavo.* | Crea la **Riserva (EMV)** | Alza l'**EAC** (Stima a finire) nel cruscotto Tab 5 creando uno "Scudo Finanziario" preventivo, senza toccare i soldi attuali. |
+                | 🚨 **CAPA** (Non-Conformità / Errori) | **7** | Errore, difetto o infortunio **già avvenuto** (da sanare o correggere). | *Getto di calcestruzzo errato, armatura da demolire e rifare.* | Crea **Spesa Tossica (AC)** | Blocca la WBS al **99%** (Tab 1). I costi extra di ripristino alzano l'**AC** (Tab 6), bruciando cassa e abbassando l'indice di efficienza (CPI). |
+                | 📜 **VARIANTE** (Comunicazione RUP) | **9** | Modifica **formale e approvata** al progetto o al contratto originale. | *La Committenza richiede e approva la costruzione di una stanza extra.* | Cambia il **Budget (BAC)** | Inietta soldi e/o giorni extra nel **Tab 1**. Il "Sigillo" previene manomissioni (Audit Trail). Ricalibra l'intero piano dei tempi e dei costi. |
+                
+                ---
+                
+                ### 🛠️ Spiegazione Dettagliata
+                
+                *   **TAB 8 - GESTIONE RISCHI (La Sfera di Cristallo):** Qui si lavora di prevenzione. Inserisci tutto ciò di cui hai paura *prima* che accada. Il software calcola le probabilità e ti dice quanti soldi tenere da parte. Se il rischio si avvera davvero, lo chiudi qui e ne affronti le conseguenze (aprendo una Variante se il cliente paga, o registrando una spesa se tocca all'impresa).
+                *   **TAB 7 - AZIONI CORRETTIVE (Il Pronto Soccorso):** Usalo quando qualcuno ha sbagliato e devi mettere una "toppa". È lo strumento di Qualità e Sicurezza dell'app. Matematicamente è punitivo: ti fa spendere soldi non previsti per riparare un danno, peggiorando le tue statistiche di cantiere.
+                *   **TAB 9 - VARIANTI RUP (Il Notaio):** È lo strumento amministrativo per eccellenza. Usalo SOLO quando hai in mano un "Approvato" ufficiale per variare i lavori. Usare questo Tab altera le "fondamenta" stesse del progetto (la Baseline), per questo il sistema lo protegge registrando esattamente chi ha aggiunto i soldi e impedendo di modificarlo di nascosto in un secondo momento.
+                """)
 
         # --- 2. GLOSSARIO EVM ---
         with t_sec2:
