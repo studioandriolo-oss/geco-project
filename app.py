@@ -2811,48 +2811,48 @@ with col_sviluppo:
             st.markdown("Il software è progettato in modo che le informazioni viaggino automaticamente tra le varie sezioni, creando un ciclo continuo di pianificazione, misurazione, allerta e correzione.")
             
             st.markdown("""
-            ### 🕸️ Architettura del Sistema (Flussi di Dati)
-            
-            ```mermaid
-            graph TD
-                %% Definizione Stili Personalizzati
-                classDef planning fill:#E3F2FD,stroke:#1E88E5,stroke-width:2px,color:black;
-                classDef control fill:#E8F5E9,stroke:#43A047,stroke-width:2px,color:black;
-                classDef alerts fill:#FFEBEE,stroke:#E53935,stroke-width:2px,color:black;
-                classDef finance fill:#FFF3E0,stroke:#FB8C00,stroke-width:2px,color:black;
-    
-                subgraph FASE 1: PIANIFICAZIONE
-                    T2[Tab 2: OBS & Risorse]:::planning
-                    T1[Tab 1: WBS & Budget]:::planning
-                    T4[Tab 4: Gantt & Scadenzario]:::planning
-                    
-                    T2 -- "Assegna Responsabili" --> T1
-                    T1 -- "Date, Predecessori" --> T4
-                    T1 -- "Genera Allerta Semaforica" --> Scad[Scadenzario Vincoli Burocratici]:::alerts
-                    Scad -. "Visibile in" .-> T4
-                end
-    
-                subgraph FASE 2: GESTIONE IMPREVISTI (RUN-TIME)
-                    T8[Tab 8: Rischi]:::finance
-                    T7[Tab 7: CAPA]:::alerts
-                    T9[Tab 9: Varianti RUP]:::alerts
-                    
-                    T9 == "Inietta Soldi e Giorni" ==> T1
-                    T7 -. "Blocca WBS al 99%" .-> T1
-                end
-    
-                subgraph FASE 3: MOTORI FINANZIARI E CONTROLLO
-                    T6[Tab 6: Registro Contabile]:::finance
-                    T5[Tab 5: Motore EVM & Cash Flow]:::control
-                    
-                    T7 -- "Genera Costi Tossici" --> T6
-                    T6 -- "Costi Reali (AC) & SAL" --> T5
-                    T1 -- "Budget (BAC) e Avanzamento" --> T5
-                    T8 -- "Riserva Monetaria (EMV)" --> T5
-                    T5 -. "Indice SPI colora le barre" .-> T4
-                end
-            ```
-            """)
+        ### 🕸️ Architettura del Sistema (Flussi di Dati)
+        
+        ```mermaid
+        graph TD
+            %% Definizione Stili Personalizzati
+            classDef planning fill:#E3F2FD,stroke:#1E88E5,stroke-width:2px,color:black;
+            classDef control fill:#E8F5E9,stroke:#43A047,stroke-width:2px,color:black;
+            classDef alerts fill:#FFEBEE,stroke:#E53935,stroke-width:2px,color:black;
+            classDef finance fill:#FFF3E0,stroke:#FB8C00,stroke-width:2px,color:black;
+
+            subgraph FASE_1 [FASE 1: PIANIFICAZIONE]
+                T2[Tab 2: OBS & Risorse]:::planning
+                T1[Tab 1: WBS & Budget]:::planning
+                T4[Tab 4: Gantt & Scadenzario]:::planning
+                
+                T2 -- "Assegna Responsabili" --> T1
+                T1 -- "Date, Predecessori" --> T4
+                T1 -- "Genera Allerta" --> Scad[Scadenzario Vincoli]:::alerts
+                Scad -. "Visibile in" .-> T4
+            end
+
+            subgraph FASE_2 [FASE 2: GESTIONE IMPREVISTI E CORREZIONI]
+                T8[Tab 8: Rischi]:::finance
+                T7[Tab 7: CAPA]:::alerts
+                T9[Tab 9: Varianti RUP]:::alerts
+                
+                T9 == "Inietta Soldi e Giorni" ==> T1
+                T7 -. "Blocca WBS al 99%" .-> T1
+            end
+
+            subgraph FASE_3 [FASE 3: MOTORI FINANZIARI E CONTROLLO]
+                T6[Tab 6: Registro Contabile]:::finance
+                T5[Tab 5: Motore EVM & Cash Flow]:::control
+                
+                T7 -- "Genera Costi Tossici" --> T6
+                T6 -- "Costi Reali e SAL" --> T5
+                T1 -- "Budget e Avanzamento" --> T5
+                T8 -- "Riserva Monetaria" --> T5
+                T5 -. "Indice SPI colora le barre" .-> T4
+            end
+        ```
+        """)
 
         with st.expander("📝 Flusso di Lavoro (Input Dati)"):
             st.markdown("""
