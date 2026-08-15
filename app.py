@@ -2577,8 +2577,11 @@ with col_sviluppo:
                         tempi = row['Variazione_Tempi']
                         applicata = row.get('Variante_Applicata', False)
                         
-                        # Se il RUP ha compilato i numeri e la variante non è mai stata processata prima
-                        if pd.notna(costo) and pd.notna(tempi) and not applicata:
+                        # FIX: Basta che sia compilato ALMENO UNO dei due valori (Costo o Tempi)
+                        if (pd.notna(costo) or pd.notna(tempi)) and not applicata:
+                            costo_val = float(costo) if pd.notna(costo) else 0.0
+                            tempi_val = int(tempi) if pd.notna(tempi) else 0
+                            
                             wbs_target = str(row['ID_WBS_Rif']).strip()
                             # Trova l'indice della riga nel database originale WBS
                             wbs_idx = st.session_state.wbs_data.index[st.session_state.wbs_data['ID_WBS'].astype(str) == wbs_target].tolist()
@@ -2587,13 +2590,15 @@ with col_sviluppo:
                                 i_w = wbs_idx[0]
                                 
                                 # A) Aggiorna il Budget (BAC)
-                                budget_attuale = pd.to_numeric(st.session_state.wbs_data.at[i_w, 'BAC_Budget'], errors='coerce')
-                                st.session_state.wbs_data.at[i_w, 'BAC_Budget'] = (budget_attuale if pd.notna(budget_attuale) else 0.0) + float(costo)
+                                if costo_val != 0:
+                                    budget_attuale = pd.to_numeric(st.session_state.wbs_data.at[i_w, 'BAC_Budget'], errors='coerce')
+                                    st.session_state.wbs_data.at[i_w, 'BAC_Budget'] = (budget_attuale if pd.notna(budget_attuale) else 0.0) + costo_val
                                 
                                 # B) Aggiorna i Tempi (Data Fine Prevista)
-                                fine_attuale = pd.to_datetime(st.session_state.wbs_data.at[i_w, 'Fine_Prevista'], errors='coerce')
-                                if pd.notna(fine_attuale):
-                                    st.session_state.wbs_data.at[i_w, 'Fine_Prevista'] = (fine_attuale + pd.Timedelta(days=int(tempi))).date()
+                                if tempi_val != 0:
+                                    fine_attuale = pd.to_datetime(st.session_state.wbs_data.at[i_w, 'Fine_Prevista'], errors='coerce')
+                                    if pd.notna(fine_attuale):
+                                        st.session_state.wbs_data.at[i_w, 'Fine_Prevista'] = (fine_attuale + pd.Timedelta(days=tempi_val)).date()
                                 
                                 # C) Blocca il ticket: non sommerà mai più questi valori in futuro
                                 edited_tickets.at[idx, 'Variante_Applicata'] = True
