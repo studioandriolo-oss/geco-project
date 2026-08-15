@@ -2375,7 +2375,7 @@ with col_sviluppo:
                             'Descrizione': descrizione,
                             'Stato': 'In attesa ⏳',
                             'Risposta_RUP': '',
-                            'Data_Chiusura': None
+                            'Data_Chiusura': None,
                             'Variazione_Costi': None,
                             'Variazione_Tempi': None,
                             'Variante_Applicata': False
