@@ -2810,9 +2810,6 @@ with col_sviluppo:
             st.subheader("Il Ciclo di Vita del Progetto nell'App")
             st.markdown("Il software è progettato in modo che le informazioni viaggino automaticamente tra le varie sezioni, creando un ciclo continuo di pianificazione, misurazione, allerta e correzione.")
             
-            st.markdown("""
-        ### 🕸️ Architettura del Sistema (Flussi di Dati)
-        
         st.markdown("""
         ### 🕸️ Architettura del Sistema (Flussi di Dati)
         
