@@ -2596,62 +2596,68 @@ with col_sviluppo:
             
             if st.button("💾 Registra Risposte RUP"):
                 import datetime
-                # Salvataggio di sicurezza per leggere le colonne nascoste
+                
+                # Salvataggio di sicurezza per leggere le colonne nascoste da Streamlit
                 df_tickets_original = st.session_state.tickets_data.copy()
                 
                 for idx, row in edited_tickets.iterrows():
-                    # 1. Chiusura Temporale
-                    if row['Stato'] != 'In attesa ⏳' and pd.isna(row.get('Data_Chiusura')):
-                        edited_tickets.at[idx, 'Data_Chiusura'] = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
-                    elif row['Stato'] == 'In attesa ⏳':
-                        edited_tickets.at[idx, 'Data_Chiusura'] = None
-                        
-                    # 2. INNESTO MATEMATICO SUL MOTORE EVM
-                    if row.get('Tipologia') == 'Richiesta di Variante' and row.get('Stato') == 'Approvato ✅':
-                        c_val = pd.to_numeric(row.get('Variazione_Costi'), errors='coerce')
-                        t_val = pd.to_numeric(row.get('Variazione_Tempi'), errors='coerce')
-                        
-                        # Recupero la vera flag dal database originale per aggirare il taglio dell'editor
-                        val_app = df_tickets_original.at[idx, 'Variante_Applicata'] if 'Variante_Applicata' in df_tickets_original.columns else False
-                        applicata = val_app if isinstance(val_app, bool) else str(val_app).strip().lower() in ['true', '1', 't', 'y', 'yes']
-                        
-                        costo_clean = float(c_val) if pd.notna(c_val) else 0.0
-                        tempi_clean = int(t_val) if pd.notna(t_val) else 0
-                        
-                        # Basta che sia compilato ALMENO UNO dei due valori e che non sia già stata applicata
-                        if (costo_clean != 0 or tempi_clean != 0) and not applicata:
-                            wbs_target = str(row.get('ID_WBS_Rif', '')).strip()
-                            wbs_idx = st.session_state.wbs_data.index[st.session_state.wbs_data['ID_WBS'].astype(str).str.strip() == wbs_target].tolist()
-                            
-                            if wbs_idx:
-                                i_w = wbs_idx[0]
-                                
-                                # A) Aggiorna il Budget (BAC)
-                                if costo_clean != 0:
-                                    b_att = pd.to_numeric(st.session_state.wbs_data.loc[i_w, 'BAC_Budget'], errors='coerce')
-                                    st.session_state.wbs_data.loc[i_w, 'BAC_Budget'] = (b_att if pd.notna(b_att) else 0.0) + costo_clean
-                                
-                                # B) Aggiorna i Tempi
-                                if tempi_clean != 0:
-                                    f_att = pd.to_datetime(st.session_state.wbs_data.loc[i_w, 'Fine_Prevista'], errors='coerce')
-                                    if pd.notna(f_att):
-                                        st.session_state.wbs_data.loc[i_w, 'Fine_Prevista'] = (f_att + pd.Timedelta(days=tempi_clean)).date()
-                                
-                                # C) Blocca il ticket
-                                edited_tickets.at[idx, 'Variante_Applicata'] = True
-                                st.toast(f"✅ INNESTO COMPLETATO: WBS {wbs_target} aggiornata!", icon="⚙️")
-                        
-                # Salvataggio globale e ricalcolo
-                if 'Variante_Applicata' in edited_tickets.columns:
-                    st.session_state.tickets_data = edited_tickets
-                else:
-                    # Se Streamlit l'ha nascosta, la rimettiamo a forza prima di salvare
-                    st.session_state.tickets_data = edited_tickets.copy()
-                    st.session_state.tickets_data['Variante_Applicata'] = df_tickets_original['Variante_Applicata']
+                    # Aggiorna il database principale con i campi inseriti
+                    st.session_state.tickets_data.at[idx, 'Stato'] = row['Stato']
+                    st.session_state.tickets_data.at[idx, 'Risposta_RUP'] = row.get('Risposta_RUP', '')
+                    st.session_state.tickets_data.at[idx, 'Variazione_Costi'] = row.get('Variazione_Costi')
+                    st.session_state.tickets_data.at[idx, 'Variazione_Tempi'] = row.get('Variazione_Tempi')
                     
+                    if row['Stato'] != 'In attesa ⏳' and pd.isna(st.session_state.tickets_data.at[idx, 'Data_Chiusura']):
+                        st.session_state.tickets_data.at[idx, 'Data_Chiusura'] = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
+                    elif row['Stato'] == 'In attesa ⏳':
+                        st.session_state.tickets_data.at[idx, 'Data_Chiusura'] = None
+                        
+                    t_tipo = st.session_state.tickets_data.at[idx, 'Tipologia']
+                    t_stato = st.session_state.tickets_data.at[idx, 'Stato']
+                    
+                    if t_tipo == 'Richiesta di Variante' and t_stato == 'Approvato ✅':
+                        c_val = pd.to_numeric(st.session_state.tickets_data.at[idx, 'Variazione_Costi'], errors='coerce')
+                        t_val = pd.to_numeric(st.session_state.tickets_data.at[idx, 'Variazione_Tempi'], errors='coerce')
+                        
+                        # RECUPERO SICURO della flag (aggirando l'occultamento dell'interfaccia)
+                        if 'Variante_Applicata' in df_tickets_original.columns:
+                            v_app = df_tickets_original.at[idx, 'Variante_Applicata']
+                        else:
+                            v_app = False
+                            
+                        applicata = v_app if isinstance(v_app, bool) else str(v_app).strip().lower() in ['true', '1', 't', 'y', 'yes']
+                        
+                        # INNESTO: Almeno un valore presente E Variante non ancora sigillata
+                        if (pd.notna(c_val) or pd.notna(t_val)) and not applicata:
+                            c_clean = float(c_val) if pd.notna(c_val) else 0.0
+                            t_clean = int(t_val) if pd.notna(t_val) else 0
+                            
+                            wbs_target = str(st.session_state.tickets_data.at[idx, 'ID_WBS_Rif']).strip()
+                            
+                            # MODIFICA SICURA CON MASCHERA PANDAS (Cerca e Sostituisci)
+                            mask = st.session_state.wbs_data['ID_WBS'].astype(str).str.strip() == wbs_target
+                            
+                            if mask.any():
+                                # A) Inietta i Soldi nel BAC
+                                if c_clean != 0:
+                                    b_att = float(pd.to_numeric(st.session_state.wbs_data.loc[mask, 'BAC_Budget'], errors='coerce').fillna(0.0).iloc[0])
+                                    st.session_state.wbs_data.loc[mask, 'BAC_Budget'] = b_att + c_clean
+                                
+                                # B) Sposta i Tempi
+                                if t_clean != 0:
+                                    f_att = st.session_state.wbs_data.loc[mask, 'Fine_Prevista'].iloc[0]
+                                    if pd.notna(f_att):
+                                        nuova_data = pd.to_datetime(f_att) + pd.Timedelta(days=t_clean)
+                                        st.session_state.wbs_data.loc[mask, 'Fine_Prevista'] = nuova_data.date()
+                                
+                                # C) Sigilla il ticket per impedire doppie fatturazioni in futuro
+                                st.session_state.tickets_data.at[idx, 'Variante_Applicata'] = True
+                                st.toast(f"✅ Variante iniettata: WBS {wbs_target} aggiornata nel motore EVM!", icon="💰")
+                                
+                # Ricalcola padri e figli
                 st.session_state.wbs_data = aggiorna_gerarchia(st.session_state.wbs_data)
                 
-                # Svuota cache visiva
+                # Pulizia cache per forzare l'aggiornamento grafico del Tab 1
                 for k in list(st.session_state.keys()):
                     if k.startswith("editor_wbs_"):
                         del st.session_state[k]
