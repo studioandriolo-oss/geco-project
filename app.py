@@ -2492,6 +2492,76 @@ with col_sviluppo:
                 st.rerun()
         else:
             st.info("Nessuna comunicazione o variante registrata.")
+
+        # ========================================================
+        # --- SEZIONE 3: ESPORTAZIONE E STAMPA AUDIT TRAIL ---
+        # ========================================================
+        st.divider()
+        st.subheader("🖨️ 3. Stampa Registro Audit Trail")
+        
+        # 1. Filtri per scegliere cosa stampare
+        col_fa1, col_fa2 = st.columns([1, 2])
+        filtro_stampa_audit = col_fa1.radio("Quali Ticket includere nel report?", ["Tutti i registrati", "Solo Varianti Approvate ✅", "Intervallo di date"])
+        
+        df_stampa_audit = st.session_state.tickets_data.copy()
+        if not df_stampa_audit.empty:
+            # Creiamo una colonna data fittizia per filtrare (Data_Apertura è in formato testuale GG/MM/YYYY HH:MM)
+            df_stampa_audit['Data_Filtro'] = pd.to_datetime(df_stampa_audit['Data_Apertura'], format="%d/%m/%Y %H:%M", errors='coerce').dt.date
+            
+            if filtro_stampa_audit == "Solo Varianti Approvate ✅":
+                df_stampa_audit = df_stampa_audit[(df_stampa_audit['Stato'] == 'Approvato ✅') & (df_stampa_audit['Tipologia'] == 'Richiesta di Variante')]
+            elif filtro_stampa_audit == "Intervallo di date":
+                da_data = col_fa2.date_input("Da data:", value=pd.Timestamp.today().date(), key="data_da_audit")
+                a_data = col_fa2.date_input("A data:", value=pd.Timestamp.today().date(), key="data_a_audit")
+                df_stampa_audit = df_stampa_audit[(df_stampa_audit['Data_Filtro'] >= da_data) & (df_stampa_audit['Data_Filtro'] <= a_data)]
+
+        # 2. Generazione automatica del documento Word
+        if not df_stampa_audit.empty:
+            doc_audit = Document()
+            doc_audit.add_heading('REGISTRO AUDIT TRAIL - COMUNICAZIONI E VARIANTI', 0)
+            doc_audit.add_paragraph(f"Progetto: {st.session_state.nome_progetto_attivo}")
+            doc_audit.add_paragraph(f"Data emissione registro: {pd.Timestamp.today().strftime('%d/%m/%Y')}")
+            
+            for _, row in df_stampa_audit.iterrows():
+                doc_audit.add_heading(f"Ticket {row['ID_Ticket']} - WBS {row['ID_WBS_Rif']} ({row['Tipologia']})", level=2)
+                
+                p = doc_audit.add_paragraph()
+                p.add_run(f"Autore: {row['Autore']} - Aperto il: {row['Data_Apertura']}\n").bold = True
+                p.add_run(f"Stato Attuale: {row['Stato']}").bold = True
+                
+                if pd.notna(row.get('Data_Chiusura')) and str(row.get('Data_Chiusura')).strip() not in ['None', 'nan', '']:
+                    p.add_run(f" (in data {row['Data_Chiusura']})")
+                
+                doc_audit.add_paragraph(f"Descrizione Richiesta:\n{row['Descrizione']}")
+                
+                if str(row.get('Risposta_RUP', '')).strip() not in ['None', 'nan', '']:
+                    doc_audit.add_paragraph(f"Risposta / Prescrizioni RUP:\n{row['Risposta_RUP']}")
+                    
+                # Se ci sono variazioni economiche/temporali valorizzate
+                if pd.notna(row.get('Variazione_Costi')) or pd.notna(row.get('Variazione_Tempi')):
+                    p_var = doc_audit.add_paragraph()
+                    p_var.add_run("Impatto Finanziario/Temporale Approvato:\n").bold = True
+                    if pd.notna(row.get('Variazione_Costi')):
+                        p_var.add_run(f"- Costo Extra: € {row['Variazione_Costi']:,.2f}\n")
+                    if pd.notna(row.get('Variazione_Tempi')):
+                        p_var.add_run(f"- Slittamento Tempi: {row['Variazione_Tempi']} giorni")
+                
+                doc_audit.add_paragraph("_" * 60) # Linea di separazione visiva
+                
+            buffer_audit = BytesIO()
+            doc_audit.save(buffer_audit)
+            buffer_audit.seek(0)
+            
+            st.download_button(
+                label="⬇️ Scarica Registro Audit Trail",
+                data=buffer_audit,
+                file_name=f"Audit_Trail_{st.session_state.nome_progetto_attivo}_{pd.Timestamp.today().strftime('%Y%m%d')}.docx",
+                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                type="primary"
+            )
+        else:
+            if not st.session_state.tickets_data.empty:
+                st.warning("Nessun Ticket corrisponde ai filtri selezionati.")
     
     # ========================================================
     # --- TAB 10: MANUALE OPERATIVO, FORMULARIO & FAQ V.2.0 ---
