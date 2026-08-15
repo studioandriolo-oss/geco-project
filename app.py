@@ -1778,6 +1778,48 @@ with col_sviluppo:
         else:
             st.info("⚠️ Il cronoprogramma è vuoto. Inserisci le date di Inizio e Fine nel Tab 1.")
 
+    # ========================================================
+        # 3. TABELLA RIEPILOGATIVA VINCOLI (SOTTO IL GANTT)
+        # ========================================================
+        st.divider()
+        st.subheader("📋 Elenco Dettagliato Pratiche e Autorizzazioni")
+        st.markdown("Questa tabella raggruppa tutti i vincoli per tipologia, creando una pratica 'To-Do List' per l'ufficio amministrativo.")
+        
+        df_vincoli_bottom = get_foglie(st.session_state.wbs_data).copy()
+        df_vincoli_bottom = df_vincoli_bottom[
+            (df_vincoli_bottom['Vincolo_Burocratico'].notna()) & 
+            (df_vincoli_bottom['Vincolo_Burocratico'] != 'Nessuno') & 
+            (df_vincoli_bottom['Vincolo_Burocratico'] != 'nan') &
+            (df_vincoli_bottom['Vincolo_Burocratico'] != '')
+        ].copy()
+        
+        if not df_vincoli_bottom.empty:
+            dati_tabella = []
+            for _, row in df_vincoli_bottom.iterrows():
+                assolto_val = row.get('Vincolo_Assolto', False)
+                assolto_bool = True if str(assolto_val).strip().lower() in ['true', '1', 't', 'y', 'yes'] else False
+                
+                dati_tabella.append({
+                    "Pratica / Vincolo": str(row['Vincolo_Burocratico']).strip(),
+                    "Stato Pratica": "✅ Assolto" if assolto_bool else "❌ Da Ottenere",
+                    "Lavorazione Associata": f"{row['ID_WBS']} - {row['Attività']}"
+                })
+                
+            df_tab_riepilogo = pd.DataFrame(dati_tabella)
+            
+            # Ordinamento alfabetico per Pratica (così si raggruppano da sole, es. tutti i Genio Civile vicini)
+            df_tab_riepilogo = df_tab_riepilogo.sort_values(by=["Pratica / Vincolo", "Stato Pratica"])
+            
+            # Formattazione visiva testuale
+            def colora_pratica(val):
+                if '❌' in str(val): return 'color: #D32F2F; font-weight: bold;'
+                if '✅' in str(val): return 'color: #388E3C; font-weight: bold;'
+                return ''
+                
+            st.dataframe(df_tab_riepilogo.style.map(colora_pratica, subset=['Stato Pratica']), use_container_width=True, hide_index=True)
+        else:
+            st.info("Nessuna lavorazione nell'albero WBS è soggetta a vincoli burocratici.")
+
     #-------------------------------    
     # --- TAB 5: EVM E CASH FLOW ---
     #-------------------------------
