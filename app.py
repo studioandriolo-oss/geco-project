@@ -495,7 +495,7 @@ with col_save:
     
     st.markdown('<div class="btn-compatto">', unsafe_allow_html=True)
     
-    # --- 1. MEMORIA DI SESSIONE ---
+    # # --- 1. MEMORIA DI SESSIONE ---
     
     if st.button("💾 Salva", use_container_width=True):
         st.session_state.archivio_progetti[st.session_state.nome_progetto_attivo] = {
@@ -503,8 +503,10 @@ with col_save:
             "obs": st.session_state.obs_data.copy(),
             "registro": st.session_state.registro_data.copy(),
             "capa": st.session_state.capa_data.copy(),
+            "rischi": st.session_state.rischi_data.copy(),
             "sal": st.session_state.sal_data.copy(),
-            "conflitti_ignorati": st.session_state.conflitti_ignorati.copy()
+            "conflitti_ignorati": st.session_state.conflitti_ignorati.copy(),
+            "tickets": st.session_state.tickets_data.copy()
         }
         st.success("Salvato!")
         
@@ -515,7 +517,10 @@ with col_save:
             "obs": st.session_state.obs_data.copy(),
             "registro": st.session_state.registro_data.copy(),
             "capa": st.session_state.capa_data.copy(),
-            "sal": st.session_state.sal_data.copy()
+            "rischi": st.session_state.rischi_data.copy(),
+            "sal": st.session_state.sal_data.copy(),
+            "conflitti_ignorati": st.session_state.conflitti_ignorati.copy(),
+            "tickets": st.session_state.tickets_data.copy()
         }
         st.session_state.nome_progetto_attivo = nuovo_nome
         st.rerun()
@@ -527,6 +532,11 @@ with col_save:
             st.session_state.obs_data = st.session_state.archivio_progetti[prog_selezionato]["obs"].copy()
             st.session_state.registro_data = st.session_state.archivio_progetti[prog_selezionato]["registro"].copy()
             st.session_state.capa_data = st.session_state.archivio_progetti[prog_selezionato]["capa"].copy()
+            st.session_state.rischi_data = st.session_state.archivio_progetti[prog_selezionato].get("rischi", pd.DataFrame()).copy()
+            st.session_state.sal_data = st.session_state.archivio_progetti[prog_selezionato].get("sal", pd.DataFrame()).copy()
+            st.session_state.conflitti_ignorati = st.session_state.archivio_progetti[prog_selezionato].get("conflitti_ignorati", []).copy()
+            st.session_state.tickets_data = st.session_state.archivio_progetti[prog_selezionato].get("tickets", pd.DataFrame()).copy()
+            
             st.session_state.nome_progetto_attivo = prog_selezionato
             for k in list(st.session_state.keys()):
                 if k.startswith("editor_wbs_"):
@@ -535,7 +545,7 @@ with col_save:
 
     if st.button("📄 Nuovo", use_container_width=True):
         st.session_state.nome_progetto_attivo = "Nuovo_Progetto"
-        for key in ['wbs_data', 'obs_data', 'registro_data', 'capa_data']:
+        for key in ['wbs_data', 'obs_data', 'registro_data', 'capa_data', 'rischi_data', 'sal_data', 'tickets_data']:
             if key in st.session_state:
                 del st.session_state[key]
         for k in list(st.session_state.keys()):
@@ -556,7 +566,7 @@ with col_save:
             "rischi": json.loads(st.session_state.rischi_data.to_json(orient="records")),
             "sal": json.loads(st.session_state.sal_data.to_json(orient="records", date_format="iso")),
             "conflitti_ignorati": list(st.session_state.conflitti_ignorati),
-            
+            "tickets": json.loads(st.session_state.tickets_data.to_json(orient="records", date_format="iso"))
         }
         json_string = json.dumps(progetto_export, indent=4)
         
@@ -605,6 +615,16 @@ with col_save:
                 if df_sal.empty:
                     df_sal = pd.DataFrame(columns=['Data_Emissione', 'Descrizione_SAL', 'Importo_Euro', 'Stato_Pagamento'])
                 st.session_state.sal_data = df_sal
+
+                # --- INNESTO IMPORTAZIONE TICKETS ---
+                df_tickets = pd.DataFrame(dati_caricati.get('tickets', []))
+                if df_tickets.empty:
+                    df_tickets = pd.DataFrame(columns=[
+                        'ID_Ticket', 'ID_WBS_Rif', 'Autore', 'Data_Apertura',
+                        'Tipologia', 'Descrizione', 'Stato', 'Risposta_RUP', 'Data_Chiusura'
+                    ])
+                st.session_state.tickets_data = df_tickets
+                # ------------------------------------
 
                 st.session_state.conflitti_ignorati = dati_caricati.get('conflitti_ignorati', [])
                 
