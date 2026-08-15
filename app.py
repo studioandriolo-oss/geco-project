@@ -645,7 +645,71 @@ with col_save:
         rischi_attivi = pd.DataFrame()
         if not df_rischi_ai.empty:
             rischi_attivi = df_rischi_ai[df_rischi_ai['Stato'].isin(['Attivo ▾', 'Monitorato ▾'])]
+
+        # ========================================================
+        # RADAR AI-ASSIST: ALLARMI COMBINATI (RITARDO + RISCHI)
+        # ========================================================
+        st.divider()
+        st.markdown("### 🚨 Radar AI-Assist: Criticità Combinate")
+        
+        df_wbs_radar = st.session_state.wbs_data.copy()
+        
+        # Inizializziamo in modo sicuro la tabella rischi
+        if 'rischi_data' in st.session_state and not st.session_state.rischi_data.empty:
+            df_rischi_radar = st.session_state.rischi_data.copy()
+        else:
+            df_rischi_radar = pd.DataFrame()
+
+        allarmi_combinati = []
+        oggi_radar = pd.Timestamp.today().normalize()
+        
+        if not df_wbs_radar.empty and not df_rischi_radar.empty:
+            # Assicuriamoci che esistano le colonne necessarie nei Rischi
+            col_wbs_rischio = 'ID_WBS_Rif' if 'ID_WBS_Rif' in df_rischi_radar.columns else None
+            col_impatto = 'Impatto' if 'Impatto' in df_rischi_radar.columns else None
+            col_stato_r = 'Stato' if 'Stato' in df_rischi_radar.columns else None
             
+            if col_wbs_rischio and col_impatto:
+                for _, row_w in df_wbs_radar.iterrows():
+                    wbs_id = str(row_w.get('ID_WBS', '')).strip()
+                    
+                    try:
+                        completamento = float(row_w.get('%_Completamento', 0.0))
+                    except:
+                        completamento = 0.0
+                        
+                    # Calcolo di un ritardo evidente (es. Data Fine Prevista superata ma non finito)
+                    fine_prev = pd.to_datetime(row_w.get('Fine_Prevista', None), errors='coerce')
+                    
+                    in_ritardo_cronico = False
+                    if pd.notnull(fine_prev) and fine_prev < oggi_radar and completamento < 100:
+                        in_ritardo_cronico = True
+                        
+                    # Se l'attività è in ritardo, interroghiamo la Matrice Rischi
+                    if in_ritardo_cronico:
+                        # Filtriamo i rischi associati a questa specifica WBS
+                        rischi_associati = df_rischi_radar[df_rischi_radar[col_wbs_rischio].astype(str).str.startswith(wbs_id)]
+                        
+                        for _, rischio in rischi_associati.iterrows():
+                            impatto_val = str(rischio.get(col_impatto, '')).lower()
+                            stato_val = str(rischio.get(col_stato_r, 'aperto')).lower()
+                            
+                            # Identifichiamo se il rischio è ancora attivo e ha un peso alto
+                            if stato_val != 'chiuso' and ('alto' in impatto_val or 'critico' in impatto_val or impatto_val in ['4', '5']):
+                                desc_rischio = rischio.get('Descrizione', rischio.get('Attività', 'Rischio Critico Generico'))
+                                allarmi_combinati.append({
+                                    'wbs': wbs_id,
+                                    'nome_wbs': row_w.get('Attività', ''),
+                                    'rischio': desc_rischio
+                                })
+
+        # Stampa a schermo dei risultati dell'AI-Assist
+        if allarmi_combinati:
+            for allarme in allarmi_combinati:
+                st.error(f"⚠️ **INTERVENTO RUP RICHIESTO:** L'attività **{allarme['wbs']} - {allarme['nome_wbs']}** è in ritardo cronico e ha innescato un rischio ad alto impatto: *{allarme['rischio']}*. Verificare immediatamente le contromisure nel Tab 8!")
+        else:
+            st.success("✅ **Radar Sincronizzato:** Nessuna combinazione critica rilevata tra ritardi esecutivi e Matrice Rischi.")
+        
         # ===================================================
         # RILEVAMENTO CONFLITTI RISORSE (CON "IGNORE BUTTON")
         # ===================================================
@@ -726,6 +790,7 @@ with col_save:
                         if st.button("🔄 Ripristina Allarme", key=f"ripristina_{conf_id}"):
                             st.session_state.conflitti_ignorati.remove(conf_id)
                             st.rerun()
+            
 
 
 # ==========================================
