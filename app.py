@@ -2814,7 +2814,7 @@ with col_sviluppo:
         ### 🕸️ Architettura del Sistema (Flussi di Dati)
         
         ```mermaid
-        graph LR
+        graph TD
             %% Definizione Stili Personalizzati
             classDef planning fill:#E3F2FD,stroke:#1E88E5,stroke-width:2px,color:black;
             classDef control fill:#E8F5E9,stroke:#43A047,stroke-width:2px,color:black;
@@ -2822,50 +2822,41 @@ with col_sviluppo:
             classDef finance fill:#FFF3E0,stroke:#FB8C00,stroke-width:2px,color:black;
             classDef matrix fill:#E0F7FA,stroke:#00BCD4,stroke-width:2px,color:black;
 
-            subgraph FASE_1 [FASE 1: PIANIFICAZIONE]
-                direction TB
+            subgraph FASE_1 [FASE 1: PIANIFICAZIONE E RISORSE]
                 T2[Tab 2: OBS & Risorse]:::planning
                 T1[Tab 1: WBS & Budget]:::planning
-                T3[Tab 3: Matrice RACI]:::matrix
-                T4[Tab 4: Gantt]:::planning
-                Scad[Scadenzario]:::alerts
+                T3[Tab 3: Matrice RACI / Incroci]:::matrix
+                T4[Tab 4: Gantt & Scadenzario]:::planning
                 
-                T2 -->|"Assegna Responsabili"| T3
-                T1 -->|"Fornisce Attività"| T3
-                T3 -.->|"Valida"| T1
-                T1 -->|"Date e Dipendenze"| T4
-                T1 -->|"Genera Allerta"| Scad
-                Scad -.->|"Visibile in"| T4
+                T2 -- "Fornisce Soggetti" --> T3
+                T1 -- "Fornisce Attività" --> T3
+                T3 -. "Valida Assegnazioni" .-> T1
+                T1 -- "Date, Predecessori" --> T4
+                T1 -- "Genera Allerta" --> Scad[Scadenzario Vincoli]:::alerts
+                Scad -. "Visibile in" .-> T4
             end
 
-            subgraph FASE_2 [FASE 2: IMPREVISTI]
-                direction TB
+            subgraph FASE_2 [FASE 2: GESTIONE IMPREVISTI E CORREZIONI]
                 T8[Tab 8: Rischi]:::finance
                 T7[Tab 7: CAPA]:::alerts
                 T9[Tab 9: Varianti RUP]:::alerts
+                
+                T9 == "Inietta Soldi e Giorni" ==> T1
+                T7 -. "Blocca WBS al 99%" .-> T1
+                T4 -- "Calcola Percorso Critico" --> T8
+                T8 -. "Minaccia Scadenze Critiche" .-> T4
             end
 
-            subgraph FASE_3 [FASE 3: CONTROLLO]
-                direction TB
+            subgraph FASE_3 [FASE 3: MOTORI FINANZIARI E CONTROLLO]
                 T6[Tab 6: Registro Contabile]:::finance
-                T5[Tab 5: Motore EVM]:::control
+                T5[Tab 5: Motore EVM & Cash Flow]:::control
+                
+                T7 -- "Genera Costi Tossici" --> T6
+                T6 -- "Costi Reali e SAL" --> T5
+                T1 -- "Budget e Avanzamento" --> T5
+                T8 -- "Riserva Monetaria" --> T5
+                T5 -. "Indice SPI colora le barre" .-> T4
             end
-
-            %% Connessioni da Destra a Sinistra (Correzioni)
-            T9 == "Inietta Soldi e Giorni" ==> T1
-            T7 -. "Blocca al 99%" .-> T1
-            
-            %% Connessioni del Percorso Critico
-            T4 -- "Calcola Percorso Critico" --> T8
-            T8 -. "Minaccia Scadenze" .-> T4
-            T8 -- "Evidenzia Criticità sulle Risorse" --> T3
-            
-            %% Connessioni Finanziarie verso Destra
-            T7 -- "Costi Tossici" --> T6
-            T6 -- "Costi Reali (AC)" --> T5
-            T1 -- "Budget (BAC)" --> T5
-            T8 -- "Riserva Monetaria (EMV)" --> T5
-            T5 -. "Indice SPI colora barre" .-> T4
             
             %% Stile personalizzato per il riquadro della Fase 3 (Lilla tenue)
             style FASE_3 fill:#F3E5F5,stroke:#8E24AA,stroke-width:2px,stroke-dasharray: 4 4
