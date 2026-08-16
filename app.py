@@ -987,6 +987,59 @@ with col_sviluppo:
         if 'Costo_Scaricato' not in st.session_state.capa_data.columns:
             st.session_state.capa_data['Costo_Scaricato'] = False
             
+    # ==========================================
+    # 🦎 BANNER FISSO: GIANFRY ADVISOR (CAROSELLO)
+    # ==========================================
+    
+    # 1. Inizializza la "memoria" per scorrere i messaggi
+    if 'gianfry_idx' not in st.session_state:
+        st.session_state.gianfry_idx = 0
+    
+    # 2. Il Motore che raccoglie TUTTI i consigli attivi (genera una lista)
+    def ottieni_consigli_gianfry():
+        consigli = []
+        
+        # QUI INSERIREMO LE VERE REGOLE COLLEGATE AI TUOI DATI
+        # (Per ora metto 3 esempi fittizi per farti vedere come scorrono)
+        consigli.append("👋 Ciao! Sono Gianfry. Ricordati di compilare tutte le date nel Tab 1 (WBS).")
+        consigli.append("💰 Suggerimento: Hai attività con budget pari a zero. Verifica i costi per far girare l'EVM.")
+        consigli.append("⏳ Attenzione: Il progetto è in leggero ritardo (SPI sotto lo 0.95). Controlla il Gantt.")
+        
+        # Se il sistema non trova nessun problema:
+        if len(consigli) == 0:
+            consigli.append("✅ Tutto perfetto! Nessuna criticità rilevata. Il cantiere procede a gonfie vele.")
+            
+        return consigli
+    
+    # 3. Interfaccia Visiva del Banner
+    messaggi = ottieni_consigli_gianfry()
+    tot_msg = len(messaggi)
+    
+    # Sicurezza: se correggi un errore e i messaggi diminuiscono, riavvolge il nastro
+    if st.session_state.gianfry_idx >= tot_msg:
+        st.session_state.gianfry_idx = 0
+    
+    # Impaginazione: Freccia SX | Messaggio Centrale | Freccia DX
+    col_sx, col_centro, col_dx = st.columns([1, 10, 1], gap="small")
+    
+    with col_sx:
+        # Freccia Sinistra (si disabilita se c'è un solo messaggio)
+        if st.button("◀", key="g_prev", use_container_width=True, disabled=(tot_msg <= 1)):
+            st.session_state.gianfry_idx = (st.session_state.gianfry_idx - 1) % tot_msg
+    
+    with col_centro:
+        # Il Box colorato con il messaggio
+        st.info(f"**Gianfry Consiglia ({st.session_state.gianfry_idx + 1}/{tot_msg}):** {messaggi[st.session_state.gianfry_idx]}")
+    
+    with col_dx:
+        # Freccia Destra
+        if st.button("▶", key="g_next", use_container_width=True, disabled=(tot_msg <= 1)):
+            st.session_state.gianfry_idx = (st.session_state.gianfry_idx + 1) % tot_msg
+    
+    st.divider() # Una bella linea grigia di separazione prima di iniziare con i Tab
+    
+    # ==========================================
+    
     # --- CREAZIONE TAB ---
     tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
         "🗂️ 1-WBS (Lavorazioni)", 
