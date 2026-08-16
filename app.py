@@ -1403,7 +1403,9 @@ with col_sviluppo:
                 time.sleep(1.0)
             else:
                 import time
-                time.sleep(3.5)
+                msg_successo = st.empty() # Crea uno spazio vuoto sotto il bottone
+                msg_successo.success("✅ Salvataggio e albero ricalcolato!") # Mostra la barra verde
+                time.sleep(2) # Attende 3 secondi esatti
                 
             st.rerun()
 
