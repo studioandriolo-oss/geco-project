@@ -2812,7 +2812,19 @@ with col_sviluppo:
             
             st.markdown("""
         ### 🕸️ Architettura del Sistema (Flussi di Dati)
-        
+        """)
+
+            st.markdown("""
+            <style>
+            /* Forza l'SVG generato da Mermaid a prendere il 100% dello spazio disponibile */
+            [data-testid="stMarkdownContainer"] svg {
+                width: 100%;
+                min-height: 600px;
+            }
+            </style>
+            """, unsafe_allow_html=True)
+            
+            st.markdown("""
         ```mermaid
         graph TD
             %% Definizione Stili Personalizzati
@@ -2867,6 +2879,31 @@ with col_sviluppo:
         ```
         """)
             
+            st.markdown("<br>", unsafe_allow_html=True) # Spazio vuoto
+            st.markdown("#### 🎨 Legenda Nodi Operativi")
+            
+            # Usiamo le colonne HTML per creare dei "badge" colorati identici a Mermaid
+            legenda_html = """
+            <div style="display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-bottom: 20px;">
+                <div style="background-color: #E3F2FD; border: 2px solid #1E88E5; padding: 10px 15px; border-radius: 8px; color: black; font-weight: bold;">
+                    📘 Pianificazione (Input)
+                </div>
+                <div style="background-color: #E8F5E9; border: 2px solid #43A047; padding: 10px 15px; border-radius: 8px; color: black; font-weight: bold;">
+                    📗 Controllo (EVM)
+                </div>
+                <div style="background-color: #FFF3E0; border: 2px solid #FB8C00; padding: 10px 15px; border-radius: 8px; color: black; font-weight: bold;">
+                    📙 Finanza & Rischi
+                </div>
+                <div style="background-color: #FFEBEE; border: 2px solid #E53935; padding: 10px 15px; border-radius: 8px; color: black; font-weight: bold;">
+                    📕 Allarmi & Blocchi
+                </div>
+                <div style="background-color: #E0F7FA; border: 2px solid #00BCD4; padding: 10px 15px; border-radius: 8px; color: black; font-weight: bold;">
+                    📘 Matrici (RACI)
+                </div>
+            </div>
+            """
+            st.markdown(legenda_html, unsafe_allow_html=True)
+        
             with st.expander("📝 Flusso di Lavoro (Input Dati)"):
                 st.markdown("""
                  1. **Tab 2 (OBS & Risorse):** Inserisci le imprese, le maestranze e le attrezzature disponibili. Sono i soggetti che animeranno il cantiere.
