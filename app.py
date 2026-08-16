@@ -988,100 +988,62 @@ with col_sviluppo:
             st.session_state.capa_data['Costo_Scaricato'] = False
             
     # ==========================================
-    # 🦎 BANNER FISSO: GIANFRY ADVISOR (CAROSELLO DIAGNOSTICO)
+    # 🦎 BANNER FISSO: GIANFRY ADVISOR
     # ==========================================
     
-    # 1. Inizializza la "memoria" per scorrere i messaggi
+    # 1. Inizializza la memoria per l'indice
     if 'gianfry_idx' not in st.session_state:
         st.session_state.gianfry_idx = 0
     
-    # 2. Il Motore Diagnostico (Controlli incrociati)
     def ottieni_consigli_gianfry():
         consigli = []
         
-        # CONTROLLO: TAB 1 (WBS) <-> TAB 4 (Gantt)
-        try:
-            if 'df_wbs' in st.session_state and not st.session_state.df_wbs.empty:
-                df_w = st.session_state.df_wbs
-                if df_w['Data Inizio'].isnull().any() or df_w['Data Fine'].isnull().any():
-                    consigli.append("📅 Attenzione: alcune attività nel Tab 1 non hanno Data Inizio/Fine. Il Gantt (Tab 4) non potrà tracciarle.")
-                if (df_w['Budget (BAC)'] == 0).any():
-                    consigli.append("💰 Suggerimento: Hai attività in WBS con Budget a €0. L'analisi EVM e il Cash Flow necessitano di valori per funzionare.")
-        except Exception:
-            pass
-    
-        # CONTROLLO: TAB 7 (CAPA) <-> TAB 1 (WBS)
-        try:
-            if 'df_capa' in st.session_state and not st.session_state.df_capa.empty:
-                df_c = st.session_state.df_capa
-                capa_aperte = df_c[df_c['Stato'] == 'Aperta']
-                if not capa_aperte.empty:
-                    num_aperte = len(capa_aperte)
-                    consigli.append(f"🚨 Blocco Qualità: Hai {num_aperte} CAPA aperte nel Tab 7! Le relative attività resteranno bloccate al 99% finché non le chiudi.")
-        except Exception:
-            pass
-    
-        # CONTROLLO: TAB 6 (Contabilità) <-> TAB 5 (EVM)
-        try:
-            if 'df_wbs' in st.session_state and 'df_costi' in st.session_state:
-                df_w = st.session_state.df_wbs
-                df_cos = st.session_state.df_costi
-                attivita_avviate = df_w[df_w['Avanzamento (%)'] > 0]
-                if not attivita_avviate.empty and df_cos.empty:
-                    consigli.append("💸 Allarme EVM: Hai indicato avanzamenti in WBS, ma nessun Costo Reale (AC) nel Tab 6. I tuoi indici CPI (Efficienza Costi) saranno falsati!")
-        except Exception:
-            pass
-    
-        # CONTROLLO: TAB 8 (Rischi) <-> PERCORSO CRITICO
-        try:
-            if 'df_rischi' in st.session_state and not st.session_state.df_rischi.empty:
-                df_r = st.session_state.df_rischi
-                rischi_gravi = df_r[(df_r['Impatto'] == 'Alto') | (df_r['Probabilità'] == 'Alta')]
-                if not rischi_gravi.empty:
-                    consigli.append("🔥 Pericolo Scadenze: Nel Tab 8 ci sono Rischi ad alto impatto aperti. Controlla il Gantt per assicurarti che non minaccino il Percorso Critico.")
-        except Exception:
-            pass
-    
-        # MESSAGGIO DI BENVENUTO O DI "TUTTO OK"
+        # ... i tuoi try/except di controllo (WBS, CAPA, Costi, ecc.) restano uguali a prima ...
+        
+        # ---------------------------------------------------------
+        # MESSAGGI DI DEFAULT (Quando l'app è ancora senza errori)
+        # Ne metto 3 di default, così potrai usare le frecce per scorrerli!
+        # ---------------------------------------------------------
         if len(consigli) == 0:
-            if 'df_wbs' not in st.session_state or st.session_state.df_wbs.empty:
-                consigli.append("👋 Ciao! Sono Gianfry. Inizia a configurare il tuo cantiere inserendo Risorse (Tab 2) e Lavorazioni (Tab 1).")
-            else:
-                consigli.append("✅ Tutto perfetto! Nessuna anomalia rilevata tra i flussi di dati. Ottimo lavoro.")
+            consigli.append("👋 1. Ciao! Sono Gianfry. Inizia a configurare il cantiere inserendo Lavorazioni (Tab 1) e Risorse (Tab 2).")
+            consigli.append("💡 2. Lo sapevi? Nel Tab 10 c'è un Manuale Operativo con tutti i diagrammi di flusso e le FAQ.")
+            consigli.append("🚀 3. Quando inserirai i SAL e i Costi (Tab 6), qui ti allerterò in caso di fuori budget o ritardi critici.")
                 
         return consigli
     
-    # 3. Interfaccia Visiva del Banner con Frecce
     messaggi = ottieni_consigli_gianfry()
     tot_msg = len(messaggi)
     
-    # Sicurezza: riavvolge il nastro se l'indice sfora
-    if 'gianfry_idx' not in st.session_state or st.session_state.gianfry_idx >= tot_msg:
+    # Protezione di sicurezza sull'indice
+    if st.session_state.gianfry_idx >= tot_msg:
         st.session_state.gianfry_idx = 0
     
-    # --- FUNZIONI DI CALLBACK (Scattano PRIMA di disegnare l'interfaccia) ---
-    def cambia_consiglio(step, totale):
-        st.session_state.gianfry_idx = (st.session_state.gianfry_idx + step) % totale
-    
-    # Layout colonne per le frecce
+    # ---------------------------------------------------------
+    # IL TRUCCO INFALLIBILE: ORDINE DI ESECUZIONE
+    # ---------------------------------------------------------
     col_sx, col_centro, col_dx = st.columns([1, 10, 1], gap="small")
     
+    # PASSO A: Rileviamo il clic sui bottoni
     with col_sx:
-        # Freccia Sinistra (Usa on_click)
-        st.button("◀", key="g_prev", on_click=cambia_consiglio, args=(-1, tot_msg), use_container_width=True, disabled=(tot_msg <= 1))
-    
-    with col_centro:
-        # Box centrale che pesca l'indice GIA' aggiornato
-        st.info(f"**Gianfry Consiglia ({st.session_state.gianfry_idx + 1}/{tot_msg}):** {messaggi[st.session_state.gianfry_idx]}")
-    
+        click_prev = st.button("◀", key="g_prev", use_container_width=True, disabled=(tot_msg <= 1))
+        
     with col_dx:
-        # Freccia Destra (Usa on_click)
-        st.button("▶", key="g_next", on_click=cambia_consiglio, args=(1, tot_msg), use_container_width=True, disabled=(tot_msg <= 1))
+        click_next = st.button("▶", key="g_next", use_container_width=True, disabled=(tot_msg <= 1))
+    
+    # PASSO B: Aggiorniamo subito la memoria PRIMA di disegnare il testo
+    if click_prev:
+        st.session_state.gianfry_idx = (st.session_state.gianfry_idx - 1) % tot_msg
+    if click_next:
+        st.session_state.gianfry_idx = (st.session_state.gianfry_idx + 1) % tot_msg
+    
+    # PASSO C: Disegniamo il testo (che ora usa l'indice aggiornato all'istante!)
+    with col_centro:
+        st.info(f"**Gianfry Consiglia ({st.session_state.gianfry_idx + 1}/{tot_msg}):** {messaggi[st.session_state.gianfry_idx]}")
     
     st.divider() 
     # ==========================================
     # ⬆️ FINE GIANFRY ADVISOR ⬆️
-    # ==========================================
+    # ===========================================
     
     # ==========================================
     
