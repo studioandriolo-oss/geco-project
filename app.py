@@ -1056,25 +1056,27 @@ with col_sviluppo:
     tot_msg = len(messaggi)
     
     # Sicurezza: riavvolge il nastro se l'indice sfora
-    if st.session_state.gianfry_idx >= tot_msg:
+    if 'gianfry_idx' not in st.session_state or st.session_state.gianfry_idx >= tot_msg:
         st.session_state.gianfry_idx = 0
+    
+    # --- FUNZIONI DI CALLBACK (Scattano PRIMA di disegnare l'interfaccia) ---
+    def cambia_consiglio(step, totale):
+        st.session_state.gianfry_idx = (st.session_state.gianfry_idx + step) % totale
     
     # Layout colonne per le frecce
     col_sx, col_centro, col_dx = st.columns([1, 10, 1], gap="small")
     
     with col_sx:
-        # Freccia Sinistra
-        if st.button("◀", key="g_prev", use_container_width=True, disabled=(tot_msg <= 1)):
-            st.session_state.gianfry_idx = (st.session_state.gianfry_idx - 1) % tot_msg
+        # Freccia Sinistra (Usa on_click)
+        st.button("◀", key="g_prev", on_click=cambia_consiglio, args=(-1, tot_msg), use_container_width=True, disabled=(tot_msg <= 1))
     
     with col_centro:
-        # Box centrale con il consiglio
+        # Box centrale che pesca l'indice GIA' aggiornato
         st.info(f"**Gianfry Consiglia ({st.session_state.gianfry_idx + 1}/{tot_msg}):** {messaggi[st.session_state.gianfry_idx]}")
     
     with col_dx:
-        # Freccia Destra
-        if st.button("▶", key="g_next", use_container_width=True, disabled=(tot_msg <= 1)):
-            st.session_state.gianfry_idx = (st.session_state.gianfry_idx + 1) % tot_msg
+        # Freccia Destra (Usa on_click)
+        st.button("▶", key="g_next", on_click=cambia_consiglio, args=(1, tot_msg), use_container_width=True, disabled=(tot_msg <= 1))
     
     st.divider() 
     # ==========================================
