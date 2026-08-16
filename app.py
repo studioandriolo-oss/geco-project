@@ -1283,7 +1283,7 @@ with col_sviluppo:
                     idx_locale = 0
                     if tracker:
                         for i, opz in enumerate(opzioni_locali):
-                            if opz.split(' - ')[0] == tracker:if isinstance(opz, str) and opz.split(' - ')[0] == tracker:
+                            if isinstance(opz, str) and opz.split(' - ')[0] == tracker:
                                 idx_locale = i
                                 break
                                 
