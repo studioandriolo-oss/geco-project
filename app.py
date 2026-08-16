@@ -1310,15 +1310,11 @@ with col_sviluppo:
 
         st.divider()
 
-        if st.session_state.get('mostra_barra_verde', False):
-            import time
-            box_successo = st.empty()
-            box_successo.success("✅ Salvataggio e albero ricalcolato!")
-            time.sleep(2) # Mostra la barra per 2 secondi
-            box_successo.empty() # La fa sparire
-            st.session_state.mostra_barra_verde = False # Strappa il post-it
-        
         st.warning("⚠️ **Hai aggiunto nuove lavorazioni nelle tabelle?** Clicca il tasto qui sotto per far assegnare al sistema la numerazione definitiva e riallineare l'albero WBS.")
+        
+        # 1. CREIAMO LO SPAZIO PER LA BARRA VERDE PRIMA DEL BOTTONE
+        box_successo = st.empty() 
+        
         if st.button("💾 SALVA INSERIMENTI E RICALCOLA ALBERO", type="primary", use_container_width=True, key="btn_salva_mega_wbs"):
             
             # --- 1. INIZIO INNESTO BLOCCHI QUALITÀ (CAPA + TICKETS) ---
@@ -1395,26 +1391,19 @@ with col_sviluppo:
             # 4. Ricalcolo struttura
             modifica_struttura('1', 'rinumera')
             
-            # 5. Feedback a schermo
-            bloccato_qualcosa = False
-            
+            # 5. Avvisi a schermo per i blocchi
             if allarmi_capa:
                 st.error(f"🚧 BLOCCO QUALITÀ: WBS {', '.join(allarmi_capa)} bloccate al 99% per CAPA aperte nel Tab 7.")
-                bloccato_qualcosa = True
                 
             if allarmi_ticket:
                 st.error(f"⏳ CANCELLO SOSPESIVO: WBS {', '.join(allarmi_ticket)} bloccate al 99%. Attendi l'approvazione della variante nel Tab 9.")
-                bloccato_qualcosa = True
                 
-            if not bloccato_qualcosa:
-                st.success("✅ Dati salvati e albero ricalcolato!")
-                import time
-                time.sleep(1.0)
-            else:
-                # Crea il "post-it" e riavvia subito la pagina
-                st.session_state.mostra_barra_verde = True
-                st.rerun()
-
+            # --- INTERVENTO CHIRURGICO PER LA BARRA VERDE ---
+            import time
+            box_successo.success("✅ Salvataggio e albero ricalcolato!") # La barra appare sopra il bottone
+            time.sleep(3) # Il sistema aspetta 3 secondi esatti
+            box_successo.empty() # La barra sparisce
+            
     # --- TAB 2: SETUP OBS ---
     with tab2:
         st.header("OBS - Organization Breakdown Structure")
