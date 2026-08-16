@@ -2813,16 +2813,6 @@ with col_sviluppo:
             st.markdown("""
         ### 🕸️ Architettura del Sistema (Flussi di Dati)
         """)
-
-            st.markdown("""
-            <style>
-            /* Forza l'SVG generato da Mermaid a prendere il 100% dello spazio disponibile */
-            [data-testid="stMarkdownContainer"] svg {
-                width: 100%;
-                min-height: 600px;
-            }
-            </style>
-            """, unsafe_allow_html=True)
             
             st.markdown("""
         ```mermaid
