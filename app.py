@@ -2855,11 +2855,11 @@ with col_sviluppo:
                 
                 
                 T7 -- "Genera Costi Tossici" --> T6
+                T6 -- "Genera" --> Flussi[Andamento Flussi di Cassa]:::alerts
                 T6 -- "Costi Reali e SAL" --> T5
                 T1 -- "Budget e Avanzamento" --> T5
                 T8 -- "Riserva Monetaria" --> T5
                 T5 -. "Indice SPI colora le barre" .-> T4
-                T6 -- "Genera" --> Flussi[Andamento Flussi di Cassa]:::alerts
             end
             
             %% Stile per il riquadro della Fase 3 (Lilla tenue)
