@@ -2869,26 +2869,43 @@ with col_sviluppo:
         ```
         """)
             
+           # --- LEGENDA STREAMLIT SOTTO IL GRAFICO ---
             st.markdown("<br>", unsafe_allow_html=True) # Spazio vuoto
-            st.markdown("#### 🎨 Legenda Nodi Operativi")
+            st.markdown("#### 🎨 Legenda Nodi e Connessioni")
             
-            # Usiamo le colonne HTML per creare dei "badge" colorati identici a Mermaid
             legenda_html = """
-            <div style="display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-bottom: 20px;">
-                <div style="background-color: #E3F2FD; border: 2px solid #1E88E5; padding: 10px 15px; border-radius: 8px; color: black; font-weight: bold;">
+            <!-- Legenda Nodi (Box Colorati) -->
+            <div style="display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-bottom: 15px;">
+                <div style="background-color: #E3F2FD; border: 2px solid #1E88E5; padding: 5px 15px; border-radius: 8px; color: black; font-weight: bold;">
                     📘 Pianificazione (Input)
                 </div>
-                <div style="background-color: #E8F5E9; border: 2px solid #43A047; padding: 10px 15px; border-radius: 8px; color: black; font-weight: bold;">
+                <div style="background-color: #E8F5E9; border: 2px solid #43A047; padding: 5px 15px; border-radius: 8px; color: black; font-weight: bold;">
                     📗 Controllo (EVM)
                 </div>
-                <div style="background-color: #FFF3E0; border: 2px solid #FB8C00; padding: 10px 15px; border-radius: 8px; color: black; font-weight: bold;">
+                <div style="background-color: #FFF3E0; border: 2px solid #FB8C00; padding: 5px 15px; border-radius: 8px; color: black; font-weight: bold;">
                     📙 Finanza & Rischi
                 </div>
-                <div style="background-color: #FFEBEE; border: 2px solid #E53935; padding: 10px 15px; border-radius: 8px; color: black; font-weight: bold;">
+                <div style="background-color: #FFEBEE; border: 2px solid #E53935; padding: 5px 15px; border-radius: 8px; color: black; font-weight: bold;">
                     📕 Allarmi & Blocchi
                 </div>
-                <div style="background-color: #E0F7FA; border: 2px solid #00BCD4; padding: 10px 15px; border-radius: 8px; color: black; font-weight: bold;">
+                <div style="background-color: #E0F7FA; border: 2px solid #00BCD4; padding: 5px 15px; border-radius: 8px; color: black; font-weight: bold;">
                     📘 Matrici (RACI)
+                </div>
+            </div>
+            
+            <!-- Legenda Frecce (Tipologia di Connessione) -->
+            <div style="display: flex; flex-wrap: wrap; gap: 20px; justify-content: center; margin-bottom: 20px; font-size: 0.95em;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="font-weight: 900; font-family: monospace; font-size: 1.2em;">──►</span> 
+                    <span><b>Flusso Dati Standard</b> (Lettura o invio normale di dati)</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="font-weight: 900; font-family: monospace; font-size: 1.2em; letter-spacing: 2px;">- -►</span> 
+                    <span><b>Automazione / Allerta</b> (Controlli logici, allerte o blocchi del sistema)</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="font-weight: 900; font-family: monospace; font-size: 1.2em;">══►</span> 
+                    <span><b>Iniezione Strutturale</b> (Modifica diretta e irreversibile delle fondamenta del progetto)</span>
                 </div>
             </div>
             """
