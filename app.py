@@ -2830,6 +2830,7 @@ with col_sviluppo:
                 
                 T2 -- "Fornisce Soggetti" --> T3
                 T1 -- "Fornisce Attività" --> T3
+                T1 -- "Budget e Avanzamento" --> T5
                 T3 -. "Valida Assegnazioni" .-> T1
                 T1 -- "Date, Predecessori" --> T4
                 T8 -- "Alert sul percorco critico" --> T3
@@ -2843,7 +2844,6 @@ with col_sviluppo:
                 T9[Tab 9: Varianti RUP]:::alerts
                 
                 T9 == "Inietta Soldi e Giorni" ==> T1
-                T1 -- "Budget e Avanzamento" --> T5
                 T5 -. "Indice SPI colora le barre" .-> T4
                 T4 -- "Calcola Percorso Critico" --> T8
                 T8 -. "Minaccia Scadenze Critiche" .-> T4
