@@ -2846,6 +2846,7 @@ with col_sviluppo:
                 T7 -. "Blocca WBS al 99%" .-> T1
                 T4 -- "Calcola Percorso Critico" --> T8
                 T8 -. "Minaccia Scadenze Critiche" .-> T4
+                T8 -. "Evidenzia Criticità Risorse" .-> T3
             end
 
             subgraph FASE_3 [FASE 3: MOTORI FINANZIARI E CONTROLLO]
@@ -2858,10 +2859,10 @@ with col_sviluppo:
                 T1 -- "Budget e Avanzamento" --> T5
                 T8 -- "Riserva Monetaria" --> T5
                 T5 -. "Indice SPI colora le barre" .-> T4
-                T6 -- "Genera" --> [Andamento Flussi di Cassa]:::alerts
+                T6 -- "Genera" --> Flussi[Andamento Flussi di Cassa]:::alerts
             end
             
-            %% Stile personalizzato per il riquadro della Fase 3 (Lilla tenue)
+            %% Stile per il riquadro della Fase 3 (Lilla tenue)
             style FASE_3 fill:#F3E5F5,stroke:#8E24AA,stroke-width:2px,stroke-dasharray: 4 4
         ```
         """)
