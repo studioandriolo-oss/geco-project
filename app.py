@@ -2843,6 +2843,7 @@ with col_sviluppo:
                 T9[Tab 9: Varianti RUP]:::alerts
                 
                 T9 == "Inietta Soldi e Giorni" ==> T1
+                T1 -- "Budget e Avanzamento" --> T5
                 T5 -. "Indice SPI colora le barre" .-> T4
                 T4 -- "Calcola Percorso Critico" --> T8
                 T8 -. "Minaccia Scadenze Critiche" .-> T4
@@ -2858,7 +2859,6 @@ with col_sviluppo:
                 T7 -. "Blocca WBS al 99%" .-> T1
                 T6 -- "Genera" --> Flussi[Andamento Flussi di Cassa]:::alerts
                 T6 -- "Costi Reali e SAL" --> T5
-                T1 -- "Budget e Avanzamento" --> T5
                 T8 -- "Riserva Monetaria" --> T5
             end
             
