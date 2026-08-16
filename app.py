@@ -1309,6 +1309,15 @@ with col_sviluppo:
                     modifica_struttura('1', 'rinumera') 
 
         st.divider()
+
+        if st.session_state.get('mostra_barra_verde', False):
+            import time
+            box_successo = st.empty()
+            box_successo.success("✅ Salvataggio e albero ricalcolato!")
+            time.sleep(2) # Mostra la barra per 2 secondi
+            box_successo.empty() # La fa sparire
+            st.session_state.mostra_barra_verde = False # Strappa il post-it
+        
         st.warning("⚠️ **Hai aggiunto nuove lavorazioni nelle tabelle?** Clicca il tasto qui sotto per far assegnare al sistema la numerazione definitiva e riallineare l'albero WBS.")
         if st.button("💾 SALVA INSERIMENTI E RICALCOLA ALBERO", type="primary", use_container_width=True, key="btn_salva_mega_wbs"):
             
@@ -1402,12 +1411,9 @@ with col_sviluppo:
                 import time
                 time.sleep(1.0)
             else:
-                import time
-                msg_successo = st.empty() # Crea uno spazio vuoto sotto il bottone
-                msg_successo.success("✅ Salvataggio e albero ricalcolato!") # Mostra la barra verde
-                time.sleep(2) # Attende 3 secondi esatti
-                
-            st.rerun()
+                # Crea il "post-it" e riavvia subito la pagina
+                st.session_state.mostra_barra_verde = True
+                st.rerun()
 
     # --- TAB 2: SETUP OBS ---
     with tab2:
