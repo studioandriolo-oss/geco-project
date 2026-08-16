@@ -1283,7 +1283,7 @@ with col_sviluppo:
                     idx_locale = 0
                     if tracker:
                         for i, opz in enumerate(opzioni_locali):
-                            if isinstance(opz, str) and opz.split(' - ')[0] == tracker:
+                            if opz.split(' - ')[0] == tracker:
                                 idx_locale = i
                                 break
                                 
@@ -1309,19 +1309,71 @@ with col_sviluppo:
                     modifica_struttura('1', 'rinumera') 
 
         st.divider()
-
         st.warning("⚠️ **Hai aggiunto nuove lavorazioni nelle tabelle?** Clicca il tasto qui sotto per far assegnare al sistema la numerazione definitiva e riallineare l'albero WBS.")
-        
-        # --- 1. INTERVENTO CHIRURGICO: CATTURA IL SEGNALE E MOSTRA LA BARRA ---
-        if st.session_state.get('mostra_barra_verde', False):
-            st.success("✅ Salvataggio e albero ricalcolato!")
-            # Strappa il post-it: la barra sparirà da sola al tuo prossimo clic
-            st.session_state.mostra_barra_verde = False 
-        # ----------------------------------------------------------------------
-
         if st.button("💾 SALVA INSERIMENTI E RICALCOLA ALBERO", type="primary", use_container_width=True, key="btn_salva_mega_wbs"):
             
-            # ... [TUTTO IL TUO CODICE DEI BLOCCHI E DEI FOR RESTA IDENTICO QUI IN MEZZO] ...
+            # --- 1. INIZIO INNESTO BLOCCHI QUALITÀ (CAPA + TICKETS) ---
+            # A) Raccolta WBS bloccate da CAPA (Non-Conformità)
+            wbs_bloccate_capa = []
+            if not st.session_state.capa_data.empty and 'ID_WBS_Rif' in st.session_state.capa_data.columns:
+                capa_attive = st.session_state.capa_data[st.session_state.capa_data['Stato'].isin(['Aperto ▾', 'In Lavorazione ▾'])]
+                if not capa_attive.empty:
+                    wbs_bloccate_capa = capa_attive['ID_WBS_Rif'].astype(str).apply(lambda x: x.split(' - ')[0].strip()).unique().tolist()
+            
+            # B) Raccolta WBS bloccate da TICKET (Cancello Sospensivo)
+            wbs_bloccate_ticket = []
+            if 'tickets_data' in st.session_state and not st.session_state.tickets_data.empty:
+                ticket_attesi = st.session_state.tickets_data[st.session_state.tickets_data['Stato'] == 'In attesa ⏳']
+                if not ticket_attesi.empty:
+                    wbs_bloccate_ticket = ticket_attesi['ID_WBS_Rif'].astype(str).str.strip().unique().tolist()
+
+            allarmi_capa = []
+            allarmi_ticket = []
+            
+            for idx, row in df_aggiornato.iterrows():
+                wbs_id = str(row.get('ID_WBS', '')).strip()
+                try:
+                    completamento = float(row.get('%_Completamento', 0))
+                except:
+                    completamento = 0.0
+                    
+                if completamento >= 100:
+                    # La priorità va al Cancello Sospensivo (Ticket istituzionali)
+                    if wbs_id in wbs_bloccate_ticket:
+                        df_aggiornato.at[idx, '%_Completamento'] = 99.0
+                        allarmi_ticket.append(wbs_id)
+                    # Poi controlla le anomalie esecutive (CAPA di cantiere)
+                    elif wbs_id in wbs_bloccate_capa:
+                        df_aggiornato.at[idx, '%_Completamento'] = 99.0
+                        allarmi_capa.append(wbs_id)
+            # --- FINE INNESTO BLOCCHI QUALITÀ ---
+            
+            # --- INIZIO INNESTO: CANCELLO AMMINISTRATIVO ---
+            allarmi_burocratici = []
+            for idx, row in df_aggiornato.iterrows():
+                vincolo = str(row.get('Vincolo_Burocratico', 'Nessuno')).strip()
+                
+                # 1. CATTURA IL BOOLEANO A PROVA DI BOMBA
+                val_spunta = row.get('Vincolo_Assolto', False)
+                if isinstance(val_spunta, bool):
+                    sbloccato = val_spunta
+                else:
+                    # Se è un testo, lo converte. Se è vuoto o nan, diventa False.
+                    sbloccato = str(val_spunta).strip().lower() in ['true', '1', 't', 'y', 'yes']
+                
+                # 2. CATTURA LA DATA IN MODO SICURO
+                inizio_effettivo = row.get('Inizio_Effettivo', None)
+                has_inizio = pd.notna(inizio_effettivo) and str(inizio_effettivo).strip().lower() not in ['none', 'nat', 'nan', '']
+                
+                # 3. IL BLOCCO
+                if vincolo not in ['Nessuno', 'nan', '', 'None'] and not sbloccato and has_inizio:
+                    # Usa pd.NaT invece di None per svuotare correttamente una colonna DateTime in Pandas
+                    df_aggiornato.at[idx, 'Inizio_Effettivo'] = pd.NaT 
+                    allarmi_burocratici.append(f"{row.get('ID_WBS')} ({vincolo})")
+            
+            if allarmi_burocratici:
+                st.error(f"🛑 BLOCCO AMMINISTRATIVO: La data di 'Inizio Effettivo' delle seguenti lavorazioni è stata annullata perché il vincolo burocratico non è ancora stato assolto: {', '.join(allarmi_burocratici)}")
+            # --- FINE INNESTO CANCELLO AMMINISTRATIVO ---
             
             # 2. Salvataggio del dataframe corretto
             st.session_state.wbs_data = df_aggiornato
@@ -1334,11 +1386,27 @@ with col_sviluppo:
             # 4. Ricalcolo struttura
             modifica_struttura('1', 'rinumera')
             
-            # --- 2. INTERVENTO CHIRURGICO: LANCIA IL SEGNALE E RIAVVIA ---
-            st.session_state.mostra_barra_verde = True
+            # 5. Feedback a schermo
+            bloccato_qualcosa = False
+            
+            if allarmi_capa:
+                st.error(f"🚧 BLOCCO QUALITÀ: WBS {', '.join(allarmi_capa)} bloccate al 99% per CAPA aperte nel Tab 7.")
+                bloccato_qualcosa = True
+                
+            if allarmi_ticket:
+                st.error(f"⏳ CANCELLO SOSPESIVO: WBS {', '.join(allarmi_ticket)} bloccate al 99%. Attendi l'approvazione della variante nel Tab 9.")
+                bloccato_qualcosa = True
+                
+            if not bloccato_qualcosa:
+                st.success("✅ Dati salvati e albero ricalcolato!")
+                import time
+                time.sleep(1.0)
+            else:
+                import time
+                time.sleep(3.5)
+                
             st.rerun()
-            # -------------------------------------------------------------
-    
+
     # --- TAB 2: SETUP OBS ---
     with tab2:
         st.header("OBS - Organization Breakdown Structure")
