@@ -1634,7 +1634,7 @@ with col_sviluppo:
         # ========================================================
         # 1. GANTT CHART (IL CODICE ESISTENTE)
         # ========================================================
-        st.subheader("📊 Diagramma di Gantt (EVM-Aware)")
+        st.subheader("📊 Diagramma di Gantt - EVM")
         st.markdown("Le barre della fase esecutiva cambiano automaticamente colore in base alle performance reali (Indice SPI).")
         
         c1, c2, c3 = st.columns([1, 1, 1])
@@ -2046,7 +2046,7 @@ with col_sviluppo:
         tab_uscite, tab_entrate = st.tabs(["💸 Uscite (Costi Reali - AC)", "💰 Entrate (SAL Certificati)"])
         
         with tab_uscite:
-            st.subheader("Brogliaccio Spese e Fatture Fornitori")
+            st.subheader("Spese e Fatture Fornitori")
             st.markdown("Le spese registrate qui alimentano il Costo Reale (AC) delle singole WBS.")
             
             df_reg = st.session_state.registro_data.copy()
@@ -2905,6 +2905,7 @@ with col_sviluppo:
                 T7[Tab 7: CAPA]:::alerts
                 T9[Tab 9: Varianti RUP]:::alerts
                 
+                T9 -. "Invita a valutare i rischi" .-> T8
                 T9 == "Inietta Soldi e Giorni" ==> T1
                 T8 -- "Riserva Monetaria" --> T5
                 T5 -. "Indice SPI colora le barre" .-> T4
@@ -3191,6 +3192,4 @@ with col_sviluppo:
             st.info("""
             * **📥 Importatore Nativo PriMus (.csv / .xls):** Integrazione diretta per mappare i computi metrici estimativi di ACCA software direttamente sull'albero WBS e sui budget di cantiere.
             * **🌐 Viewer BIM 4D / SLAM integrato:** Collegamento delle nuvole di punti 3D e dei virtual tour laser scanner direttamente alle singole voci di stato d'avanzamento.
-            * **📄 Generatore Automatico del Giornale dei Lavori:** Esportazione in PDF impaginata con loghi, verbali di cantiere, firme e grafici di cash flow pronti per la DL.
-            * **📊 Modulo Finanziario Immobiliare Avanzato:** Calcolo automatico del VAN (Valore Attivo Netto) e del TIR (Tasso Interno di Rendimento) per operazioni di sviluppo immobiliare.
             """)
