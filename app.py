@@ -3190,6 +3190,6 @@ with col_sviluppo:
             st.markdown("Ecco le funzioni di livello Enterprise che verranno integrate nelle prossime release autonome:")
             
             st.info("""
-            * **📥 Importatore Nativo PriMus (.csv / .xls):** Integrazione diretta per mappare i computi metrici estimativi di ACCA software direttamente sull'albero WBS e sui budget di cantiere.
+            * **📥 Importatore Nativo PriMus (.csv / .xls):** Integrazione diretta per mappare i computi metrici estimativi di ACCA software direttamente sull'albero WBS.
             * **🌐 Viewer BIM 4D / SLAM integrato:** Collegamento delle nuvole di punti 3D e dei virtual tour laser scanner direttamente alle singole voci di stato d'avanzamento.
             """)
